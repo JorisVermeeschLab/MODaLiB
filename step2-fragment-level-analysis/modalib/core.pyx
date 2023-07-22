@@ -38,6 +38,16 @@ cimport numpy as cnp
 cnp.import_array()
 
 
+
+def coords_to_partition_(chr_id: int, pos: int, n_partitions: int) -> int:
+    return coords_to_partition(chr_id, pos, n_partitions)
+
+
+# ---------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------
+
+
 Read = collections.namedtuple(
     'Read',
     ['chr_id', 'start', 'size', 'n_methylated', 'n_unmethylated', 'gc_count', 's_count']

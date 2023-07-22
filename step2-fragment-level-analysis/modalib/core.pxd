@@ -33,6 +33,11 @@ cimport numpy as cnp
 cnp.import_array()
 
 
+cdef extern from "modalib/bounds.h" namespace "modalib":
+
+    cdef int coords_to_partition(cnp.uint8_t chr_id, long pos, size_t n_partitions)
+
+
 cdef extern from "modalib/region_list.h" namespace "modalib":
 
     cdef cppclass _RegionList:
