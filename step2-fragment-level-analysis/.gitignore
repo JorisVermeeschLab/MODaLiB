@@ -1,0 +1,14 @@
+*.pyd
+*.pyc
+*.c
+
+X.npz
+
+out/
+
+*.egg-info/
+__pycache__/
+build/
+dist/
+
+.idea/
