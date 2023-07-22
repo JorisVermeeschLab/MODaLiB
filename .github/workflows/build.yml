@@ -25,10 +25,9 @@ jobs:
       run: |
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
         python -m pip install --upgrade pip
-        python -m pip install pytest nose coverage
+        python -m pip install pytest nose
         cd step2-fragment-level-analysis
         python setup.py install
     - name: Test with nose
       run: |
-        cd tests
-        coverage run -m nose -v .
+        nosetests tests
