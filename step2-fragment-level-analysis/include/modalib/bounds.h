@@ -72,13 +72,17 @@ static const std::vector<std::pair<long, long>> CHROMOSOME_BOUNDS_CUMULATIVE {
     std::pair<long, long>(61621L, 4L)
 };
 
+inline unsigned long clamp(unsigned long value, unsigned long lb, unsigned long ub) {
+    if (value < lb) value = lb;
+    if (value > ub) value = ub;
+    return value;
+}
+
 inline int coords_to_partition(uint8_t chr_id, long pos, size_t n_partitions) {
     const std::pair<long, long>& coords = CHROMOSOME_BOUNDS_CUMULATIVE.at(chr_id);
-    pos = std::min(pos, static_cast<unsigned long>(coords.second * BIN_SIZE - 1L));
-    pos = std::max(0L, pos);
-    const unsigned long combined_coords = coords.first * BIN_SIZE + pos;
-    size_t partition_id = (combined_coords * n_partitions) / static_cast<unsigned long>(BIN_SIZE * NUM_50KB_BINS);
-    return std::max(0, static_cast<int>(std::min(partition_id, n_partitions - 1)));
+    const unsigned long combined_coords = coords.first * BIN_SIZE + clamp(pos, 0L, coords.second * BIN_SIZE - 1L);
+    size_t partition_id = static_cast<unsigned long>(combined_coords * n_partitions) / static_cast<unsigned long>(BIN_SIZE * NUM_50KB_BINS);
+    return clamp(partition_id, 0, n_partitions - 1);
 }
 
 } // namespace modalib
