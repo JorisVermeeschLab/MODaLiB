@@ -8,9 +8,6 @@
 *.log
 *.pt
 
-*.png
-*.eps
-
 *.short
 *.pickle
 
