@@ -10,7 +10,7 @@ namespace modalib {
 
 static const long NUM_50KB_BINS = 61625L;
 static const long BIN_SIZE = 50000L;
-static const long NUM_PARTITIONS = 10L;
+static const long NUM_PARTITIONS = 30L;
 
 static const std::vector<std::pair<std::string, uint32_t>> CHROMOSOME_BOUNDS {
     std::pair<std::string, uint32_t>("Unknown", 0),

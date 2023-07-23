@@ -4,3 +4,5 @@ MODaLiB
 =======
 
 Multi-omic Data Fusion for Liquid Biospies.
+
+<img align="left" src="docs/source/_static/MKL-summary.png" />

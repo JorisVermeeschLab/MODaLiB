@@ -5,7 +5,7 @@
 #SBATCH --nodes 1
 #SBATCH --ntasks 1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task 20
+#SBATCH --cpus-per-task 15
 #SBATCH --mem=64G
 #SBATCH -A lp_joris_vermeesch
 #SBATCH -J mkl
