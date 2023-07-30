@@ -5,7 +5,7 @@
 #include <functional>
 #include <stdint.h>
 
-#include "read_info.h"
+#include "fragment_info.h"
 
 namespace modalib {
 
@@ -19,7 +19,7 @@ public:
     Site start;
     Site end;
     Region(uint8_t chr, uint32_t start, uint32_t end);
-    int cmp(const ReadInfo &read_info);
+    int cmp(const FragmentInfo&);
     bool operator==(const Region &other) const {
         bool v = (start.chr == other.start.chr);
         v &= (start.pos == other.start.pos);

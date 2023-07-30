@@ -45,17 +45,19 @@ cdef extern from "modalib/region_list.h" namespace "modalib":
         void load(const string &filepath)
 
 
-cdef extern from "modalib/read_info.h" namespace "modalib":
+cdef extern from "modalib/fragment_info.h" namespace "modalib":
 
-    cdef struct ReadInfo:
+    cdef struct FragmentInfo:
         cnp.uint8_t start_chr_id
         cnp.uint32_t start_pos
+        cnp.uint8_t end_chr_id
+        cnp.uint32_t end_pos
+        cnp.uint16_t size
         cnp.uint16_t n_methylated
         cnp.uint16_t n_unmethylated
+        cnp.uint16_t snp_count
         cnp.uint16_t gc_count
         cnp.uint16_t s_count
-        cnp.uint16_t size
-        float nuc_score
 
 
 cdef extern from "modalib/sample.h" namespace "modalib":
@@ -64,7 +66,7 @@ cdef extern from "modalib/sample.h" namespace "modalib":
         _Sample() nogil
         _Sample(string filepath) nogil
         void operator=(const _Sample&) nogil
-        ReadInfo& get() nogil
+        FragmentInfo& get() nogil
         void next() nogil
         bool eof() nogil
 
@@ -81,7 +83,6 @@ cdef extern from "modalib/features.h" namespace "modalib":
 
     cdef unordered_map[cnp.uint8_t, vector[FeatureMatrix]] extract_all_features(
             vector[_Sample]& samples,
-            vector[bool] chr_mask,
             unordered_map[cnp.uint8_t, vector[long]]& nuc_pos
     ) nogil
 
@@ -98,6 +99,5 @@ cdef extern from "modalib/kernel.h" namespace "modalib":
 
     cdef unordered_map[cnp.uint8_t, vector[KernelMatrix]] compute_kernel_matrices(
             vector[_Sample]& samples,
-            vector[bool]& chr_mask,
             unordered_map[cnp.uint8_t, vector[long]]& nuc_pos
     ) nogil

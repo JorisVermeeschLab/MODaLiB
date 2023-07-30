@@ -59,10 +59,10 @@ void _RegionList::load(const std::string &filepath) {
     }
 }
 
-bool _RegionList::contains(const ReadInfo &read_info) {
+bool _RegionList::contains(const FragmentInfo &frag_info) {
     if (end_reached()) return false;
     int res;
-    while ((cursor < regions.size()) && ((res = regions[cursor].cmp(read_info)) == -1)) {
+    while ((cursor < regions.size()) && ((res = regions[cursor].cmp(frag_info)) == -1)) {
         cursor++;
     }
     if (cursor < regions.size()) {

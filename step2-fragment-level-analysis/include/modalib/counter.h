@@ -8,7 +8,7 @@
 #include <vector>
 #include <iostream>
 
-#include "read_info.h"
+#include "fragment_info.h"
 #include "bounds.h"
 
 namespace modalib {
@@ -22,16 +22,16 @@ private:
 
     std::vector<long> counts;
     std::vector<long> total_counts;
-    std::deque<ReadInfo> window;
-    static inline int gc_index(const ReadInfo& read) {
-        const int gc = static_cast<int>(std::roundf(100.0f * read.get_gc_ratio()));
+    std::deque<FragmentInfo> window;
+    static inline int gc_index(const FragmentInfo& frag) {
+        const int gc = static_cast<int>(std::roundf(100.0f * frag.get_gc_ratio()));
         return std::max(0, std::min(gc, 100));
     }
-    bool contains(const ReadInfo& read) {
+    bool contains(const FragmentInfo& frag) {
         if (window.size() == 0) return true;
-        const ReadInfo& newest = window.back();
-        if (newest.start_chr_id != read.start_chr_id) return false;
-        if (std::labs(newest.start_pos - read.start_pos) >= WINDOW_SIZE) return false;
+        const FragmentInfo& newest = window.back();
+        if (newest.start_chr_id != frag.start_chr_id) return false;
+        if (std::labs(newest.start_pos - frag.start_pos) >= WINDOW_SIZE) return false;
         return true;
     }
     void update() {
@@ -44,16 +44,16 @@ private:
 public:
     Counter() : total(0), bounds(), counts(101, 0), total_counts(101, 0), window() {}
     Counter(const Counter& other) : total(other.total), bounds(other.bounds), counts(other.counts), total_counts(other.total_counts), window(other.window) {}
-    void add(const ReadInfo& read) {
-        const int gc = gc_index(read);
+    void add(const FragmentInfo& frag) {
+        const int gc = gc_index(frag);
         counts[gc]++;
-        window.push_back(read);
+        window.push_back(frag);
     } // TODO: difference between add and update?
-    void inc_total_counts(const ReadInfo& read) {
-        const int gc = gc_index(read);
+    void inc_total_counts(const FragmentInfo& frag) {
+        const int gc = gc_index(frag);
         total_counts[gc]++;
 
-        const int partition_id = coords_to_partition(read.start_chr_id, read.start_pos, NUM_PARTITIONS);
+        const int partition_id = coords_to_partition(frag.start_chr_id, frag.start_pos, NUM_PARTITIONS);
         auto it = bounds.find(partition_id);
         if (it != bounds.end()) {
             it->second.second = total;
@@ -62,8 +62,8 @@ public:
         }
         total++;
     }
-    float get_density(const ReadInfo& read) noexcept {
-        const int gc = gc_index(read);
+    float get_density(const FragmentInfo& frag) noexcept {
+        const int gc = gc_index(frag);
         if (total_counts[gc] == 0) return 0.0;
         update();
         // std::cout << counts[gc] << ", " << total_counts[gc] << ", ";

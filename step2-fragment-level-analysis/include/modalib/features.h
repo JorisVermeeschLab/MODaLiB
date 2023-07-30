@@ -29,7 +29,7 @@
 #include <cstdlib>
 
 #include "array_utils.h"
-#include "read_info.h"
+#include "fragment_info.h"
 #include "bounds.h"
 #include "sample.h"
 #include "utils.h"
@@ -71,26 +71,21 @@ public:
 
 std::unordered_map<uint8_t, std::vector<FeatureMatrix>> extract_all_features(
         std::vector<_Sample>& samples,
-        std::vector<bool> chr_mask,
         std::unordered_map<uint8_t, std::vector<long>>& nuc_pos
         ) {
 
 	size_t n = samples.size();
 
 	std::unordered_map<uint8_t, std::vector<FeatureMatrix>> matrices;
-	for (uint8_t chr_id = 0; chr_id < chr_mask.size(); ++chr_id) {
-	    if (chr_id < CHROMOSOME_BOUNDS.size()) {
-            size_t m = CHROMOSOME_BOUNDS.at(chr_id).second;
-            if (chr_mask.at(chr_id)) {
-                matrices[chr_id] = std::vector<FeatureMatrix>({
-                    FeatureMatrix(n, m),  // Nucleosomes
-                    FeatureMatrix(n, m),  // Long-short ratios
-                    FeatureMatrix(n, m),  // Methylation
-                    FeatureMatrix(n, m, false),  // Read counts
-                    FeatureMatrix(n, m)  // Mutation burden
-                });
-            }
-        }
+	for (uint8_t chr_id = 0; chr_id < CHROMOSOME_BOUNDS.size(); ++chr_id) {
+        size_t m = CHROMOSOME_BOUNDS.at(chr_id).second;
+        matrices[chr_id] = std::vector<FeatureMatrix>({
+            FeatureMatrix(n, m),  // Nucleosomes
+            FeatureMatrix(n, m),  // Long-short ratios
+            FeatureMatrix(n, m),  // Methylation
+            FeatureMatrix(n, m, false),  // Frag counts
+            FeatureMatrix(n, m)  // Mutation burden
+        });
 	}
 
 	for (_Sample sample : samples) sample.reset();
@@ -105,58 +100,55 @@ std::unordered_map<uint8_t, std::vector<FeatureMatrix>> extract_all_features(
 
     	while (!sample.eof()) {    		
 
-            const ReadInfo& read_i = sample.get();
+            const FragmentInfo& frag_i = sample.get();
 
-    		const uint8_t chr_id = read_i.start_chr_id;
+    		const uint8_t chr_id = frag_i.start_chr_id;
 
-    		if ((chr_id < chr_mask.size()) && (chr_mask.at(chr_id))) {
+            // Get statistics about current frag
+            const long coord_i = frag_i.start_pos;
+            const long combined_coord_i = combine_coords(chr_id, coord_i);
+            const long l_i = frag_i.size;
+            const float depth_i = static_cast<float>(frag_i.n_sites());
+            const float m_i = frag_i.get_meth_ratio();
 
-                // Get statistics about current read
-                const long coord_i = read_i.start_pos;
-                const long combined_coord_i = combine_coords(chr_id, coord_i);
-                const long l_i = read_i.size;
-                const float depth_i = static_cast<float>(read_i.n_sites());
-                const float m_i = read_i.get_meth_ratio();
+            // Ensure fragments are sorted
+            if (combined_coord_i < current_combined_coord) {
+                std::cout << "Fragments are not properly sorted: (" << combined_coord_i << " < ";
+                std::cout << current_combined_coord << ")" << std::endl;
+            }
 
-                // Ensure fragments are sorted
-                if (combined_coord_i < current_combined_coord) {
-                    std::cout << "Fragments are not properly sorted: (" << combined_coord_i << " < ";
-                    std::cout << current_combined_coord << ")" << std::endl;
+            // Get bin index
+		    const size_t j = coord_i / 50000;
+
+            // Update nucleosome features
+		    if (j < matrices.at(chr_id).at(0).n_cols()) {
+                float score = osc.phase_shift_score_wrt_reference(chr_id, static_cast<unsigned long>(coord_i));
+                score += osc.phase_shift_score_wrt_reference(chr_id, static_cast<unsigned long>(coord_i + l_i));
+                matrices.at(chr_id).at(0).add(0.5f * score, i, j, 1.0f);
+            }
+
+            // Update long short ratios
+            if (j < matrices.at(chr_id).at(1).n_cols()) {
+                if (l_i > 150) {
+                    matrices.at(chr_id).at(1).add_unweighted(1.0f, i, j, 0.0f);
+                } else {
+                    matrices.at(chr_id).at(1).add_unweighted(0.0f, i, j, 1.0f);
                 }
+            }
 
-                // Get bin index
-    		    const size_t j = coord_i / 50000;
+            // Update genome-wide methylation features
+            if (j < matrices.at(chr_id).at(2).n_cols()) {
+                matrices.at(chr_id).at(2).add(m_i, i, j, depth_i);
+            }
 
-                // Update nucleosome features
-    		    if (j < matrices.at(chr_id).at(0).n_cols()) {
-                    float score = osc.phase_shift_score_wrt_reference(chr_id, static_cast<unsigned long>(coord_i));
-                    score += osc.phase_shift_score_wrt_reference(chr_id, static_cast<unsigned long>(coord_i + l_i));
-                    matrices.at(chr_id).at(0).add(0.5f * score, i, j, 1.0f);
-                }
+            // Update frag counts
+            if (j < matrices.at(chr_id).at(3).n_cols()) {
+                matrices.at(chr_id).at(3).add(1.0f, i, j, 1.0f);
+            }
 
-                // Update long short ratios
-                if (j < matrices.at(chr_id).at(1).n_cols()) {
-                    if (l_i > 150) {
-                        matrices.at(chr_id).at(1).add_unweighted(1.0f, i, j, 0.0f);
-                    } else {
-                        matrices.at(chr_id).at(1).add_unweighted(0.0f, i, j, 1.0f);
-                    }
-                }
-
-                // Update genome-wide methylation features
-                if (j < matrices.at(chr_id).at(2).n_cols()) {
-                    matrices.at(chr_id).at(2).add(m_i, i, j, depth_i);
-                }
-
-                // Update read counts
-                if (j < matrices.at(chr_id).at(3).n_cols()) {
-                    matrices.at(chr_id).at(3).add(1.0f, i, j, 1.0f);
-                }
-
-                // Update mutation burden features
-                if (j < matrices.at(chr_id).at(4).n_cols()) {
-                    matrices.at(chr_id).at(4).add(read_i.get_mutation_burden(), i, j, read_i.s_count);
-                }
+            // Update mutation burden features
+            if (j < matrices.at(chr_id).at(4).n_cols()) {
+                matrices.at(chr_id).at(4).add(frag_i.get_mutation_burden(), i, j, frag_i.s_count);
             }
 
     		// Move to next fragment

@@ -1,5 +1,5 @@
 #include "modalib/site.h"
-#include "modalib/read_info.h"
+#include "modalib/fragment_info.h"
 
 #include <assert.h>
 #include <iostream>
@@ -15,7 +15,7 @@ Region::Region(uint8_t chr, uint32_t start, uint32_t end) {
 }
 
 /**
- * Compare the position of a read with respect to the closest region.
+ * Compare the position of a fragment with respect to the closest region.
  *
  * If the read has no intersection with the region, and is located left
  * to the region, 1 will be returned.
@@ -40,7 +40,7 @@ Region::Region(uint8_t chr, uint32_t start, uint32_t end) {
  * @param r Read summary.
  * @return Status indicating the relative position of the read.
  */
-int Region::cmp(const ReadInfo &r) {
+int Region::cmp(const FragmentInfo &r) {
     uint8_t chr_id = this->start.chr;
     uint32_t start = this->start.pos;
     uint32_t end = this->end.pos;

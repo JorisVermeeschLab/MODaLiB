@@ -20,7 +20,7 @@
 #ifndef _SAMPLE_H__
 #define _SAMPLE_H__
 
-#include "read_info.h"
+#include "fragment_info.h"
 #include "osc.h"
 
 #include <fstream>
@@ -50,10 +50,10 @@ private:
 	std::ifstream is;
 
     // Last fragment parsed
-	ReadInfo read_info;
+	FragmentInfo frag;
 
     // Second-last fragment parsed
-	ReadInfo previous_read;
+	FragmentInfo previous_frag;
 
 public:
 	_Sample();
@@ -72,8 +72,8 @@ public:
     void set_upper_bound(long n);
 
     // Getters and setters
-    inline const ReadInfo& get() { return read_info; }
-    inline const ReadInfo& get_previous() { return previous_read; }
+    inline const FragmentInfo& get() { return frag; }
+    inline const FragmentInfo& get_previous() { return previous_frag; }
 
 };
 

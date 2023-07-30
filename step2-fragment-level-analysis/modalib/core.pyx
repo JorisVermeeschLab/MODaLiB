@@ -38,6 +38,10 @@ cimport numpy as cnp
 cnp.import_array()
 
 
+MIN_CHR_ID = 1
+MAX_CHR_ID = 26
+
+
 
 def coords_to_partition_(chr_id: int, pos: int, n_partitions: int) -> int:
     return coords_to_partition(chr_id, pos, n_partitions)
@@ -48,9 +52,9 @@ def coords_to_partition_(chr_id: int, pos: int, n_partitions: int) -> int:
 # ---------------------------------------------------------------------------------------
 
 
-Read = collections.namedtuple(
-    'Read',
-    ['chr_id', 'start', 'size', 'n_methylated', 'n_unmethylated', 'gc_count', 's_count']
+Fragment = collections.namedtuple(
+    'Fragment',
+    ['chr_id', 'start', 'end', 'size', 'n_methylated', 'n_unmethylated', 'gc_count', 's_count']
 )
 
 
@@ -70,15 +74,16 @@ cdef class Sample:
 
     def __iter__(self):
         while not self.sample_.eof():
-            read = self.sample_.get()
-            yield Read(
-                chr_id=read.start_chr_id,
-                start=read.start_pos,
-                size=read.size,
-                n_methylated=read.n_methylated,
-                n_unmethylated=read.n_unmethylated,
-                gc_count=read.gc_count,
-                s_count=read.s_count
+            frag = self.sample_.get()
+            yield Fragment(
+                chr_id=frag.start_chr_id,
+                start=frag.start_pos,
+                end=frag.end_pos,
+                size=frag.size,
+                n_methylated=frag.n_methylated,
+                n_unmethylated=frag.n_unmethylated,
+                gc_count=frag.gc_count,
+                s_count=frag.s_count
             )
             self.sample_.next()
 
@@ -95,74 +100,18 @@ cdef cnp.ndarray to_array(KernelMatrix &km):
     return np.asarray(arr)
 
 
-cdef vector[_Sample] samples_from_filepaths(vector[string]& filepaths) nogil:
+cdef vector[_Sample] samples_from_filepaths(filepaths: List[str]):
     cdef vector[_Sample] samples
-    cdef vector[string].iterator it = filepaths.begin()
-    with nogil:
-        while it != filepaths.end():
-            samples.push_back(_Sample(dereference(it)))
-            preincrement(it)
+    for filepath in filepaths:
+        samples.push_back(_Sample(filepath))
     return samples
 
 
-cdef unordered_map[cnp.uint8_t, vector[KernelMatrix]] compute_kernel_matrices_whole_genome(
-        vector[string]& filepaths,
-        unordered_map[cnp.uint8_t, vector[long]]& nuc_pos
-) nogil:
-    cdef vector[_Sample] samples = samples_from_filepaths(filepaths)
-    cdef vector[bool] chr_mask
-    chr_mask.push_back(False)
-    for _ in range(26):
-        chr_mask.push_back(True)
-    return compute_kernel_matrices(samples, chr_mask, nuc_pos)
-
-
-cdef unordered_map[cnp.uint8_t, vector[KernelMatrix]] compute_kernel_matrices_multiple_chromosomes(
-        vector[string]& filepaths,
-        set chr_ids,
-        unordered_map[cnp.uint8_t, vector[long]]& nuc_pos
-):
-    cdef vector[_Sample] samples = samples_from_filepaths(filepaths)
-    cdef vector[bool] chr_mask
-    for c in range(27):
-        chr_mask.push_back(c in chr_ids)
-    return compute_kernel_matrices(samples, chr_mask, nuc_pos)
-
-
-cdef unordered_map[cnp.uint8_t, vector[KernelMatrix]] compute_kernel_matrices_one_chromosome(
-        vector[string]& filepaths,
-        cnp.uint8_t chr_id,
-        unordered_map[cnp.uint8_t, vector[long]]& nuc_pos
-) nogil:
-    cdef vector[_Sample] samples = samples_from_filepaths(filepaths)
-    cdef vector[bool] chr_mask
-    for c in range(27):
-        chr_mask.push_back(c == chr_id)
-    return compute_kernel_matrices(samples, chr_mask, nuc_pos)
-
-
-def pairwise_kernels(
-        samples: List[Sample],
-        nuc_folder: str,
-        chr_ids: Optional[Set[int]] = None,
-        multithreaded: bool = False
-) -> Dict[int, List[np.ndarray]]:
-
-    n = len(samples)
-    if n <= 1:
-        raise ValueError(f'Number of samples should be at least 2. Got {n}.')
-
-    cdef Sample sample
-    cdef vector[_Sample] samples_
-    cdef vector[string] filepaths
-    cdef int i
-    for i in range(len(samples)):
-        sample = samples[i]
-        samples_.push_back(sample.get())
-        filepaths.push_back(sample.filepath)
-
+cdef unordered_map[cnp.uint8_t, vector[long]] load_ref_nuc_map(nuc_folder: str):
+    # TODO: reference map is getting copied upon return -> optimize this
     cdef unordered_map[cnp.uint8_t, vector[long]] nuc_pos
     cdef long[:] pos
+    cdef int i, chr_id
     for chr_id in range(1, 27):
         filepath = os.path.join(nuc_folder, f'{chr_id}.npy')
         if not os.path.exists(filepath):
@@ -176,28 +125,32 @@ def pairwise_kernels(
             with nogil:
                 for i in range(pos.shape[0]):
                     nuc_pos[chr_id].push_back(pos[i])
+    return nuc_pos
 
+
+def pairwise_kernels(
+        filepaths: List[str],
+        nuc_folder: str
+) -> Dict[int, List[np.ndarray]]:
+
+    # Check number of samples
+    n = len(filepaths)
+    if n <= 1:
+        raise ValueError(f'Number of samples should be at least 2. Got {n}.')
+
+    # Load reference nucleosome map
+    cdef unordered_map[cnp.uint8_t, vector[long]] nuc_pos = load_ref_nuc_map(nuc_folder)
+
+    # Compute kernel matrices
+    cdef unordered_map[cnp.uint8_t, vector[KernelMatrix]] matrices_ = compute_kernel_matrices(samples_from_filepaths(filepaths), nuc_pos)
+
+    # Convert output kernel matrices to dict of lists of numpy arrays
     matrices = {}
-
-    cdef KernelMatrix km
-    cdef cnp.double_t[:, :] arr
-    cdef unordered_map[cnp.uint8_t, vector[KernelMatrix]] matrices_, matrices_i_
-    cdef int k, c
-    if not multithreaded:
-        if chr_ids is not None:
-            matrices_ = compute_kernel_matrices_multiple_chromosomes(filepaths, chr_ids, nuc_pos)
-        else:
-            matrices_ = compute_kernel_matrices_whole_genome(filepaths, nuc_pos)
-    else:
-        # for c in range(1, 27):
-        for c in prange(1, 27, nogil=True, num_threads=27, schedule='dynamic'):
-            matrices_i_ = compute_kernel_matrices_one_chromosome(filepaths, c, nuc_pos)
-            matrices_[c] = matrices_i_[c]
-    for chr_id in range(1, 27):
+    for chr_id in range(MIN_CHR_ID, MAX_CHR_ID + 1):
         if matrices_.find(chr_id) != matrices_.end():
             matrices[chr_id] = []
-            for k in range(matrices_[chr_id].size()):
-                matrices[chr_id].append(to_array(matrices_[chr_id][k]))
+            for k in range(matrices_.at(chr_id).size()):
+                matrices[chr_id].append(to_array(matrices_.at(chr_id).at(k)))
 
     return matrices
 
@@ -219,82 +172,28 @@ cdef cnp.ndarray fm_to_array(FeatureMatrix &km):
     return np.asarray(arr)
 
 
-cdef unordered_map[cnp.uint8_t, vector[FeatureMatrix]] compute_feature_matrices_whole_genome(
-        vector[string]& filepaths,
-        unordered_map[cnp.uint8_t, vector[long]]& nuc_pos
-) nogil:
-    cdef vector[_Sample] samples = samples_from_filepaths(filepaths)
-    cdef vector[bool] chr_mask
-    chr_mask.push_back(False)
-    for _ in range(27):
-        chr_mask.push_back(True)
-    return extract_all_features(samples, chr_mask, nuc_pos)
-
-
-cdef unordered_map[cnp.uint8_t, vector[FeatureMatrix]] compute_feature_matrices_one_chromosome(
-        vector[string]& filepaths,
-        cnp.uint8_t chr_id,
-        unordered_map[cnp.uint8_t, vector[long]]& nuc_pos
-) nogil:
-    cdef vector[_Sample] samples = samples_from_filepaths(filepaths)
-    cdef vector[bool] chr_mask
-    for c in range(27):
-        chr_mask.push_back(c == chr_id)
-    return extract_all_features(samples, chr_mask, nuc_pos)
-
-
 def extract_features(
-        samples: List[Sample],
-        nuc_folder: str,
-        multithreaded: bool = False
+        filepaths: List[str],
+        nuc_folder: str
 ) -> Dict[int, List[np.ndarray]]:
 
-    n = len(samples)
-    if n <= 1:
-        raise ValueError(f'Number of samples should be at least 2. Got {n}.')
+    # Check number of samples
+    n = len(filepaths)
+    if n < 1:
+        raise ValueError(f'Number of samples should be at least 1. Got {n}.')
 
-    cdef Sample sample
-    cdef vector[_Sample] samples_
-    cdef vector[string] filepaths
-    cdef int i
-    for i in range(len(samples)):
-        sample = samples[i]
-        samples_.push_back(sample.get())
-        filepaths.push_back(sample.filepath)
+    # Load reference nucleosome map
+    cdef unordered_map[cnp.uint8_t, vector[long]] nuc_pos = load_ref_nuc_map(nuc_folder)
 
-    cdef unordered_map[cnp.uint8_t, vector[long]] nuc_pos
-    cdef long[:] pos
-    for chr_id in range(1, 27):
-        filepath = os.path.join(nuc_folder, f'{chr_id}.npy')
-        if not os.path.exists(filepath):
-            raise FileNotFoundError(
-                f'Nucleosome position file (.npy format) is missing for chromosome "{chr_id}": '
-                f'Could not locate file {filepath}.'
-            )
-        else:
-            nuc_pos[chr_id] = vector[long]()
-            pos = np.load(filepath).astype(int)
-            with nogil:
-                for i in range(pos.shape[0]):
-                    nuc_pos[chr_id].push_back(pos[i])
+    # Compute feature matrices
+    cdef unordered_map[cnp.uint8_t, vector[FeatureMatrix]] matrices_ = extract_all_features(samples_from_filepaths(filepaths), nuc_pos)
 
+    # Convert output feature matrices to dict of list of numpy arrays
     matrices = {}
-
-    cdef FeatureMatrix km
-    cdef cnp.double_t[:, :] arr
-    cdef unordered_map[cnp.uint8_t, vector[FeatureMatrix]] matrices_, matrices_i_
-    cdef int k, c
-    if not multithreaded:
-        matrices_ = compute_feature_matrices_whole_genome(filepaths, nuc_pos)
-    else:
-        # for c in range(1, 27):
-        for c in prange(1, 27, nogil=True, num_threads=27, schedule='dynamic'):
-            matrices_i_ = compute_feature_matrices_one_chromosome(filepaths, c, nuc_pos)
-            matrices_[c] = matrices_i_[c]
-    for chr_id in range(1, 27):
+    for chr_id in range(MIN_CHR_ID, MAX_CHR_ID + 1):
         if matrices_.find(chr_id) != matrices_.end():
             matrices[chr_id] = []
-            for k in range(matrices_[chr_id].size()):
-                matrices[chr_id].append(fm_to_array(matrices_[chr_id][k]))
+            for k in range(matrices_.at(chr_id).size()):
+                matrices[chr_id].append(fm_to_array(matrices_.at(chr_id).at(k)))
 
     return matrices

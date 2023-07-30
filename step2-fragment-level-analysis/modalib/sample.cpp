@@ -37,8 +37,8 @@ _Sample::_Sample(const _Sample& other) :
         lb(other.lb),
         ub(other.ub),
         filepath(other.filepath),
-        read_info(other.read_info),
-        previous_read(other.previous_read) {
+        frag(other.frag),
+        previous_frag(other.previous_frag) {
     this->open(this->filepath);
     this->is.seekg(other.cursor * FRAGMENT_SIZE_IN_BYTES);
 }
@@ -52,8 +52,8 @@ void _Sample::operator=(const _Sample& other) {
     this->lb = other.lb;
     this->ub = other.ub;
 	this->filepath = other.filepath;
-    this->read_info = other.read_info;
-    this->previous_read = other.previous_read;
+    this->frag = other.frag;
+    this->previous_frag = other.previous_frag;
     this->open(this->filepath);
     this->is.seekg(other.cursor * FRAGMENT_SIZE_IN_BYTES);
 }
@@ -80,10 +80,10 @@ void _Sample::next() {
     // Check if end-of-file has been reached
 	if (this->is.eof()) return;
 
-	// Keep track of previous read
-	this->previous_read = this->read_info;
+	// Keep track of previous frag
+	this->previous_frag = this->frag;
 
-    // Load new read
+    // Load new frag
     char buffer[FRAGMENT_SIZE_IN_BYTES];
     this->is.read(buffer, FRAGMENT_SIZE_IN_BYTES);
 
@@ -91,7 +91,7 @@ void _Sample::next() {
 
     if (!this->is) return;
 
-    this->read_info.deserialize(buffer);
+    this->frag.deserialize(buffer);
 }
 
 void _Sample::go_to_fragment(int i) {

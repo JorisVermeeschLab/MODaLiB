@@ -7,9 +7,11 @@ Welcome to MODaLiB's documentation!
 ===================================
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 4
    :caption: Contents:
 
+   guide/kernel-methods
+   guide/kernels
 
 
 Indices and tables

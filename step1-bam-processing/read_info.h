@@ -81,7 +81,7 @@ public:
 
 public:
     ReadInfo() = default;
-    ReadInfo(std::string id, const char* chr_name, uint32_t start, uint16_t length, uint16_t insert_size, uint16_t sam_flag) :
+    ReadInfo(std::string& id, const char* chr_name, uint32_t start, uint16_t length, uint16_t insert_size, uint16_t sam_flag) :
         id(id),
         chr_id(parse_chr_name(chr_name)),
         start(start),

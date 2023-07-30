@@ -21,6 +21,11 @@
 #include "read_info.h"
 #include "fragment.h"
 
+
+static constexpr bool DEBUG_TEXT_OUTPUT = false;
+
+
+
 pthread_mutex_t positionMutex;
 pthread_mutex_t bwMutex;
 pthread_mutex_t outputMutex;
@@ -57,9 +62,26 @@ void addFragment(kstring_t *os, Fragment& fragment) {
     // Ensure fragment is not too long
     // if (read.insert_size > 1000) return;
 
-    char buffer[FRAGMENT_SIZE_IN_BYTES];
-    fragment.serialize(buffer);
-    kputsn(buffer, sizeof(buffer), os);
+    if (DEBUG_TEXT_OUTPUT) {
+        char str[10000];
+        snprintf(str, 10000, "COMBINED: %"PRIu8"\t%"PRIu32"\t%"PRIu8"\t%"PRIu32"\t%"PRIu16"\t%"PRIu16"\t%"PRIu16"\t%"PRIu16"\t%"PRIu16"\t%"PRIu16"\n",
+            fragment.start_chr_id,
+            fragment.start_pos,
+            fragment.end_chr_id,
+            fragment.end_pos,
+            fragment.length,
+            fragment.n_methylated,
+            fragment.n_unmethylated,
+            fragment.snp_count,
+            fragment.gc_count,
+            fragment.s_count
+        );
+        kputs(str, os);
+    } else {
+        char buffer[FRAGMENT_SIZE_IN_BYTES];
+        fragment.serialize(buffer);
+        kputsn(buffer, sizeof(buffer), os);
+    }
 }
 
 
@@ -262,7 +284,16 @@ void* perReadMetrics(void *foo) {
             if (config->ignoreFlags && (config->ignoreFlags & b->core.flag) != 0) continue;
             if (b->core.qual < config->minMapq) continue;
             processRead(config, b, seq, localPos2, seqlen, read);
-            // addRead(os, b, hdr, read);
+
+            // TODO
+            // Get methylation calls in Nanopore reads
+            /**
+            uint8_t *mm = bam_aux_get(b, "MM");
+            uint8_t *ml = bam_aux_get(b, "ML");
+            if (mm && ml) {
+                printf("Read: %s, MM: %c, ML: %c\n", id, bam_aux2A(mm), bam_aux2A(ml));
+            }
+            */
 
             // Combine read pairs into fragments
             bool found_pair = false;
@@ -270,13 +301,20 @@ void* perReadMetrics(void *foo) {
             while (iter != paired_reads.end()) {
                 if (read.paired_with(*iter)) {
                     paired_reads.erase(iter);
-                    if (!read.is_first_in_pair()) {
-                        Fragment fragment = Fragment(*iter, read);
-                        addFragment(os, fragment);
+                    ReadInfo r1, r2;
+                    if (iter->start < read.start) {
+                        r1 = *iter;
+                        r2 = read;
                     } else {
-                        Fragment fragment = Fragment(read, *iter);
-                        addFragment(os, fragment);
+                        r1 = read;
+                        r2 = *iter;
                     }
+                    Fragment fragment(r1, r2);
+                    if (DEBUG_TEXT_OUTPUT) {
+                        addRead(os, b, hdr, r1);
+                        addRead(os, b, hdr, r2);
+                    }
+                    addFragment(os, fragment);
                     found_pair = true;
                     break;
                 }
@@ -288,6 +326,7 @@ void* perReadMetrics(void *foo) {
                     paired_reads.erase(paired_reads.begin());
                 }
             }
+
         }
         sam_itr_destroy(iter);
         free(seq);

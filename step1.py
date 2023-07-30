@@ -33,7 +33,7 @@ def process_bam_file(gc_code: str, filepath: str, override: bool = False) -> boo
         ot, ob = bounds[gc_code]
         print(f'Processing {gc_code}')
         cmd = f'{EXE_PATH} perRead {REF_GENOME_PATH} {filepath} ' \
-              f'-o {OUT_DIR}/{gc_code} --OT {ot} --OB {ob}'
+              f'-o {OUT_DIR}/{gc_code}.txt --OT {ot} --OB {ob}'
         try:
             os.system(cmd)
         except KeyboardInterrupt:
@@ -93,7 +93,7 @@ GC_CODES = {
 }
 """
 
-GC_CODES = {"GC114150"}
+GC_CODES = {"GC116736"}
 OVERRIDE = True
 
 n_failures = 0

@@ -20,18 +20,18 @@ sample_names = ['GC1002311', 'GC1002312', 'GC1002976', 'GC1002977', 'GC1002978',
 print(len(sample_names))
 
 sample_names_ = []
-samples = []
+filepaths = []
 for sample_name in sample_names:
     filepath = f'step1-bam-processing/out/{sample_name}'
     if os.path.exists(filepath):
-        samples.append(Sample(filepath))
+        filepaths.append(filepath)
         sample_names_.append(sample_name)
 
 nuc_folder = os.path.join(ROOT, 'step2-fragment-level-analysis', 'nucleosomes')
 
 if COMPUTE_FEATURES and (not os.path.exists('X.npz')):
     print('Extracting features...')
-    matrices = extract_features(samples, nuc_folder, multithreaded=False)
+    matrices = extract_features(filepaths, nuc_folder)
     np.savez(
         'X.npz',
         X=matrices,
@@ -41,10 +41,10 @@ if COMPUTE_FEATURES and (not os.path.exists('X.npz')):
 t0 = time.time()
 
 if COMPUTE_KERNELS and (not os.path.exists(f'K.npz')):
-    print(f'Computing kernel matrices from {len(samples)} sample(s)')
-    matrices = pairwise_kernels(samples, nuc_folder, multithreaded=False)
+    print(f'Computing kernel matrices from {len(filepaths)} sample(s)')
+    matrices = pairwise_kernels(filepaths, nuc_folder)
     np.savez(
-        f'K.npz',
+        'K.npz',
         K=np.asarray(matrices),
         sample_names=np.asarray(sample_names_, dtype=object)
     )

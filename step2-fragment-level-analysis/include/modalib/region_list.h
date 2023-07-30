@@ -20,7 +20,7 @@
 #ifndef _REGION_LIST_H__
 #define _REGION_LIST_H__
 
-#include "read_info.h"
+#include "fragment_info.h"
 #include "site.h"
 
 #include <fstream>
@@ -39,7 +39,7 @@ public:
     _RegionList(): regions(), cursor(0) {}
     void load(const std::string &filepath);
     void add_region(const std::string &chr_name, uint32_t start, uint32_t end);
-    bool contains(const ReadInfo &read_info);
+    bool contains(const FragmentInfo&);
     std::size_t get_region_id() { return cursor; }
     Region& get_region(std::size_t i) { return regions[i]; }
     Region& get_current_region();

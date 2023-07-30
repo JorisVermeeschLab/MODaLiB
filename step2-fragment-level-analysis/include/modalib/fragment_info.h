@@ -10,7 +10,7 @@ namespace modalib {
 
 static constexpr size_t FRAGMENT_SIZE_IN_BYTES = 22;
 
-struct ReadInfo {  // TODO: should be called FragmentInfo, or Fragment
+struct FragmentInfo {  // TODO: should be called FragmentInfo, or Fragment
 
     // Genomic coordinates of the fragment start
     uint8_t start_chr_id;
@@ -39,10 +39,10 @@ struct ReadInfo {  // TODO: should be called FragmentInfo, or Fragment
     uint16_t s_count = 0;
 
     // Constructor
-    ReadInfo() = default;
-    ReadInfo(const ReadInfo&) = default;
+    FragmentInfo() = default;
+    FragmentInfo(const FragmentInfo&) = default;
 
-    auto operator<(ReadInfo& other) const {
+    auto operator<(FragmentInfo& other) const {
     	if (start_chr_id < other.start_chr_id) return true;
     	else if (start_chr_id > other.start_chr_id) return false;
     	else return (start_pos < other.start_pos);

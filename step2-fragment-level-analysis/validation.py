@@ -15,7 +15,7 @@ from sklearn.metrics import matthews_corrcoef, roc_auc_score, adjusted_rand_scor
     calinski_harabasz_score, roc_curve, confusion_matrix
 from sklearn.metrics.pairwise import pairwise_kernels
 from sklearn.model_selection import LeaveOneOut, PredefinedSplit, KFold
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, KernelCenterer
 from sklearn.svm import SVC
 
 
@@ -155,12 +155,13 @@ def evaluate(kernel_idx):
             5862,  6445,  4671,  5082])
     w = w / np.sum(w)
     K_agg = np.sum(w[:, np.newaxis, np.newaxis, np.newaxis] * K, axis=0)
+    for k in range(len(K_agg)):
+        K_agg[k, :, :] = KernelCenterer().fit_transform(K_agg[k, :, :])
     K_agg = K_agg[kernel_idx, ...]
     K_agg = np.mean(K_agg, axis=0)
-    # np.fill_diagonal(K_agg, 0.5 * np.diagonal(K_agg) + 0.5)
 
-    # alpha = 1.0
-    # np.fill_diagonal(K_agg, alpha * np.diagonal(K_agg) + (1 - alpha) * np.ones(len(K_agg)))
+    #alpha = 0.1
+    #np.fill_diagonal(K_agg, alpha * np.diagonal(K_agg) + (1 - alpha) * np.ones(len(K_agg)))
 
     # Cross-validation
     y_target, y_pred1, y_pred2 = [], [], []
@@ -175,7 +176,7 @@ def evaluate(kernel_idx):
         y_train = y[train_index]
         Kf_test = K_f[test_index, :][:, train_index]
         y_test = y[test_index]
-        model = SVC(kernel='precomputed', probability=True, C=1, class_weight='balanced')
+        model = SVC(kernel='precomputed', probability=True, C=1000, class_weight='balanced')
         model.fit(Kf_train, y_train)
         y_pred1.append(model.predict_proba(Kf_test))
         model.fit(K_train, y_train)  # TODO
@@ -223,17 +224,17 @@ def evaluate(kernel_idx):
 
 
 settings = [
-    #([0], 'Nucleosomes', 'purple', '-'),
-    #([1, 2, 3, 4], None, 'purple', '--'),
-    #([1], 'Fragment lengths', 'royalblue', '-'),
-    #([0, 2, 3, 4], None, 'royalblue', '--'),
-    #([2], 'Methylation', 'gold', '-'),
-    #([0, 1, 3, 4], None, 'gold', '--'),
-    #([3], 'Read counts', 'forestgreen', '-'),
-    #([0, 1, 2, 4], None, 'forestgreen', '--'),
-    #([4], 'Mutations', 'crimson', '-'),
-    #([0, 1, 2, 3], None, 'crimson', '--'),
-    #([0, 1, 2, 3, 4], 'All', 'black', '-'),
+    ([0], 'Nucleosomes', 'purple', '-'),
+    ([1, 2, 3, 4], None, 'purple', '--'),
+    ([1], 'Fragment lengths', 'royalblue', '-'),
+    ([0, 2, 3, 4], None, 'royalblue', '--'),
+    ([2], 'Methylation', 'gold', '-'),
+    ([0, 1, 3, 4], None, 'gold', '--'),
+    ([3], 'Read counts', 'forestgreen', '-'),
+    ([0, 1, 2, 4], None, 'forestgreen', '--'),
+    ([4], 'Mutations', 'crimson', '-'),
+    ([0, 1, 2, 3], None, 'crimson', '--'),
+    ([0, 1, 2, 3, 4], 'All', 'black', '-'),
 ]
 
 

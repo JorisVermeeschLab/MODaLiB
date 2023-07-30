@@ -20,7 +20,7 @@
 #ifndef _OSC_H__
 #define _OSC_H__
 
-#include "modalib/read_info.h"
+#include "modalib/fragment_info.h"
 
 #include <fstream>
 #include <iostream>
@@ -66,6 +66,11 @@ public:
             for (int i = 1; i < n; i++) {
                 const long x1 = pos[i - 1];
                 const long x2 = pos[i];
+                if ((x2 - x1 > 500) || (x2 - x1 < 100)) {
+                    for (long j = 0; j < x2 - x1; j++) {
+                        ca[x1 + j] = 0.0f;
+                    }
+                }
                 for (long j = 0; j < x2 - x1; j++) {
                     ca[x1 + j] = 2.0f * static_cast<float>(j) / static_cast<float>(x2 - x1);
                 }
@@ -75,7 +80,7 @@ public:
 	    }
 	}
 	std::valarray<float> phase_shift_scores(
-	    uint8_t chr_id, const std::valarray<ReadInfo>& reads, const std::vector<int>& idx, const ReadInfo& read_i
+	    uint8_t chr_id, const std::valarray<FragmentInfo>& fragments, const std::vector<int>& idx, const FragmentInfo& frag_i
 	) const;
 	float phase_shift_score_wrt_reference(uint8_t chr_id, unsigned long x) const;
     inline float angle(uint8_t chr_id, unsigned long genomic_coord) const {

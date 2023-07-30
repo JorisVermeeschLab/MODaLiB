@@ -24,27 +24,27 @@
 namespace modalib {
 
 std::valarray<float> Oscillator::phase_shift_scores(
-        uint8_t chr_id, const std::valarray<ReadInfo>& reads, const std::vector<int>& idx, const ReadInfo& read_i
+        uint8_t chr_id, const std::valarray<FragmentInfo>& frags, const std::vector<int>& idx, const FragmentInfo& frag_i
         ) const {
 
     std::valarray<float> pss(0.0f, idx.size());
 
     const std::vector<float>& ca = this->chr_angles.at(chr_id);
-    if (read_i.end_pos >= ca.size()) return pss;
+    if (frag_i.end_pos >= ca.size()) return pss;
 
-    const float phi2 = ca.at(read_i.start_pos);
-    const float psi2 = ca.at(read_i.end_pos);
+    const float phi2 = ca.at(frag_i.start_pos);
+    const float psi2 = ca.at(frag_i.end_pos);
     for (size_t k = 0; k < idx.size(); k++) {
         const int j = idx[k];
 
-        if (reads[j].end_pos >= ca.size()) continue; // TODO: set weight to 0 (add weights as function arg)
+        if (frags[j].end_pos >= ca.size()) continue; // TODO: set weight to 0 (add weights as function arg)
 
         // Compute score for start positions
-        float phi = std::fabs(ca[reads[j].start_pos] - phi2);
+        float phi = std::fabs(ca[frags[j].start_pos] - phi2);
         phi = 1.0f - std::fmin(phi, 2.0f - phi);
 
         // Compute score for end positions
-        float psi = std::fabs(ca[reads[j].end_pos] - psi2);
+        float psi = std::fabs(ca[frags[j].end_pos] - psi2);
         psi = 1.0f - std::fmin(psi, 2.0f - psi);
 
         // Compute total score

@@ -1,3 +1,22 @@
+//  bounds.h
+//
+//  Copyright 2023 Antoine Passemiers <antoine.passemiers@gmail.com>
+//
+//  This program is free software; you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation; either version 2 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program; if not, write to the Free Software
+//  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+//  MA 02110-1301, USA.
+
 #ifndef _BOUNDS_H
 #define _BOUNDS_H
 
@@ -8,10 +27,22 @@
 
 namespace modalib {
 
+
+// Number of 50 kb bins in the human reference genome.
+// This should be equal to the sum of the values present in `CHROMOSOME_BOUNDS`.
+// TODO: add assertion
 static const long NUM_50KB_BINS = 61625L;
+
+// Size of a 50 kb bin (you guessed it, it's 50000)
 static const long BIN_SIZE = 50000L;
+
+// Number of partitions is the number of threads used in the CPU-intensive
+// part of the code. Partitions are roughly-equal portions of the genome
+// being processed in parallel.
 static const long NUM_PARTITIONS = 30L;
 
+// Number of 50 kb bins per chromosome.
+// Please note that some of the "chomosomes" are not actual ones (e.g., mitochondrial DNA).
 static const std::vector<std::pair<std::string, uint32_t>> CHROMOSOME_BOUNDS {
     std::pair<std::string, uint32_t>("Unknown", 0),
     std::pair<std::string, uint32_t>("chr1", 4945),
@@ -42,6 +73,7 @@ static const std::vector<std::pair<std::string, uint32_t>> CHROMOSOME_BOUNDS {
     std::pair<std::string, uint32_t>("EBV", 4)
 };
 
+// Start indices and number of 50 kb bins in each "chromosome"
 static const std::vector<std::pair<long, long>> CHROMOSOME_BOUNDS_CUMULATIVE {
     std::pair<long, long>(0L, 0L),
     std::pair<long, long>(0L, 4945L),
@@ -72,12 +104,28 @@ static const std::vector<std::pair<long, long>> CHROMOSOME_BOUNDS_CUMULATIVE {
     std::pair<long, long>(61621L, 4L)
 };
 
+
+/**
+ * Clip value between `lb` and `ub`.
+ *
+ * @param lb Lower bound
+ * @param ub Upper bound
+ * @return Clipped value
+ */
 inline unsigned long clamp(unsigned long value, unsigned long lb, unsigned long ub) {
     if (value < lb) value = lb;
     if (value > ub) value = ub;
     return value;
 }
 
+
+/**
+ * Get the partition where the input genomic coordinates point to.
+ *
+ * @param chr_id Chromosome identifier
+ * @param pos Position on chromosome `chr_id`
+ * @return Index of the partition
+ */
 inline int coords_to_partition(uint8_t chr_id, long pos, size_t n_partitions) {
     const std::pair<long, long>& coords = CHROMOSOME_BOUNDS_CUMULATIVE.at(chr_id);
     const unsigned long combined_coords = coords.first * BIN_SIZE + clamp(pos, 0L, coords.second * BIN_SIZE - 1L);

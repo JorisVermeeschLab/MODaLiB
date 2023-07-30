@@ -1,6 +1,6 @@
 //  kernel.h
 //
-//  Copyright 2022 Antoine Passemiers <antoine.passemiers@gmail.com>
+//  Copyright 2023 Antoine Passemiers <antoine.passemiers@gmail.com>
 //
 //  This program is free software; you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -21,12 +21,12 @@
 #define _KERNEL_H__
 
 #include "modalib/counter.h"
-#include "modalib/read_info.h"
+#include "modalib/fragment_info.h"
 #include "modalib/sample.h"
 #include "modalib/osc.h"
 #include "modalib/array_utils.h"
-#include "bounds.h"
-#include "utils.h"
+#include "modalib/bounds.h"
+#include "modalib/utils.h"
 
 #include <algorithm>
 #include <fstream>
@@ -44,57 +44,115 @@
 
 namespace modalib {
 
-const long MAX_READ_DISTANCE = 150;
-const long MAX_FRAGMENT_SIZE_DIFFERENCE = 1000;
+
+// Maximum distance allowed between the start positions of two fragments.
+// Above that threshold, the fragment pair will be ignored and won't contribution
+// to the estimation of any of the kernel functions.
+const long MAX_FRAGMENT_DISTANCE = 300;
+
+// Minimum fragment size.
+// Below that threshold, the current fragment won't contribute to the estimation
+// of any of the kernel functions.
 const long MIN_FRAGMENT_SIZE = 20;
 
 
 class KernelMatrix {
 private:
+
+    // Number of rows (= number of columns)
     size_t n;
+
+    // Flattened symmetric matrix of shape n*n representing the unnormalized kernel matrix.
+    // Kernel between samples S_i and S_j is computed as:
+    // k(S_i, S_j) = data[i*n+j] / weights[i*n+j]
     std::valarray<long double> data;
-    std::valarray<long double> counts;
+
+    // Flattened symmetric matrix of shape n*n representing the normalization factors
+    // for the kernel matrix.
+    std::valarray<long double> weights;
+
 public:
-	KernelMatrix() : n(0), data(0), counts(0) {}
-	KernelMatrix(size_t n): n(n), data(0.0, n * n), counts(0.0, n * n) {}
-	KernelMatrix(const KernelMatrix& other): n(other.n), data(other.data), counts(other.counts) {}
-	double operator()(int i, int j) noexcept {
-		long double count = this->counts[i * this->n + j];
-		if (count == 0) return 0;
-		return this->data[i * this->n + j] / count;
+
+    // Default constructor (kernel matrix of size 0*0)
+	KernelMatrix() : n(0), data(0), weights(0) {}
+
+    // Constructor (kernel matrix of size n*n)
+	KernelMatrix(size_t n): n(n), data(0.0, n * n), weights(0.0, n * n) {}
+
+    // Copy constructor
+	KernelMatrix(const KernelMatrix& other): n(other.n), data(other.data), weights(other.weights) {}
+
+    /**
+     * Access element (i, j) of the kernel matrix.
+     *
+     * @param i Row index
+     * @param j Column index
+     * @return Element (i, j) of the kernel matrix
+     */
+	inline double operator()(int i, int j) {
+		const long double weight = this->weights[i * this->n + j];
+		if (weight == 0.0) return 0.0;
+		return this->data[i * this->n + j] / weight;
 	}
-	inline void add_sym(float value, int i, int j, float weight) noexcept {
-        this->counts[i * this->n + j] += weight;
-        this->counts[j * this->n + i] += weight;
-        long double vw = static_cast<long double>(value * weight);
+
+    /**
+     * Add value to element (i, j) of the kernel matrix.
+     *
+     * Sample-level kernel matrix is defined as a weighted linear combination
+     * of fragment-level kernels:
+     * k(S_a, S_b) = \frac{\sum_{x_1 \in S_a}\sum_{x_2 \in S_a} w(x_1, x_2) \tilde{k}(x_1, x_2)}
+     * {\sum_{x_1 \in S_a}\sum_{x_2 \in S_a} w(x_1, x_2)}.
+     * Attribute `data` contains the numerator of k(S_a, S_b) and attribute `weights` contains
+     * the denominator of k(S_a, S_b). Therefore, numerator and denominators should be update
+     * separately, hence the need for an extra `weight` method parameter.
+     *
+     * @param value Value to multiply with `weight` and add (inplace) to the numerator of the kernel function.
+     * @param i Row index
+     * @param j Column index
+     * @param weight Value to add (inplace) to the denominator of the kernel function.
+     */
+	inline void add_sym(float value, int i, int j, float weight) {
+        this->weights[i * this->n + j] += weight;
+        this->weights[j * this->n + i] += weight;
+        const long double vw = static_cast<long double>(value * weight);
         this->data[i * this->n + j] += vw;
         this->data[j * this->n + i] += vw;
 	}
-	void add_sym(
-	        const std::valarray<float>& values, int i, const std::valarray<float>& weights, const std::vector<int>& idx
-	        ) noexcept {
-	    for (size_t k = 0; k < idx.size(); k++) {
-	        const int j = idx[k];
-	        this->counts[i * this->n + j] += weights[j];
-	        this->counts[j * this->n + i] += weights[j];
-            long double vw = static_cast<long double>(values[k] * weights[j]);
-	        this->data[i * this->n + j] += vw;
-	        this->data[j * this->n + i] += vw;
-	    }
-	}
+
+    // Number of rows (= number of columns)
 	inline size_t n_rows() { return this->n; }
+
+    // Number of columns (= number of rows)
 	inline size_t n_cols() { return this->n; }
 };
 
+
+/**
+ * Count the fragments in one sample.
+ *
+ * @param sample Sample to be processed
+ * @param counter Counter where to store the counts
+ */
 void init_counter(const _Sample& _sample, Counter& counter) {
     _Sample sample(_sample);
+    sample.reset();
     while (!sample.eof()) {
-        const ReadInfo& read = sample.get();
-        counter.inc_total_counts(read);
+        const FragmentInfo& frag = sample.get();
+        counter.inc_total_counts(frag);
         sample.next();
     }
 }
 
+
+/**
+ * Count the fragments in each sample.
+ *
+ * Samples are processed in parallel using multithreading.
+ *
+ * @param sample Samples to be processed
+ * @return Vector of counters containing the fragment counts.
+ *     the vector has the same size as `samples`.
+ */
 std::vector<Counter> init_counters(std::vector<_Sample>& samples) {
     const size_t n = samples.size();
     std::vector<Counter> counters(n);
@@ -143,19 +201,19 @@ void compute_kernel_matrices_for_one_chromosome(
     std::vector<int> idx(0);
     idx.reserve(n);
 
-    std::valarray<ReadInfo> reads(n);
+    std::valarray<FragmentInfo> frags(n);
     std::valarray<uint8_t> chr_ids(n);
 	std::valarray<long> coords(n);
 	std::valarray<long> combined_coords(n);
 	std::valarray<float> gc_ratios(n);
 	for (size_t i = 0; i < n; ++i) {
 	    _Sample& sample = samples.at(i);
-	    const ReadInfo& read_i = sample.get();
-	    reads[i] = read_i;
-	    chr_ids[i] = (sample.eof()) ? 0 : read_i.start_chr_id;
-		coords[i] = (sample.eof()) ? END_OF_SAMPLE : read_i.start_pos;
+	    const FragmentInfo& frag_i = sample.get();
+	    frags[i] = frag_i;
+	    chr_ids[i] = (sample.eof()) ? 0 : frag_i.start_chr_id;
+		coords[i] = (sample.eof()) ? END_OF_SAMPLE : frag_i.start_pos;
 		combined_coords[i] = combine_coords(chr_ids[i], coords[i]);
-		gc_ratios[i] = static_cast<float>((sample.eof()) ? 0 : read_i.get_gc_ratio());
+		gc_ratios[i] = static_cast<float>((sample.eof()) ? 0 : frag_i.get_gc_ratio());
 	}
 
     unsigned int n_processed = 0;
@@ -166,31 +224,31 @@ void compute_kernel_matrices_for_one_chromosome(
 
 		_Sample& sample = samples.at(i);
 
-        const ReadInfo& read_i = sample.get();
-        const ReadInfo& previous_read_i = sample.get_previous();
-        reads[i] = previous_read_i;
-        const uint8_t chr_id = read_i.start_chr_id;
+        const FragmentInfo& frag_i = sample.get();
+        const FragmentInfo& previous_frag_i = sample.get_previous();
+        frags[i] = previous_frag_i;
+        const uint8_t chr_id = frag_i.start_chr_id;
 
-		if ((read_i.size >= MIN_FRAGMENT_SIZE) && (read_i.start_chr_id == read_i.end_chr_id)) {
+        // Increment fragment counts for current sample i
+        counters.at(i).add(frag_i);
+
+		if ((frag_i.size >= MIN_FRAGMENT_SIZE) && (frag_i.start_chr_id == frag_i.end_chr_id)) {
 
             // Get kernel matrices for current chromosome
             std::vector<KernelMatrix>& matrices = all_matrices.at(chr_id);
 
-            // Increment fragment counts for current sample i
-            counters.at(i).add(read_i);
-
             // To compute k(x_i, x_i), don't compare current fragment with itself
             // but with previous fragment, to account for genome heterogeneity and noise
-            chr_ids[i] = previous_read_i.start_chr_id;
-            coords[i] = previous_read_i.start_pos;
-            gc_ratios[i] = previous_read_i.get_gc_ratio();
-            reads[i] = previous_read_i;
+            chr_ids[i] = previous_frag_i.start_chr_id;
+            coords[i] = previous_frag_i.start_pos;
+            gc_ratios[i] = previous_frag_i.get_gc_ratio();
+            frags[i] = previous_frag_i;
 
             // Get the indices of the samples whose current fragments are comparable with
             // current fragment of sample i
             idx.clear();
-            const long coord_i = read_i.start_pos;
-            std::valarray<float> w = read_i.get_gc_ratio() - gc_ratios;
+            const long coord_i = frag_i.start_pos;
+            std::valarray<float> w = frag_i.get_gc_ratio() - gc_ratios;
             for (size_t j = 0; j < n; ++j) {
 
                 // Alleviate sequencing biases by computing inter-fragment weights
@@ -198,35 +256,43 @@ void compute_kernel_matrices_for_one_chromosome(
 
                 // The two fragments being compared should be sufficiently close
                 w[j] *= (chr_id == chr_ids[j]);
-                w[j] *= (std::labs(coord_i - coords[j]) <= MAX_READ_DISTANCE);
+                w[j] *= (std::labs(coord_i - coords[j]) <= MAX_FRAGMENT_DISTANCE);
 
                 // If the two fragments are comparable, then add sample j to the list
                 // of valid indices
                 if (w[j] > 0) idx.push_back(j);
             }
 
-            // Update nucleosome positioning kernel matrix
-            std::valarray<float> scores = osc.phase_shift_scores(chr_id, reads, idx, read_i);
-            matrices.at(0).add_sym(scores, i, w, idx);
+            // Compute phase shift scores (needed to update the nucleosome positioning kernel matrix).
+            // `scores` has the same size as `idx`.
+            std::valarray<float> scores = osc.phase_shift_scores(chr_id, frags, idx, frag_i);
 
-            const uint16_t l_i = read_i.size;
-            const float m_i = read_i.get_meth_ratio();
-            const float depth_i = static_cast<float>(read_i.n_sites());
-            const float density_i = counters.at(i).get_density(read_i);
-            const float mb_i = read_i.get_mutation_burden();
+            const uint16_t l_i = frag_i.size;
+            const float m_i = frag_i.get_meth_ratio();
+            const float depth_i = static_cast<float>(frag_i.n_sites());
+            const float density_i = counters.at(i).get_density(frag_i);
+            const float mb_i = frag_i.get_mutation_burden();
             for (size_t k = 0; k < idx.size(); ++k) {
                 const int j = idx[k];
 
-                // Update fragment length kernel matrix
-                float score = ((l_i <= 150) == (reads[j].size <= 150));
+                // Update nucleosome positioning kernel matrix
+                matrices.at(0).add_sym(scores[k], i, j, w[j]);
+
+                // Update fragment length kernel matrix.
+                // k(x_i, x_j) = 1 when both fragments are on the same side w.r.t.
+                // the expected modal value (167 bp), and 0 otherwise.
+                // In other words, k(x_i, x_j) = 1 when x_i and x_j are either both
+                // "long" or both "short" fragments.
+                // Weighting function is the default one.
+                float score = ((l_i <= 167) == (frags[j].size <= 167));
                 matrices.at(1).add_sym(score, i, j, w[j]);
 
-                // Update methylation kernel matrix
-                score = 1.0 - std::fabs(m_i - reads[j].get_meth_ratio());
-                matrices.at(2).add_sym(score, i, j, w[j] * std::sqrt(depth_i * static_cast<float>(reads[j].n_sites())));
+                // Update methylation kernel matrix.
+                score = 1.0 - std::fabs(m_i - frags[j].get_meth_ratio());
+                matrices.at(2).add_sym(score, i, j, w[j] * std::sqrt(depth_i * static_cast<float>(frags[j].n_sites())));
 
                 // Update fragment counts kernel matrix
-                const float density_j = counters.at(j).get_density(read_i);
+                const float density_j = counters.at(j).get_density(frag_i);
                 if (density_i * density_j > 0) {
                     const float den = std::fmax(density_i, density_j);
                     score = (den - std::fabs(density_i - density_j)) / den;
@@ -234,8 +300,8 @@ void compute_kernel_matrices_for_one_chromosome(
                 }
 
                 // Update "mutational" burden kernel matrix
-                score = 1.0f - std::fabs(mb_i - reads[j].get_mutation_burden());
-                matrices.at(4).add_sym(score, i, j, w[j] * std::sqrt(read_i.s_count * reads[j].s_count));
+                score = 1.0f - std::fabs(mb_i - frags[j].get_mutation_burden());
+                matrices.at(4).add_sym(score, i, j, w[j] * std::sqrt(frag_i.s_count * frags[j].s_count));
             }
 
         }
@@ -246,11 +312,11 @@ void compute_kernel_matrices_for_one_chromosome(
 		sample.next();
 
 		// Update fragment statistics
-		chr_ids[i] = (sample.eof()) ? 0 : read_i.start_chr_id;
-		coords[i] = (sample.eof()) ? END_OF_SAMPLE : read_i.start_pos;
+		chr_ids[i] = (sample.eof()) ? 0 : sample.get().start_chr_id;
+		coords[i] = (sample.eof()) ? END_OF_SAMPLE : sample.get().start_pos;
 		combined_coords[i] = combine_coords(chr_ids[i], coords[i]);
-		gc_ratios[i] = static_cast<float>((sample.eof()) ? 0 : read_i.get_gc_ratio());
-		reads[i] = read_i;
+		gc_ratios[i] = static_cast<float>((sample.eof()) ? 0 : sample.get().get_gc_ratio());
+		frags[i] = frag_i;
         
 	}
 
@@ -260,7 +326,6 @@ void compute_kernel_matrices_for_one_chromosome(
 
 std::unordered_map<uint8_t, std::vector<KernelMatrix>> compute_kernel_matrices(
         std::vector<_Sample>& samples,
-        std::vector<bool>& chr_mask,
         std::unordered_map<uint8_t, std::vector<long>>& nuc_pos
         ) {
 
@@ -269,18 +334,14 @@ std::unordered_map<uint8_t, std::vector<KernelMatrix>> compute_kernel_matrices(
     // Initialize kernel matrices
     std::cout << "Initializing kernel matrices... ";
 	std::unordered_map<uint8_t, std::vector<KernelMatrix>> matrices;
-	for (uint8_t chr_id = 0; chr_id < chr_mask.size(); ++chr_id) {
-	    if (chr_id < CHROMOSOME_BOUNDS.size()) {
-            if (chr_mask.at(chr_id)) {
-                matrices[chr_id] = std::vector<KernelMatrix>({
-                    KernelMatrix(n),
-                    KernelMatrix(n),
-                    KernelMatrix(n),
-                    KernelMatrix(n),
-                    KernelMatrix(n)
-                });
-            }
-        }
+	for (uint8_t chr_id = 0; chr_id < CHROMOSOME_BOUNDS.size(); ++chr_id) {
+        matrices[chr_id] = std::vector<KernelMatrix>({
+            KernelMatrix(n),
+            KernelMatrix(n),
+            KernelMatrix(n),
+            KernelMatrix(n),
+            KernelMatrix(n)
+        });
 	}
 
     // Initialize fragment counters
