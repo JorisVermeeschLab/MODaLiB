@@ -64,7 +64,7 @@ private:
 
     // Flattened symmetric matrix of shape n*n representing the unnormalized kernel matrix.
     // Kernel between samples S_i and S_j is computed as:
-    // k(S_i, S_j) = data[i*n+j] / weights[i*n+j]
+    // k(S_i, S_j) = `data[i*n+j]` / `weights[i*n+j]`
     std::valarray<long double> data;
 
     // Flattened symmetric matrix of shape n*n representing the normalization factors
@@ -99,11 +99,12 @@ public:
      * Add value to element (i, j) of the kernel matrix.
      *
      * Sample-level kernel matrix is defined as a weighted linear combination
-     * of fragment-level kernels:
-     * k(S_a, S_b) = \frac{\sum_{x_1 \in S_a}\sum_{x_2 \in S_a} w(x_1, x_2) \tilde{k}(x_1, x_2)}
-     * {\sum_{x_1 \in S_a}\sum_{x_2 \in S_a} w(x_1, x_2)}.
-     * Attribute `data` contains the numerator of k(S_a, S_b) and attribute `weights` contains
-     * the denominator of k(S_a, S_b). Therefore, numerator and denominators should be update
+     * of fragment-level kernels: \f[
+     *     k(S_a, S_b) = \frac{\sum_{x_1 \in S_a}\sum_{x_2 \in S_a} w(x_1, x_2) \tilde{k}(x_1, x_2)}
+     *         {\sum_{x_1 \in S_a}\sum_{x_2 \in S_a} w(x_1, x_2)}
+     * \f].
+     * Attribute `data` contains the numerator of \f$k(S_a, S_b)\f$ and attribute `weights` contains
+     * the denominator of \f$k(S_a, S_b)\f$. Therefore, numerator and denominators should be update
      * separately, hence the need for an extra `weight` method parameter.
      *
      * @param value Value to multiply with `weight` and add (inplace) to the numerator of the kernel function.
@@ -225,8 +226,6 @@ void compute_kernel_matrices_for_one_chromosome(
 		_Sample& sample = samples.at(i);
 
         const FragmentInfo& frag_i = sample.get();
-        const FragmentInfo& previous_frag_i = sample.get_previous();
-        frags[i] = previous_frag_i;
         const uint8_t chr_id = frag_i.start_chr_id;
 
         // Increment fragment counts for current sample i
@@ -239,6 +238,8 @@ void compute_kernel_matrices_for_one_chromosome(
 
             // To compute k(x_i, x_i), don't compare current fragment with itself
             // but with previous fragment, to account for genome heterogeneity and noise
+            const FragmentInfo& previous_frag_i = sample.get_previous();
+            frags[i] = previous_frag_i;
             chr_ids[i] = previous_frag_i.start_chr_id;
             coords[i] = previous_frag_i.start_pos;
             gc_ratios[i] = previous_frag_i.get_gc_ratio();

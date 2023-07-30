@@ -1,6 +1,6 @@
 //  osc.h
 //
-//  Copyright 2022 Antoine Passemiers <antoine.passemiers@gmail.com>
+//  Copyright 2023 Antoine Passemiers <antoine.passemiers@gmail.com>
 //
 //  This program is free software; you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -47,7 +47,11 @@ private:
     std::unordered_map<uint8_t, std::vector<float>> chr_angles;
 
 public:
+
+    // No default constructor (to make sure it is properly initialized)
     Oscillator() = delete;
+
+
 	Oscillator(std::unordered_map<uint8_t, std::vector<long>>& nuc_pos): nuc_pos(), chr_angles(0) {
 	    for (auto& it : nuc_pos) {
 

@@ -142,7 +142,8 @@ def pairwise_kernels(
     cdef unordered_map[cnp.uint8_t, vector[long]] nuc_pos = load_ref_nuc_map(nuc_folder)
 
     # Compute kernel matrices
-    cdef unordered_map[cnp.uint8_t, vector[KernelMatrix]] matrices_ = compute_kernel_matrices(samples_from_filepaths(filepaths), nuc_pos)
+    cdef vector[_Sample] samples = samples_from_filepaths(filepaths)
+    cdef unordered_map[cnp.uint8_t, vector[KernelMatrix]] matrices_ = compute_kernel_matrices(samples, nuc_pos)
 
     # Convert output kernel matrices to dict of lists of numpy arrays
     matrices = {}
@@ -186,7 +187,8 @@ def extract_features(
     cdef unordered_map[cnp.uint8_t, vector[long]] nuc_pos = load_ref_nuc_map(nuc_folder)
 
     # Compute feature matrices
-    cdef unordered_map[cnp.uint8_t, vector[FeatureMatrix]] matrices_ = extract_all_features(samples_from_filepaths(filepaths), nuc_pos)
+    cdef vector[_Sample] samples = samples_from_filepaths(filepaths)
+    cdef unordered_map[cnp.uint8_t, vector[FeatureMatrix]] matrices_ = extract_all_features(samples, nuc_pos)
 
     # Convert output feature matrices to dict of list of numpy arrays
     matrices = {}

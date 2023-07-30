@@ -91,7 +91,7 @@ cdef extern from "modalib/kernel.h" namespace "modalib":
 
     cdef cppclass KernelMatrix:
         KernelMatrix() nogil
-        KernelMatrix(size_t n, size_t m) nogil
+        KernelMatrix(size_t n) nogil
         KernelMatrix(KernelMatrix& other) nogil
         double operator()(int i, int j) nogil
         size_t n_rows() nogil
