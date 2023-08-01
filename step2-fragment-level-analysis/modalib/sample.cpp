@@ -64,6 +64,7 @@ _Sample::~_Sample() {
 
 void _Sample::open(const std::string &filepath) {
     if (this->is.is_open()) this->is.close();
+    // TODO: raise exception if opening failed
     this->is.open(filepath, std::ios::in | std::ios::binary | std::ios::ate);
     if (!this->is.is_open()) throw std::runtime_error("Could not open file " + filepath);
     this->is.seekg(0, std::iostream::beg);

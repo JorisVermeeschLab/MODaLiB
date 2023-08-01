@@ -103,7 +103,7 @@ cdef cnp.ndarray to_array(KernelMatrix &km):
 cdef vector[_Sample] samples_from_filepaths(filepaths: List[str]):
     cdef vector[_Sample] samples
     for filepath in filepaths:
-        samples.push_back(_Sample(filepath))
+        samples.push_back(_Sample(filepath.encode('utf-8')))
     return samples
 
 
