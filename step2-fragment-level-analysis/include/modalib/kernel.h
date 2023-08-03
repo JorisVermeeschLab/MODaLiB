@@ -317,7 +317,7 @@ void compute_kernel_matrices_for_one_chromosome(
 		coords[i] = (sample.eof()) ? END_OF_SAMPLE : sample.get().start_pos;
 		combined_coords[i] = combine_coords(chr_ids[i], coords[i]);
 		gc_ratios[i] = static_cast<float>((sample.eof()) ? 0 : sample.get().get_gc_ratio());
-		frags[i] = frag_i;
+		frags[i] = sample.get();
         
 	}
 
