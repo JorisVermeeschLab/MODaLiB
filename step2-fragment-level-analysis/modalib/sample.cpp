@@ -23,6 +23,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <string>
 #include <sstream>
 
 
@@ -33,29 +34,34 @@ _Sample::_Sample() {
 }
 
 _Sample::_Sample(const _Sample& other) : 
-        cursor(other.cursor),
+        cursor(other.cursor - 1),
         lb(other.lb),
         ub(other.ub),
         filepath(other.filepath),
         frag(other.frag),
         previous_frag(other.previous_frag) {
-    this->open(this->filepath);
-    this->is.seekg(other.cursor * FRAGMENT_SIZE_IN_BYTES);
+    this->open(other.filepath);
+    this->go_to_fragment(other.cursor - 1);
 }
 
-_Sample::_Sample(std::string &filepath) : filepath(filepath) {
-	_Sample::reset();
+_Sample::_Sample(std::string &filepath) : 
+        cursor(0),
+        lb(0),
+        ub(std::numeric_limits<long>::max()),
+        filepath(filepath),
+        frag(),
+        previous_frag() {
+    this->open(filepath);
+    this->go_to_fragment(0);
 }
 
 void _Sample::operator=(const _Sample& other) {
-    this->cursor = other.cursor;
+    this->cursor = other.cursor - 1;
     this->lb = other.lb;
     this->ub = other.ub;
-	this->filepath = other.filepath;
-    this->frag = other.frag;
-    this->previous_frag = other.previous_frag;
-    this->open(this->filepath);
-    this->is.seekg(other.cursor * FRAGMENT_SIZE_IN_BYTES);
+    this->filepath = other.filepath;
+    this->open(other.filepath);
+    this->go_to_fragment(other.cursor - 1);
 }
 
 _Sample::~_Sample() {
@@ -63,17 +69,11 @@ _Sample::~_Sample() {
 }
 
 void _Sample::open(const std::string &filepath) {
-    if (this->is.is_open()) this->is.close();
-    // TODO: raise exception if opening failed
-    this->is.open(filepath, std::ios::in | std::ios::binary | std::ios::ate);
+    if (!this->is.is_open()) {
+        this->is.open(filepath, std::ios::in | std::ios::binary);
+    }
     if (!this->is.is_open()) throw std::runtime_error("Could not open file " + filepath);
     this->is.seekg(0, std::iostream::beg);
-}
-
-void _Sample::reset() {
-    this->open(this->filepath);
-	this->cursor = 0;
-	this->next();
 }
 
 void _Sample::next() {
@@ -90,15 +90,20 @@ void _Sample::next() {
 
     this->cursor++;
 
-    if (!this->is) return;
-
     this->frag.deserialize(buffer);
 }
 
-void _Sample::go_to_fragment(int i) {
-    this->cursor = i;
-    this->is.seekg(i * FRAGMENT_SIZE_IN_BYTES);
-    this->next();
+void _Sample::go_to_fragment(long i) {
+    if (i <= 0) {
+        this->cursor = 0;
+        this->is.seekg(0, std::iostream::beg);
+        this->next();
+    } else {
+        this->cursor = i - 1;
+        this->is.seekg((i - 1) * FRAGMENT_SIZE_IN_BYTES, std::iostream::beg);
+        this->next();
+        this->next();
+    }
 }
 
 bool _Sample::eof() {

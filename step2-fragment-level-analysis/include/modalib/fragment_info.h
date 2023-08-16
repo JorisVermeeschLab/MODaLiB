@@ -3,6 +3,8 @@
 
 #include <cstdint>
 #include <utility>
+#include <sstream>
+#include <string>
 
 #include "deserialization.h"
 
@@ -41,6 +43,7 @@ struct FragmentInfo {  // TODO: should be called FragmentInfo, or Fragment
     // Constructor
     FragmentInfo() = default;
     FragmentInfo(const FragmentInfo&) = default;
+    FragmentInfo& operator=(const FragmentInfo&) = default;
 
     auto operator<(FragmentInfo& other) const {
     	if (start_chr_id < other.start_chr_id) return true;
@@ -82,6 +85,20 @@ struct FragmentInfo {  // TODO: should be called FragmentInfo, or Fragment
             this->start_pos = end_pos;
             this->end_pos = pos;
         }
+    }
+    std::string to_string() {
+        std::stringstream ss;
+        ss << "Fragment(";
+        ss << "chr" << std::to_string(start_chr_id) << " " << std::to_string(start_pos) << ", ";
+        ss << "chr" << std::to_string(end_chr_id) << " " << std::to_string(end_pos) << ", ";
+        ss << std::to_string(size) << ", ";
+        ss << std::to_string(n_methylated) << ", ";
+        ss << std::to_string(n_unmethylated) << ", ";
+        ss << std::to_string(snp_count) << ", ";
+        ss << std::to_string(gc_count) << ", ";
+        ss << std::to_string(s_count);
+        ss << ")";
+        return ss.str();
     }
 };
 

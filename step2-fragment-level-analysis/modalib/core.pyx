@@ -54,7 +54,7 @@ def coords_to_partition_(chr_id: int, pos: int, n_partitions: int) -> int:
 
 Fragment = collections.namedtuple(
     'Fragment',
-    ['chr_id', 'start', 'end', 'size', 'n_methylated', 'n_unmethylated', 'gc_count', 's_count']
+    ['start_chr_id', 'start_pos', 'end_chr_id', 'end_pos', 'size', 'n_methylated', 'n_unmethylated', 'snp_count', 'gc_count', 's_count']
 )
 
 
@@ -76,16 +76,21 @@ cdef class Sample:
         while not self.sample_.eof():
             frag = self.sample_.get()
             yield Fragment(
-                chr_id=frag.start_chr_id,
-                start=frag.start_pos,
-                end=frag.end_pos,
+                start_chr_id=frag.start_chr_id,
+                start_pos=frag.start_pos,
+                end_chr_id=frag.end_chr_id,
+                end_pos=frag.end_pos,
                 size=frag.size,
                 n_methylated=frag.n_methylated,
                 n_unmethylated=frag.n_unmethylated,
+                snp_count=frag.snp_count,
                 gc_count=frag.gc_count,
                 s_count=frag.s_count
             )
             self.sample_.next()
+
+    def get_name(self) -> str:
+        return bytes(self.filepath.c_str()).decode('utf-8')
 
 
 cdef cnp.ndarray to_array(KernelMatrix &km):

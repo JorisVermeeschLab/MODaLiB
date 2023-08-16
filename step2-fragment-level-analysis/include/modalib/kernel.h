@@ -48,12 +48,12 @@ namespace modalib {
 // Maximum distance allowed between the start positions of two fragments.
 // Above that threshold, the fragment pair will be ignored and won't contribution
 // to the estimation of any of the kernel functions.
-const long MAX_FRAGMENT_DISTANCE = 300;
+const long MAX_FRAGMENT_DISTANCE = 2000;
 
 // Minimum fragment size.
 // Below that threshold, the current fragment won't contribute to the estimation
 // of any of the kernel functions.
-const long MIN_FRAGMENT_SIZE = 20;
+const long MIN_FRAGMENT_SIZE = 0;
 
 
 class KernelMatrix {
@@ -136,7 +136,6 @@ public:
  */
 void init_counter(const _Sample& _sample, Counter& counter) {
     _Sample sample(_sample);
-    sample.reset();
     while (!sample.eof()) {
         const FragmentInfo& frag = sample.get();
         counter.inc_total_counts(frag);
@@ -185,7 +184,6 @@ void compute_kernel_matrices_for_one_chromosome(
     std::vector<_Sample> samples;
     for (size_t i = 0; i < n; ++i) {
         _Sample sample(_samples.at(i));
-        sample.reset();
 
         // Only iterate over the fragments located on requested chromosome
         const std::pair<long, long> bounds = counters.at(i).get_bounds(partition_id);
@@ -252,8 +250,10 @@ void compute_kernel_matrices_for_one_chromosome(
             std::valarray<float> w = frag_i.get_gc_ratio() - gc_ratios;
             for (size_t j = 0; j < n; ++j) {
 
+
                 // Alleviate sequencing biases by computing inter-fragment weights
                 w[j] = 1.0f - std::fabs(w[j]);
+                w[j] *= w[j];
 
                 // The two fragments being compared should be sufficiently close
                 w[j] *= (chr_id == chr_ids[j]);

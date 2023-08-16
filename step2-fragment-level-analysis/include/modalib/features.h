@@ -88,7 +88,7 @@ std::unordered_map<uint8_t, std::vector<FeatureMatrix>> extract_all_features(
         });
 	}
 
-	for (_Sample sample : samples) sample.reset();
+    // TODO: reset samples
 
 	Oscillator osc(nuc_pos);
 

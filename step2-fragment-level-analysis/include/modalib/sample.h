@@ -62,8 +62,7 @@ public:
 	void operator=(const _Sample&);
     ~_Sample();
     void open(const std::string &filepath);
-    void reset();
-    void go_to_fragment(int i);
+    void go_to_fragment(long i);
 	void next();
 	bool eof();
 

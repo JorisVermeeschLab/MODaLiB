@@ -225,15 +225,15 @@ def evaluate(kernel_idx):
 
 settings = [
     ([0], 'Nucleosomes', 'purple', '-'),
-    ([1, 2, 3, 4], None, 'purple', '--'),
+    #([1, 2, 3, 4], None, 'purple', '--'),
     ([1], 'Fragment lengths', 'royalblue', '-'),
-    ([0, 2, 3, 4], None, 'royalblue', '--'),
+    #([0, 2, 3, 4], None, 'royalblue', '--'),
     ([2], 'Methylation', 'gold', '-'),
-    ([0, 1, 3, 4], None, 'gold', '--'),
+    #([0, 1, 3, 4], None, 'gold', '--'),
     ([3], 'Read counts', 'forestgreen', '-'),
-    ([0, 1, 2, 4], None, 'forestgreen', '--'),
+    #([0, 1, 2, 4], None, 'forestgreen', '--'),
     ([4], 'Mutations', 'crimson', '-'),
-    ([0, 1, 2, 3], None, 'crimson', '--'),
+    #([0, 1, 2, 3], None, 'crimson', '--'),
     ([0, 1, 2, 3, 4], 'All', 'black', '-'),
 ]
 
