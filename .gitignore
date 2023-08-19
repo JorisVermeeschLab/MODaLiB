@@ -14,6 +14,7 @@
 X.npz
 K.npz
 
+cmake-build-debug/
 .egg-info/
 dist/
 build/

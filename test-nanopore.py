@@ -7,8 +7,12 @@ REF_GENOME_PATH = os.path.join(
     ROOT, '../../../methylation_data/human_genome/GCA_000001405.15_GRCh38_no_alt_analysis_set.fa'
 )
 
-filepath = '/lustre1/project/stg_00019/research/qfu/Project/Nanopore-cfDNA/data/bam/PAK67493_barcode01_sorted.bam'
+#filepath = '/lustre1/project/stg_00019/research/qfu/Project/Nanopore-cfDNA/data/bam/PAK67493_barcode01_sorted.bam'
+#cmd = f'{EXE_PATH} {REF_GENOME_PATH} {filepath} -o nanopore_out --singleRead --useMMML'
+#os.system(cmd)
 
-
-cmd = f'{EXE_PATH} perRead {REF_GENOME_PATH} {filepath} -o nanopore_out'
+filepath = '/lustre1/project/stg_00019/research/qfu/Project/Nanopore-cfDNA/data/bam/PAK67493_barcode01_dorado_sorted.bam'
+cmd = f'{EXE_PATH} {REF_GENOME_PATH} {filepath} -o nanopore_out2 --singleRead --useMMML --mlCutoff 1'
 os.system(cmd)
+
+print('Finished.')

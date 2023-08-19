@@ -6,6 +6,8 @@
 #include "htslib/sam.h"
 #include "htslib/faidx.h"
 
+#include "utils.h"
+
 #if HTS_VERSION < 101100
 #error "The minimum supported version of htslib is 1.11!"
 #endif
@@ -13,45 +15,25 @@
 
 //These are needed to handle multiple threads
 extern pthread_mutex_t positionMutex;
-extern pthread_mutex_t bwMutex;
 extern pthread_mutex_t outputMutex;
 extern uint32_t globalTid;
 extern uint32_t globalPos;
 extern uint32_t globalEnd;
 extern uint32_t bin;
 extern uint32_t outputBin;
-extern uint64_t globalnVariantPositions;
 
 /*! @typedef
  @abstract Global configuration information structure
- @field	keepCpG	1: Output CpG metrics
- @field keepCHG	1: Output CHG metrics
- @field	keepCHH	1: Output CHH metrics
  @field	minMapq	Minimum MAPQ value to include a read (-q)
  @field	minPhred	Minimum Phred score to include a base (-p)
- @field	keepDupes	1: Include marked duplicates when calculating metrics
  @field	minDepth	Minimum depth for outputing methylation metrics
- @field keepDiscordant	0: Do not include discordantly aligned reads when calculating metrics
- @field	keepSingleton	0: Do not include singletons when calculating metrics
  @field ignoreFlags     Mask that's logically &ed with and ignored if > 0. Defaults to 0xF00.
  @field requireFlags    Mask that's logically &ed with and ignored if < mask. Defaults to 0, which means ignore.
- @field merge   1: Merge Cs in either a CpG or CHG context into single entries
- @field methylKit       Output in a format compatible with methylKit
- @field minOppositeDepth	Minimum depth covering the opposite strand needed to look for variants
- @field ignoreNH	If set, don't exclude alignments with NH auxiliary tags with values >1 (i.e., marked multimappers).
- @field maxVariantFrac	If the fraction of non-Gs on the opposite strand is greater than this then a position is excluded.
- @field fraction	1: Output should be the methylation fraction only, 0: otherwise
- @field counts	1: Output just the coverage
- @field logit	1: Logit transform the methylation fraction
- @field cytosine_report	1: Output a bismark-like cytosine report
  @field output_fp	Output file pointers (to CpG, CHG, and CHH, respectively)
  @field	reg	A region specified by -r
  @field BAMName	The BAM file name
- @field minConversionEfficiency	The minimum acceptable conversion efficiency in non-CpG positions for read inclusion
  @field fp	Input file pointer (must be a BAM or CRAM file)
  @field	bai	The index for fp
- @field bedName	The BED file name
- @field bed	Pointer to regions specified in a BED file (-l option)
  @field FastaName	The fasta file name
  @field bounds	Trimming bounds
  @field absoluteBounds	Absolute trimming bounds
@@ -59,63 +41,28 @@ extern uint64_t globalnVariantPositions;
  @field chunkSize	The number of bases processed by each thread at a time (can be adjusted a bit to ensure CpGs/CHGs aren't split between processors)
 */
 typedef struct {
-    int keepCpG, keepCHG, keepCHH;
-    int minMapq, minPhred, keepDupes, minDepth;
-    int keepDiscordant, keepSingleton, ignoreFlags, requireFlags;
-    int merge, methylKit, minOppositeDepth;
-    int ignoreNH;
-    double maxVariantFrac;
-    int fraction, counts, logit;
-    int cytosine_report;
+    int minMapq = 10;
+    int minPhred = 5;
+    int minDepth;
+    int ignoreFlags = 0;
+    int requireFlags = 0;
+    int singleRead = 0;
+    int use_mm_ml = 0;
+    uint8_t ml_cutoff = 1;
     FILE **output_fp;
-    char *reg;
+    char *reg = NULL;
     char *BAMName;
-    float minConversionEfficiency;
-    char *BWName;
-    char *outBBMName;
-    char *BBMName;
-    FILE *BBM_ptr;
-    char** chromNames;
-    uint32_t chromCount;
-    uint32_t* chromLengths;
-    char filterMappability;
-    char outputBB;
-    float mappabilityCutoff;
-    int minMappableBases;
-    char** bw_data;
-    htsFile *fp;
-    hts_idx_t *bai;
+    htsFile *fp = NULL;
+    hts_idx_t *bai = NULL;
     char *FastaName;
-    int bounds[16];
-    int absoluteBounds[16];
-    int nThreads;
-    char noBAM;
-    unsigned long chunkSize;
+    int bounds[16] = {0};
+    int absoluteBounds[16] = {0};
+    int nThreads = 1;
+    unsigned long chunkSize = 1000000;
 } Config;
-
-/*! @function
- @abstract Determine the strand from which a read arose
- @param	b	Pointer to an alignment
- @returns	1, original top; 2, original bottom; 3, complementary to the original top; 4, complementary to the original bottom
- @discussion There are two methods used to determine the strand of origin. The 
- first method uses XG auxiliary tags as output by Bison and Bismark. For details
- on how strand is determined from this, see the source code for this function or
- the documentation for either Bison or bismark. This method can handle non-
- directional libraries. If an XG auxiliary tag is not present, then the
- orientation of each alignment (and whethers it's read #1 or #2 of a pair, if
- applicable) determines the strand.
-*/
-int getStrand(bam1_t *b);
-
-//Used internally by the pileup-based functions
-int updateMetrics(Config *config, const bam_pileup1_t *plp);
 
 //Used internally to parse things like --OT 0,1,2,3
 void parseBounds(char *s2, int *vals, int mult);
-
-// Read-pair overlap handling functions
-void *initOlapHash();
-void destroyOlapHash(void *ohash);
 
 inline int isCpG(char *seq, int pos, int seqlen) {
     if(pos >= seqlen) return 0;
@@ -142,7 +89,7 @@ static inline int64_t compareRegions(int32_t tid0, int32_t start0, int32_t end0,
 }
 
 bam1_t *trimAlignmentSimple(bam1_t *b, int bounds[16]) {
-    int strand = getStrand(b)-1;
+    int strand = get_strand(b)-1;
     int i, lb, rb;
     uint8_t *qual = bam_get_qual(b);
 
@@ -198,38 +145,4 @@ void parseBounds(char *s2, int *vals, int mult) {
         }
     }
     free(s);
-}
-
-int getStrand(bam1_t *b) {
-    char *XG = (char *) bam_aux_get(b, "XG");
-    //Only bismark uses the XG tag like this. Some other aligners use it for other purposes...
-    if(XG != NULL && *(XG+1) != 'C' && *(XG+1) != 'G') XG = NULL;
-    if(XG == NULL) { //Can't handle non-directional libraries!
-        if(b->core.flag & BAM_FPAIRED) {
-            if((b->core.flag & 0x50) == 0x50) return 2; //Read1, reverse comp. == OB
-            else if(b->core.flag & 0x40) return 1; //Read1, forward == OT
-            else if((b->core.flag & 0x90) == 0x90) return 1; //Read2, reverse comp. == OT
-            else if(b->core.flag & 0x80) return 2; //Read2, forward == OB
-            return 0; //One of the above should be set!
-        } else {
-            if(b->core.flag & 0x10) return 2; //Reverse comp. == OB
-            return 1; //OT
-        }
-    } else {
-        if(*(XG+1) == 'C') { //OT or CTOT, due to C->T converted genome
-            if((b->core.flag & 0x51) == 0x41) return 1; //Read#1 forward == OT
-            else if((b->core.flag & 0x51) == 0x51) return 3; //Read #1 reverse == CTOT
-            else if((b->core.flag & 0x91) == 0x81) return 3; //Read #2 forward == CTOT
-            else if((b->core.flag & 0x91) == 0x91) return 1; //Read #2 reverse == OT
-            else if(b->core.flag & 0x10) return 3; //Single-end reverse == CTOT
-            else return 1; //Single-end forward == OT
-        } else {
-            if((b->core.flag & 0x51) == 0x41) return 4; //Read#1 forward == CTOB
-            else if((b->core.flag & 0x51) == 0x51) return 2; //Read #1 reverse == OB
-            else if((b->core.flag & 0x91) == 0x81) return 2; //Read #2 forward == OB
-            else if((b->core.flag & 0x91) == 0x91) return 4; //Read #2 reverse == CTOB
-            else if(b->core.flag & 0x10) return 2; //Single-end reverse == OB
-            else return 4; //Single-end forward == CTOB
-        }
-    }
 }

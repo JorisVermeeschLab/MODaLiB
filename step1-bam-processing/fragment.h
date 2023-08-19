@@ -17,10 +17,10 @@
 //  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 //  MA 02110-1301, USA.
 
-#ifndef _FRAGMENT_H__
-#define _FRAGMENT_H__
+#ifndef FRAGMENT_H_
+#define FRAGMENT_H_
 
-#include <string.h>
+#include <cstring>
 #include <cstdlib>
 #include <stdexcept>
 
@@ -33,6 +33,9 @@ static constexpr size_t FRAGMENT_SIZE_IN_BYTES = 22;
 
 struct Fragment {
 public:
+
+    // Whether fragment is single-read
+    bool single_read = false;
 
     // Genomic coordinates of the fragment start
     uint8_t start_chr_id;
@@ -65,7 +68,23 @@ public:
     ReadInfo r2;
 
 public:
+    Fragment(ReadInfo& r) {
+        this->single_read = true;
+        this->r1 = r;
+        this->r2 = r;  // Single-read
+        this->start_chr_id = r.chr_id;
+        this->start_pos = r.start;
+        this->end_chr_id = r.chr_id;
+        this->end_pos = r.start + r.length - 1;
+        this->length = r.length;
+        this->n_methylated = r.n_methylated;
+        this->n_unmethylated = r.n_unmethylated;
+        this->snp_count = r.snp_count;
+        this->gc_count = r.gc_count;
+        this->s_count = r.s_count;
+    }
     Fragment(ReadInfo& r1, ReadInfo& r2) {
+        this->single_read = false;
         this->r1 = r1;
         this->r2 = r2;
         this->start_chr_id = r1.chr_id;
@@ -86,9 +105,13 @@ public:
         return this->r1.is_duplicate() && this->r2.is_duplicate();
     }
     bool mapped_in_proper_pair() {
-        return this->r1.mapped_in_proper_pair() && this->r2.mapped_in_proper_pair();
+        if (this->single_read) {
+            return true;
+        } else {
+            return this->r1.mapped_in_proper_pair() && this->r2.mapped_in_proper_pair();
+        }
     }
-    void serialize(char* buffer) {
+    void serialize(char* buffer) const {
         int offset = 0;
         offset += Serializer::serialize(buffer + offset, (uint8_t) this->start_chr_id);
         offset += Serializer::serialize(buffer + offset, (uint32_t) this->start_pos);
@@ -99,8 +122,8 @@ public:
         offset += Serializer::serialize(buffer + offset, (uint16_t) this->n_unmethylated);
         offset += Serializer::serialize(buffer + offset, (uint16_t) this->snp_count);
         offset += Serializer::serialize(buffer + offset, (uint16_t) this->gc_count);
-        offset += Serializer::serialize(buffer + offset, (uint16_t) this->s_count);
+        Serializer::serialize(buffer + offset, (uint16_t) this->s_count);
     }
 };
 
-#endif // _FRAGMENT_H__
+#endif // FRAGMENT_H_

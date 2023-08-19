@@ -1,8 +1,9 @@
-#ifndef _READ_INFO_H__
-#define _READ_INFO_H__
+#ifndef READ_INFO_H__
+#define READ_INFO_H__
 
-#include <string.h>
+#include <cstring>
 #include <cstdlib>
+#include <vector>
 
 
 inline uint8_t parse_chr_name(const char* c) {
@@ -79,6 +80,9 @@ public:
     // Number of deleted bases
     uint16_t deleted = 0;
 
+    // Positions of CpG sites
+    std::vector<int> cpgs;
+
 public:
     ReadInfo() = default;
     ReadInfo(std::string& id, const char* chr_name, uint32_t start, uint16_t length, uint16_t insert_size, uint16_t sam_flag) :
@@ -87,7 +91,8 @@ public:
         start(start),
         length(length),
         insert_size(insert_size),
-        sam_flag(sam_flag) {}
+        sam_flag(sam_flag),
+        cpgs() {}
     ReadInfo(const ReadInfo& other) = default;
     bool is_first_in_pair() { return 0x40 & sam_flag; }
     bool is_reverse_strand() { return 0x10 & sam_flag; }
@@ -139,4 +144,4 @@ public:
     }
 };
 
-#endif // _READ_INFO_H__
+#endif // READ_INFO_H__

@@ -1,5 +1,5 @@
-#ifndef _SERIALIZATION_H__
-#define _SERIALIZATION_H__
+#ifndef SERIALIZATION_H__
+#define SERIALIZATION_H__
 
 #include <iostream>
 #include <fstream>
@@ -8,13 +8,13 @@
 
 class Serializer {
 public:
-    inline static int serialize(char* buffer, std::uint8_t value) {
+    inline static int serialize(char* buffer, uint8_t value) {
         return Serializer::serialize_int(buffer, value);
     }
-    inline static int serialize(char* buffer, std::uint16_t value) {
+    inline static int serialize(char* buffer, uint16_t value) {
         return Serializer::serialize_int(buffer, value);
     }
-    inline static int serialize(char* buffer, std::uint32_t value) {
+    inline static int serialize(char* buffer, uint32_t value) {
         return Serializer::serialize_int(buffer, value);
     }
 private:
@@ -30,4 +30,4 @@ private:
     }
 };
 
-#endif // _SERIALIZATION_H__
+#endif // SERIALIZATION_H__
