@@ -86,7 +86,7 @@ struct FragmentInfo {  // TODO: should be called FragmentInfo, or Fragment
             this->end_pos = pos;
         }
     }
-    std::string to_string() {
+    std::string to_string() const {
         std::stringstream ss;
         ss << "Fragment(";
         ss << "chr" << std::to_string(start_chr_id) << " " << std::to_string(start_pos) << ", ";

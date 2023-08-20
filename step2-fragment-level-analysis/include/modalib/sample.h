@@ -22,6 +22,7 @@
 
 #include "fragment_info.h"
 #include "osc.h"
+#include "utils.h"
 
 #include <fstream>
 #include <iostream>
@@ -29,9 +30,6 @@
 #include <string>
 
 namespace modalib {
-
-// Constant indicating that EOF has been reached
-const long END_OF_SAMPLE = std::numeric_limits<long>::max();
 
 class _Sample {
 private:
@@ -73,6 +71,7 @@ public:
     // Getters and setters
     inline const FragmentInfo& get() { return frag; }
     inline const FragmentInfo& get_previous() { return previous_frag; }
+    inline long get_cursor() { return cursor; }
 
 };
 

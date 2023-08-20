@@ -160,7 +160,7 @@ def evaluate(kernel_idx):
     K_agg = K_agg[kernel_idx, ...]
     K_agg = np.mean(K_agg, axis=0)
 
-    #alpha = 0.1
+    #alpha = 0.2
     #np.fill_diagonal(K_agg, alpha * np.diagonal(K_agg) + (1 - alpha) * np.ones(len(K_agg)))
 
     # Cross-validation

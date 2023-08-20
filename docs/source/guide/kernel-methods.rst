@@ -6,7 +6,7 @@ Why "fragment-level" kernels?
 
 .. image:: ../_static/MKL-motivation.png
 
-    Illustrative summary of the motivation for designing our novel multimodal analysis framework. (A) Flowchart of a typical analytical pipeline. We hypothesize that external tools or in-house feature extraction methods introduce information bottlenecks which affect the reliability of downstream analysis. (B) Our proposed simplified pipeline, where kernel matrices (i.e., patient-to-patient similarities) are constructed from the raw sequencing data directly. Since kernel functions are comparing sequencing reads/fragments directly, they enable maximum degree of granularity for downstream analysis.
+Illustrative summary of the motivation for designing our novel multimodal analysis framework. (A) Flowchart of a typical analytical pipeline. We hypothesize that external tools or in-house feature extraction methods introduce information bottlenecks which affect the reliability of downstream analysis. (B) Our proposed simplified pipeline, where kernel matrices (i.e., patient-to-patient similarities) are constructed from the raw sequencing data directly. Since kernel functions are comparing sequencing reads/fragments directly, they enable maximum degree of granularity for downstream analysis.
 
 The main idea
 """""""""""""

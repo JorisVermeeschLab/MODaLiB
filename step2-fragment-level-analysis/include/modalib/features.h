@@ -48,7 +48,7 @@ public:
 	FeatureMatrix(size_t n, size_t m, bool normalize): n(n), m(m), normalize(normalize), data(0.0, n * m), counts(0.0, n * m) {}
 	FeatureMatrix(size_t n, size_t m): FeatureMatrix(n, m, true) {}
 	FeatureMatrix(const FeatureMatrix& other): n(other.n), m(other.m), normalize(other.normalize), data(other.data), counts(other.counts) {}
-	double operator()(int i, int j) {
+	double operator()(int i, int j) const {
 		long double count = this->counts[i * this->m + j];
 		if (normalize) {
             if (count == 0) return 0.0;
@@ -65,8 +65,8 @@ public:
 	    this->counts[i * this->m + j] += weight;
 	    this->data[i * this->m + j] += value;
 	}
-	size_t n_rows() { return this->n; }
-	size_t n_cols() { return this->m; }
+	size_t n_rows() const { return this->n; }
+	size_t n_cols() const { return this->m; }
 };
 
 std::unordered_map<uint8_t, std::vector<FeatureMatrix>> extract_all_features(

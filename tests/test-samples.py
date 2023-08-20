@@ -23,7 +23,23 @@ import os
 import tempfile
 from typing import Tuple, List
 
-from modalib.core import Fragment, Sample
+import numpy as np
+from modalib.core import Fragment, Sample, pairwise_kernels, extract_features
+
+ROOT = os.path.dirname(os.path.abspath(__file__))
+
+# Ensure nucleosome reference map exists
+nuc_folder = os.path.join(ROOT, 'nucleosomes')
+if not os.path.isdir(nuc_folder):
+    os.makedirs(nuc_folder)
+for i in range(1, 27):
+    filepath = os.path.join(nuc_folder, f'{i}.npy')
+    if not os.path.exists(filepath):
+        data = np.asarray([
+            1000, 1167, 1320, 1500, 1790, 1913, 1102, 1279, 1423, 1589, 1702, 1895,
+            2056, 2231, 2398, 2487, 2659, 2823, 2967, 3145, 3334, 3489, 3645, 3804
+        ], dtype=int)
+        np.save(filepath, data)
 
 
 def create_sample(fragments: List[Fragment]) -> Sample:
@@ -60,3 +76,19 @@ def test_iterator():
 
     # Delete temporary files
     os.remove(sample.get_name())
+
+
+def test_kernels():
+    sample1 = create_sample([
+        Fragment(start_chr_id=1, start_pos=1020, end_chr_id=1, end_pos=1521, size=500, n_methylated=4, n_unmethylated=16, snp_count=3, gc_count=36, s_count=140),
+        Fragment(start_chr_id=1, start_pos=1020, end_chr_id=1, end_pos=1471, size=450, n_methylated=8, n_unmethylated=16, snp_count=0, gc_count=36, s_count=140),
+        Fragment(start_chr_id=2, start_pos=3000, end_chr_id=2, end_pos=3071, size=70, n_methylated=0, n_unmethylated=16, snp_count=2, gc_count=36, s_count=140),
+    ])
+    sample2 = create_sample([
+        Fragment(start_chr_id=1, start_pos=1000, end_chr_id=1, end_pos=1501, size=500, n_methylated=2, n_unmethylated=16, snp_count=0, gc_count=36, s_count=140),
+        Fragment(start_chr_id=1, start_pos=1030, end_chr_id=1, end_pos=1131, size=100, n_methylated=8, n_unmethylated=16, snp_count=0, gc_count=36, s_count=140),
+        Fragment(start_chr_id=2, start_pos=3040, end_chr_id=2, end_pos=3111, size=70, n_methylated=12, n_unmethylated=16, snp_count=0, gc_count=36, s_count=140),
+    ])
+    filepaths = [sample1.get_name(), sample2.get_name()]
+    matrices = pairwise_kernels(filepaths, nuc_folder)
+    assert np.any(matrices[1][0] != 0) and np.any(matrices[1][0] != 1)

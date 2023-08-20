@@ -14,6 +14,7 @@
 X.npz
 K.npz
 
+nucleosomes/
 cmake-build-debug/
 .egg-info/
 dist/

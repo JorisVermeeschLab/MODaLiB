@@ -7,10 +7,14 @@
 
 namespace modalib {
 
+// Constant indicating that EOF has been reached
+const long END_OF_SAMPLE = std::numeric_limits<long>::max();
+
 typedef unsigned int count_t;
 
 inline long combine_coords(uint8_t chr_id, long pos) {
-    return static_cast<long>(chr_id) * 1e+9 + pos;
+    if (pos == END_OF_SAMPLE) return END_OF_SAMPLE;
+    else return static_cast<long>(chr_id) * 1e+9 + pos;
 }
 
 inline int8_t parse_chr_name(const std::string &chr_name) {

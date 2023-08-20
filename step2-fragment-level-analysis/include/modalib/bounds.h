@@ -39,7 +39,7 @@ static const long BIN_SIZE = 50000L;
 // Number of partitions is the number of threads used in the CPU-intensive
 // part of the code. Partitions are roughly-equal portions of the genome
 // being processed in parallel.
-static const long NUM_PARTITIONS = 30L;
+static const long NUM_PARTITIONS = 30;
 
 // Number of 50 kb bins per chromosome.
 // Please note that some of the "chomosomes" are not actual ones (e.g., mitochondrial DNA).

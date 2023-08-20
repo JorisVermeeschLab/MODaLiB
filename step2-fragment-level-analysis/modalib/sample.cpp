@@ -107,7 +107,7 @@ void _Sample::go_to_fragment(long i) {
 }
 
 bool _Sample::eof() {
-    return ((this->cursor >= this->ub) || (this->is.eof()));
+    return ((this->cursor - 1 >= this->ub) || (this->is.eof()));
 }
 
 void _Sample::set_lower_bound(long n) {

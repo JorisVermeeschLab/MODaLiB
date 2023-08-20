@@ -56,10 +56,11 @@ public:
         const int partition_id = coords_to_partition(frag.start_chr_id, frag.start_pos, NUM_PARTITIONS);
         auto it = bounds.find(partition_id);
         if (it != bounds.end()) {
-            it->second.second = total;
+            it->second.second = total + 1;
         } else {
-            bounds[partition_id] = std::pair<long, long>(total, total);
+            bounds[partition_id] = std::pair<long, long>(total, total + 1);
         }
+
         total++;
     }
     float get_density(const FragmentInfo& frag) noexcept {
