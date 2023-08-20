@@ -55,7 +55,7 @@ void addFragment(kstring_t *os, Fragment& fragment) {
 
     if (DEBUG_TEXT_OUTPUT) {
         char str[10000];
-        snprintf(str, 10000, "COMBINED: %"PRIu8"\t%"PRIu32"\t%"PRIu8"\t%"PRIu32"\t%"PRIu16"\t%"PRIu16"\t%"PRIu16"\t%"PRIu16"\t%"PRIu16"\t%"PRIu16"\n",
+        snprintf(str, 10000, "COMBINED: %" PRIu8 "\t%" PRIu32 "\t%" PRIu8 "\t%" PRIu32 "\t%" PRIu16" \t%" PRIu16 "\t%" PRIu16 "\t%" PRIu16 "\t%" PRIu16 "\t%" PRIu16 "\n",
             fragment.start_chr_id,
             fragment.start_pos,
             fragment.end_chr_id,
@@ -88,7 +88,7 @@ void addRead(kstring_t *os, bam1_t *b, bam_hdr_t *hdr, ReadInfo& read) {
 
     char str[10000];
 
-    snprintf(str, 10000, "%"PRId32"\t%"PRIu16"\t%"PRId32"\t%"PRIu32"\t%"PRIu32"\t%"PRIu32"\t%"PRIu32"\t%"PRId16"\t%"PRIu16"\t%"PRIu16"\t%"PRIu16"\n",
+    snprintf(str, 10000, "%" PRId32 "\t%" PRIu16 "\t%" PRId32 "\t%" PRIu32 "\t%" PRIu32 "\t%" PRIu32 "\t%" PRIu32 "\t%" PRId16 "\t%" PRIu16 "\t%" PRIu16 "\t%" PRIu16 "\n",
         read.length,
         read.chr_id,
         read.start,

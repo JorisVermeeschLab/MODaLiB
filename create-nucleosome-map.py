@@ -31,7 +31,7 @@ from modalib.core import Sample
 
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-DATA_PATH = os.path.join(ROOT, '../step1-methyldackel/out')
+DATA_PATH = os.path.join(ROOT, 'step1-bam-processing/out')
 folder = os.path.join(ROOT, 'nucleosomes')
 
 
@@ -40,6 +40,8 @@ FILENAMES = [
     'GC119354', 'GC119355', 'GC119356', 'GC110675', 'GC1003986', 'GC1003988',
     'GC112897', 'GC112898'
 ]
+
+FILENAMES = ['GC110680']
 
 
 CHR_LENGTHS = {
@@ -101,9 +103,9 @@ if not os.path.exists(os.path.join(folder, 'refcounts.npz')):
     for filename in FILENAMES:
         sample = Sample(os.path.join(DATA_PATH, filename))
         for read in sample:
-            if read.chr_id in ref_map:
-                chromosome = ref_map[read.chr_id]
-                j = read.start
+            if read.start_chr_id in ref_map:
+                chromosome = ref_map[read.start_chr_id]
+                j = read.start_pos
                 length = read.size
                 if j + length < len(chromosome):
                     chromosome[j:j+length] += 1

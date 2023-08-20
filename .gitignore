@@ -19,3 +19,4 @@ cmake-build-debug/
 dist/
 build/
 .idea/
+cmake-build-*/

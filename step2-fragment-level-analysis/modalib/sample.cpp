@@ -44,7 +44,7 @@ _Sample::_Sample(const _Sample& other) :
     this->go_to_fragment(other.cursor - 1);
 }
 
-_Sample::_Sample(std::string &filepath) : 
+_Sample::_Sample(const std::string &filepath) :
         cursor(0),
         lb(0),
         ub(std::numeric_limits<long>::max()),
