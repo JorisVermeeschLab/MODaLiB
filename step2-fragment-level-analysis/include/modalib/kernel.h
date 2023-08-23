@@ -56,7 +56,7 @@ const long MAX_FRAGMENT_DISTANCE = 2000;
 // Minimum fragment size.
 // Below that threshold, the current fragment won't contribute to the estimation
 // of any of the kernel functions.
-const long MIN_FRAGMENT_SIZE = 0;
+const unsigned long MIN_FRAGMENT_SIZE = 0;
 
 
 class KernelMatrix {
@@ -252,7 +252,7 @@ void compute_kernel_matrices_for_one_chromosome(
 
         // Compute bin weight
         float bin_weight = 0.0f;
-        const int bin_id = coords[i] / BIN_SIZE;
+        const unsigned int bin_id = coords[i] / BIN_SIZE;
         if ((bin_id < counts.at(chr_id).n_cols()) && (counts.at(chr_id)(0, bin_id)) > 0) {
             bin_weight = 1.0f / counts.at(chr_id)(0, bin_id);
         }

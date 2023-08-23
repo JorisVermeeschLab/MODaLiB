@@ -10,8 +10,11 @@ Welcome to MODaLiB's documentation!
    :maxdepth: 4
    :caption: Contents:
 
+   guide/installation
+   guide/usage
    guide/kernel-methods
    guide/kernels
+   modalib/modules
 
 
 Indices and tables

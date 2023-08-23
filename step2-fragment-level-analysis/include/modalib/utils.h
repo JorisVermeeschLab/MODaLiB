@@ -3,6 +3,7 @@
 
 #include <cstring>
 #include <iostream>
+#include <limits>
 #include <vector>
 
 namespace modalib {
