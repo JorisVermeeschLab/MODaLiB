@@ -1,6 +1,13 @@
 Kernel methods
 ==============
 
+The kernel trick
+""""""""""""""""
+
+A kernel function `k(x, y)` is a similarity function between two points `x` and `y`. TODO
+
+`https://en.wikipedia.org/wiki/Kernel_method <https://en.wikipedia.org/wiki/Kernel_method>`_
+
 Why "fragment-level" kernels?
 """""""""""""""""""""""""""""
 

@@ -7,6 +7,7 @@
 
 
 inline uint8_t parse_chr_name(const char* c) {
+    // TODO: check the rest of the string (discard chrY_90308243)
     size_t n = strlen(c);
     uint8_t chr;
     if ((n > 3) && (c[0] == 'c')) {

@@ -37,12 +37,16 @@ for gc_code, category in zip(gc_codes, categories):
 data = np.load('X.npz', allow_pickle=True)
 sample_names2 = data['sample_names']
 X = data['X'].item()
-print(len(X[1][0]))
 
 # Load kernel data
 data = np.load('K.npz', allow_pickle=True)
 sample_names = data['sample_names']
 K = data['K'].item()
+
+print(K)
+import sys; sys.exit(0)
+
+
 K = np.asarray([K[chr_id] for chr_id in range(1, 23)])
 K[:, 0, :, :] *= 0.5
 K = K[:, :5, :, :]

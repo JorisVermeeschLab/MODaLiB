@@ -54,7 +54,18 @@ def coords_to_partition_(chr_id: int, pos: int, n_partitions: int) -> int:
 
 Fragment = collections.namedtuple(
     'Fragment',
-    ['start_chr_id', 'start_pos', 'end_chr_id', 'end_pos', 'size', 'n_methylated', 'n_unmethylated', 'snp_count', 'gc_count', 's_count']
+    [
+        'start_chr_id',
+        'start_pos',
+        'end_chr_id',
+        'end_pos',
+        'size',
+        'n_methylated',
+        'n_unmethylated',
+        'snp_count',
+        'gc_count',
+        's_count'
+    ]
 )
 
 
