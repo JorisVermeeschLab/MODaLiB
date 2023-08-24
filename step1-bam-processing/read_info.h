@@ -17,6 +17,7 @@ inline uint8_t parse_chr_name(const char* c) {
     long converted = strtol(c, &p, 10);
     if (*p) {
         if (n > 3) {
+            n -= 3;
             if (c[0] == 'X') chr = 23;
             else if (c[0] == 'Y') chr = 24;
             else if (c[0] == 'M') chr = 25;

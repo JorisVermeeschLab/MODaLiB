@@ -24,7 +24,7 @@ import os
 from modalib.nucleosomes import save_piled_up_fragment_counts, create_reference_nucleosome_map
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-DATA_PATH = os.path.join(ROOT, '../step1-methyldackel/out')
+DATA_PATH = os.path.join(ROOT, 'step1-bam-processing/out')
 folder = os.path.join(ROOT, 'nucleosomes')
 
 
@@ -33,6 +33,7 @@ FILENAMES = [
     'GC119354', 'GC119355', 'GC119356', 'GC110675', 'GC1003986', 'GC1003988',
     'GC112897', 'GC112898'
 ]
+# FILENAMES = ['GC110680']
 
 
 if not os.path.isdir(folder):

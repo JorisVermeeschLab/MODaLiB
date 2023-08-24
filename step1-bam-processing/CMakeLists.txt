@@ -1,13 +1,19 @@
-cmake_minimum_required(VERSION 3.26)
-project(MODaLiB)
 
 set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_EXTENSIONS OFF) # this ensures c++14 is used, otherwise gnu++14 will be used
 
-include_directories(.)
+include_directories(
+        dependencies/htslib-1.13/
+)
 
-add_executable(MODaLiB
-        fragment.h
-        main.cpp
-        MethylDackel.h
-        read_info.h
-        serialization.h)
+link_directories(
+        dependencies/htslib-1.13
+)
+
+add_executable(BAMConvertor main.cpp)
+
+target_link_libraries(BAMConvertor libhts.dylib)
+
+
+
+

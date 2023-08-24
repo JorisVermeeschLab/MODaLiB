@@ -15,15 +15,15 @@ static constexpr size_t FRAGMENT_SIZE_IN_BYTES = 22;
 struct FragmentInfo {  // TODO: should be called FragmentInfo, or Fragment
 
     // Genomic coordinates of the fragment start
-    uint8_t start_chr_id;
-    uint32_t start_pos;
+    uint8_t start_chr_id = 0;
+    uint32_t start_pos = 0;
 
     // Genomic coordinates of the fragment end
-    uint8_t end_chr_id;
-    uint32_t end_pos;
+    uint8_t end_chr_id = 0;
+    uint32_t end_pos = 0;
 
     // Fragment length
-    uint16_t size;
+    uint16_t size = 0 ;
 
     // Number of methylated CpG sites
     uint16_t n_methylated = 0;

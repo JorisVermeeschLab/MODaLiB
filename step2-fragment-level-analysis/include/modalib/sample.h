@@ -56,7 +56,7 @@ private:
 public:
 	_Sample();
 	_Sample(const _Sample&);
-	explicit _Sample(std::string &filepath);
+	explicit _Sample(const std::string &filepath);
 	void operator=(const _Sample&);
     ~_Sample();
     void open(const std::string &filepath);

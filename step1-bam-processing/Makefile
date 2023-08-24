@@ -2,7 +2,7 @@ prefix ?= /usr/local/bin
 CC ?= g++
 LIBS ?=  -Ldependencies/htslib-1.13 -lhts -lm -lz -lstdc++ -lpthread
 INCLUDES ?= -Idependencies/htslib-1.13
-CPPFLAGS ?= -Wall -g -O3 -pthread
+CPPFLAGS ?= -Wall -g -O3 -pthread --std=c++14
 OBJS = perRead.o
 VERSION = 0.6.1
 
@@ -14,7 +14,7 @@ CPPFLAGS += $(INCLUDES)
 
 all: BAMConvertor
 
-BAMConvertor:
+BAMConvertor: methylation.h MethylDackel.h read_info.h serialization.h utils.h
 	$(CC) $(CPPFLAGS) $(LIBS) -o BAMConvertor  main.cpp -lm -lz -lpthread -lhts
 
 clean:

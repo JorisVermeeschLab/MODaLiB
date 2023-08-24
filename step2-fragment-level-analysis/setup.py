@@ -25,7 +25,7 @@ INCLUDE_DIRS = ['include']
 from sys import platform
 if platform == 'win32':
     EXTRA_COMPILE_ARGS = [
-        # '/std:c++20',
+        '/std:c++20',
         '/Wall',
         '/Ox',
         '/fp:fast',
@@ -33,7 +33,7 @@ if platform == 'win32':
     ]
 else:
     EXTRA_COMPILE_ARGS = [
-        # '-std=c++20',
+        '-std=c++20',
         '-Wall',
         '-Wextra',
         '-O3',
@@ -139,5 +139,5 @@ for sources, extension_name in source_files:
         extra_compile_args=EXTRA_COMPILE_ARGS)
 
 if GOT_BUILD_CMD:
-    os.environ['CFLAGS'] = ' '.join(EXTRA_COMPILE_ARGS)
+    # os.environ['CFLAGS'] = ' '.join(EXTRA_COMPILE_ARGS)
     np_setup(**config.todict())
