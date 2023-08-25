@@ -12,6 +12,7 @@ include_directories(
         ${cnpy_SOURCE_DIR}
 )
 
+add_subdirectory(modalib)
 add_subdirectory(tests)
 
 

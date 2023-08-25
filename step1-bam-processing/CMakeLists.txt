@@ -12,8 +12,4 @@ link_directories(
 
 add_executable(BAMConvertor main.cpp)
 
-target_link_libraries(BAMConvertor libhts.dylib)
-
-
-
-
+target_link_libraries(BAMConvertor hts)
