@@ -107,6 +107,37 @@ static const std::vector<std::pair<long, long>> CHROMOSOME_BOUNDS_CUMULATIVE {
     std::pair<long, long>(61621L, 4L)
 };
 
+// Number of 1 Mb kernel bins per chromosome.
+static const std::vector<std::pair<std::string, uint32_t>> KERNEL_BOUNDS {
+    std::pair<std::string, uint32_t>("Unknown", 0),
+    std::pair<std::string, uint32_t>("chr1", 248),
+    std::pair<std::string, uint32_t>("chr2", 243),
+    std::pair<std::string, uint32_t>("chr3", 200),
+    std::pair<std::string, uint32_t>("chr4", 192),
+    std::pair<std::string, uint32_t>("chr5", 181),
+    std::pair<std::string, uint32_t>("chr6", 171),
+    std::pair<std::string, uint32_t>("chr7", 159),
+    std::pair<std::string, uint32_t>("chr8", 147),
+    std::pair<std::string, uint32_t>("chr9", 141),
+    std::pair<std::string, uint32_t>("chr10", 136),
+    std::pair<std::string, uint32_t>("chr11", 135),
+    std::pair<std::string, uint32_t>("chr12", 133),
+    std::pair<std::string, uint32_t>("chr13", 115),
+    std::pair<std::string, uint32_t>("chr14", 107),
+    std::pair<std::string, uint32_t>("chr15", 101),
+    std::pair<std::string, uint32_t>("chr16", 89),
+    std::pair<std::string, uint32_t>("chr17", 79),
+    std::pair<std::string, uint32_t>("chr18", 77),
+    std::pair<std::string, uint32_t>("chr19", 64),
+    std::pair<std::string, uint32_t>("chr20", 63),
+    std::pair<std::string, uint32_t>("chr21", 47),
+    std::pair<std::string, uint32_t>("chr22", 50),
+    std::pair<std::string, uint32_t>("chrX", 155),
+    std::pair<std::string, uint32_t>("chrY", 58),
+    std::pair<std::string, uint32_t>("chrM", 1),
+    std::pair<std::string, uint32_t>("EBV", 1)
+};
+
 
 /**
  * Clip value between `lb` and `ub`.

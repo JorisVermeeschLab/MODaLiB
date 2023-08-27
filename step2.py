@@ -46,7 +46,11 @@ if COMPUTE_KERNELS and (not os.path.exists(f'K.npz')):
     print(f'Computing kernel matrices from {len(filepaths)} sample(s)')
     matrices = pairwise_kernels(filepaths, nuc_folder)
 
-    print(matrices[1][-1])
+    print(matrices[1][3])
+    print(matrices[1][56])
+    print(matrices[1][121])
+    print(matrices[1][200])
+    print(len(matrices[1]))
 
     np.savez(
         'K.npz',

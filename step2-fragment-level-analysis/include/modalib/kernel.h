@@ -45,8 +45,12 @@
 
 namespace modalib {
 
-#define DISTANCES_INSTEAD_OF_SIMILARITIES 0
 
+// #define DISTANCES_INSTEAD_OF_SIMILARITIES 1
+
+
+// Number of kernel functions
+const int NUM_KERNELS = 5;
 
 // Maximum distance allowed between the start positions of two fragments.
 // Above that threshold, the fragment pair will be ignored and won't contribution
@@ -221,7 +225,8 @@ void compute_kernel_matrices_for_one_chromosome(
     for (size_t i = 0; i < n; ++i) {
         _Sample sample(_samples.at(i));
 
-        // Only iterate over the fragments located on requested chromosome
+        // Only iterate over the fragments located on the partition associated
+        // with current thread
         const std::pair<long, long> bounds = counters.at(i).get_bounds(partition_id);
         if (bounds.first == bounds.second) return;
         sample.set_lower_bound(bounds.first);
@@ -263,21 +268,25 @@ void compute_kernel_matrices_for_one_chromosome(
 
         const FragmentInfo& frag_i = sample.get();
         const uint8_t chr_id = frag_i.start_chr_id;
+        const long coord_i = frag_i.start_pos;
+
+        // Determine kernel bin
+        const unsigned int kernel_bin_id = coord_i / KERNEL_BIN_SIZE;
 
         // Increment fragment counts for current sample i
         counters.at(i).add(frag_i);
 
         // Compute bin weight
         float bin_weight = 0.0f;
-        const unsigned int bin_id = coords[i] / BIN_SIZE;
+        const unsigned int bin_id = coord_i / BIN_SIZE;
         if ((bin_id < counts.at(chr_id).n_cols()) && (counts.at(chr_id)(0, bin_id)) > 0) {
             bin_weight = 1.0f / counts.at(chr_id)(0, bin_id);
         }
 
-		if ((frag_i.size >= MIN_FRAGMENT_SIZE) && (frag_i.start_chr_id == frag_i.end_chr_id)) {
+        // Get kernel matrices for current chromosome
+        std::vector<KernelMatrix>& matrices = all_matrices.at(chr_id);
 
-            // Get kernel matrices for current chromosome
-            std::vector<KernelMatrix>& matrices = all_matrices.at(chr_id);
+		if ((frag_i.size >= MIN_FRAGMENT_SIZE) && (frag_i.start_chr_id == frag_i.end_chr_id) && (NUM_KERNELS * kernel_bin_id < matrices.size())) {
 
             // To compute k(x_i, x_i), don't compare current fragment with itself
             // but with previous fragment, to account for genome heterogeneity and noise
@@ -291,7 +300,6 @@ void compute_kernel_matrices_for_one_chromosome(
             // Get the indices of the samples whose current fragments are comparable with
             // current fragment of sample i
             idx.clear();
-            const long coord_i = frag_i.start_pos;
             std::valarray<float> w = frag_i.get_gc_ratio() - gc_ratios;
             for (size_t j = 0; j < n; ++j) {
 
@@ -328,7 +336,7 @@ void compute_kernel_matrices_for_one_chromosome(
                 #ifdef DISTANCES_INSTEAD_OF_SIMILARITIES
                     scores[k] = 1.0f - scores[k];
                 #endif
-                matrices.at(0).add_sym(scores[k], i, j, w[j]);
+                matrices.at(NUM_KERNELS * kernel_bin_id).add_sym(scores[k], i, j, w[j]);
 
                 // Update fragment length kernel matrix.
                 // k(x_i, x_j) = 1 when both fragments are on the same side w.r.t.
@@ -341,7 +349,7 @@ void compute_kernel_matrices_for_one_chromosome(
                 #else
                     float score = ((l_i <= 167) == (frags[j].size <= 167));
                 #endif
-                matrices.at(1).add_sym(score, i, j, w[j]);
+                matrices.at(NUM_KERNELS * kernel_bin_id + 1).add_sym(score, i, j, w[j]);
 
                 // Update methylation kernel matrix.
                 #ifdef DISTANCES_INSTEAD_OF_SIMILARITIES
@@ -349,7 +357,7 @@ void compute_kernel_matrices_for_one_chromosome(
                 #else
                     score = 1.0 - std::fabs(m_i - frags[j].get_meth_ratio());
                 #endif
-                matrices.at(2).add_sym(score, i, j, w[j] * std::sqrt(depth_i * static_cast<float>(frags[j].n_sites())));
+                matrices.at(NUM_KERNELS * kernel_bin_id + 2).add_sym(score, i, j, w[j] * std::sqrt(depth_i * static_cast<float>(frags[j].n_sites())));
 
                 // Update fragment counts kernel matrix
                 const float density_j = counters.at(j).get_density(frag_i);
@@ -360,7 +368,7 @@ void compute_kernel_matrices_for_one_chromosome(
                         const float den = std::fmax(density_i, density_j);
                         score = (den - std::fabs(density_i - density_j)) / den;
                     #endif
-                    matrices.at(3).add_sym(score, i, j, bin_weight);
+                    matrices.at(NUM_KERNELS * kernel_bin_id + 3).add_sym(score, i, j, bin_weight);
                 }
 
                 // Update "mutational" burden kernel matrix
@@ -369,10 +377,7 @@ void compute_kernel_matrices_for_one_chromosome(
                 #else
                     score = 1.0f - std::fabs(mb_i - frags[j].get_mutation_burden());
                 #endif
-                matrices.at(4).add_sym(score, i, j, w[j] * std::sqrt(frag_i.s_count * frags[j].s_count));
-
-                // Debug information
-                matrices.at(5).add_sym(w[k], i, j, 1.0f);
+                matrices.at(NUM_KERNELS * kernel_bin_id + 4).add_sym(score, i, j, w[j] * std::sqrt(frag_i.s_count * frags[j].s_count));
             }
         }
 
@@ -404,14 +409,10 @@ std::unordered_map<uint8_t, std::vector<KernelMatrix>> compute_kernel_matrices(
     std::cout << "Initializing kernel matrices... ";
 	std::unordered_map<uint8_t, std::vector<KernelMatrix>> matrices;
 	for (uint8_t chr_id = 0; chr_id < CHROMOSOME_BOUNDS.size(); ++chr_id) {
-        matrices[chr_id] = std::vector<KernelMatrix>({
-            KernelMatrix(n),
-            KernelMatrix(n),
-            KernelMatrix(n),
-            KernelMatrix(n),
-            KernelMatrix(n),
-            KernelMatrix(n)
-        });
+        matrices[chr_id] = std::vector<KernelMatrix>();
+        for (int k = 0; k < KERNEL_BOUNDS.at(chr_id).second * NUM_KERNELS; k++) {
+            matrices[chr_id].push_back(n);
+        }
 	}
 
     // Initialize fragment counters
