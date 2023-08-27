@@ -10,8 +10,5 @@ add_executable(test_npy test_npy_libs.cpp)
 target_link_libraries(test_npy PRIVATE Catch2::Catch2WithMain cnpy fmt)
 
 
-add_executable(test_step2 test_step2.cpp
-        ../modalib/sample.cpp
-        ../modalib/osc.cpp     # needed by features and kernels
-        )
-target_link_libraries(test_step2 PRIVATE Catch2::Catch2WithMain fmt)
+add_executable(test_step2 test_step2.cpp)
+target_link_libraries(test_step2 PRIVATE modalib_obj Catch2::Catch2WithMain fmt)

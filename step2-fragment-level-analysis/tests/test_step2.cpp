@@ -19,7 +19,7 @@
 using namespace std;
 
 
-void load_nuc_map(unordered_map<uint8_t, vector<long>> nuc_pos, const string &dir_path) {
+void load_nuc_map(unordered_map<uint8_t, vector<long>> & nuc_pos, const string &dir_path) {
 
     for(int chr_id = 1; chr_id < 27; chr_id++){
         auto file_path = dir_path + std::to_string(chr_id) + ".npy";

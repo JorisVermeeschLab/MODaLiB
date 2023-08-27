@@ -13,3 +13,4 @@ link_directories(
 add_executable(BAMConvertor main.cpp)
 
 target_link_libraries(BAMConvertor hts)
+
