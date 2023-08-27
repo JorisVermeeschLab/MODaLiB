@@ -43,12 +43,8 @@ data = np.load('K.npz', allow_pickle=True)
 sample_names = data['sample_names']
 K = data['K'].item()
 
-print(K)
-import sys; sys.exit(0)
-
 
 K = np.asarray([K[chr_id] for chr_id in range(1, 23)])
-K[:, 0, :, :] *= 0.5
 K = K[:, :5, :, :]
 
 # Make sure the samples in K and X actually match
@@ -141,8 +137,6 @@ print('Labels', collections.Counter(y))
 if BINARY:
     y = (y > 0).astype(int)
 
-print(list(age))
-
 
 def evaluate(kernel_idx):
 
@@ -160,9 +154,22 @@ def evaluate(kernel_idx):
     w = w / np.sum(w)
     K_agg = np.sum(w[:, np.newaxis, np.newaxis, np.newaxis] * K, axis=0)
     for k in range(len(K_agg)):
+
+
+        #np.fill_diagonal(K_agg[k, :, :], 0)
+
+        # K_agg[k, :, :] /= np.outer(np.mean(K_agg[k, :, :], axis=0), np.mean(K_agg[k, :, :], axis=1))
+
+        gamma = [2, 2, 2, 1000000000, 40][k]
+        K_agg[k, :, :] = np.exp(-gamma * K_agg[k, :, :])
+
+        plt.imshow(K_agg[k, :, :])
+        plt.show()
+
         K_agg[k, :, :] = KernelCenterer().fit_transform(K_agg[k, :, :])
     K_agg = K_agg[kernel_idx, ...]
     K_agg = np.mean(K_agg, axis=0)
+
 
     #alpha = 0.2
     #np.fill_diagonal(K_agg, alpha * np.diagonal(K_agg) + (1 - alpha) * np.ones(len(K_agg)))

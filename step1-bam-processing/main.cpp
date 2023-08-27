@@ -10,8 +10,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <cinttypes>
-#include <cassert>
-#include <climits>
 #include <pthread.h>
 #include <string>
 #include <vector>

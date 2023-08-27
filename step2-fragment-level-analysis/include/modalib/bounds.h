@@ -36,6 +36,9 @@ static const long NUM_50KB_BINS = 61625L;
 // Size of a 50 kb bin (you guessed it, it's 50000)
 static const long BIN_SIZE = 50000L;
 
+// Size of the bin used to compute each kernel (1 Mb)
+static const long KERNEL_BIN_SIZE = 1000000L;
+
 // Number of partitions is the number of threads used in the CPU-intensive
 // part of the code. Partitions are roughly-equal portions of the genome
 // being processed in parallel.

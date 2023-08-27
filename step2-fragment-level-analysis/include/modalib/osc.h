@@ -17,10 +17,10 @@
 //  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 //  MA 02110-1301, USA.
 
-#ifndef _OSC_H__
-#define _OSC_H__
+#ifndef OSC_H_
+#define OSC_H_
 
-#include "modalib/fragment_info.h"
+#include "fragment_info.h"
 
 #include <fstream>
 #include <iostream>
@@ -51,8 +51,7 @@ public:
     // No default constructor (to make sure it is properly initialized)
     Oscillator() = delete;
 
-
-	Oscillator(std::unordered_map<uint8_t, std::vector<long>>& nuc_pos): nuc_pos(), chr_angles(0) {
+	explicit Oscillator(std::unordered_map<uint8_t, std::vector<long>>& nuc_pos): nuc_pos(), chr_angles(0) {
 	    for (auto& it : nuc_pos) {
 
             const uint8_t chr_id = it.first;
@@ -95,4 +94,4 @@ public:
 
 } // namespace modalib
 
-#endif // _OSC_H__
+#endif // OSC_H_

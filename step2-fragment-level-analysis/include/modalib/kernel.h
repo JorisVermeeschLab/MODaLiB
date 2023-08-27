@@ -17,17 +17,17 @@
 //  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 //  MA 02110-1301, USA.
 
-#ifndef _KERNEL_H__
-#define _KERNEL_H__
+#ifndef KERNEL_H_
+#define KERNEL_H_
 
-#include "modalib/counter.h"
-#include "modalib/fragment_info.h"
-#include "modalib/sample.h"
-#include "modalib/osc.h"
-#include "modalib/array_utils.h"
-#include "modalib/bounds.h"
-#include "modalib/features.h"
-#include "modalib/utils.h"
+#include "counter.h"
+#include "fragment_info.h"
+#include "sample.h"
+#include "osc.h"
+#include "array_utils.h"
+#include "bounds.h"
+#include "features.h"
+#include "utils.h"
 
 #include <algorithm>
 #include <fstream>
@@ -45,7 +45,7 @@
 
 namespace modalib {
 
-#define DISTANCES_INSTEAD_OF_SIMILARITIES 1
+#define DISTANCES_INSTEAD_OF_SIMILARITIES 0
 
 
 // Maximum distance allowed between the start positions of two fragments.
@@ -80,10 +80,28 @@ public:
 	KernelMatrix() : n(0), data(0), weights(0) {}
 
     // Constructor (kernel matrix of size n*n)
-	KernelMatrix(size_t n): n(n), data(0.0, n * n), weights(0.0, n * n) {}
+	KernelMatrix(size_t n): n(n), data(0.0, (n * (n + 1)) / 2), weights(0.0, (n * (n + 1)) / 2) {}
 
     // Copy constructor
 	KernelMatrix(const KernelMatrix& other): n(other.n), data(other.data), weights(other.weights) {}
+
+    /**
+     * Converts a couple of flat indices to a flat index.
+     * 
+     * This function accounts for the symmetric structure of the matrix.
+     *
+     * @param i Row index
+     * @param j Column index
+     * @return Flat index.
+     */
+    inline int convert_index(int i, int j) {
+        if (i > j) {
+            int temp = i;
+            i = j;
+            j = temp;
+        }
+        return i * this->n + j - (i * (i + 1)) / 2;
+    }
 
     /**
      * Access element (i, j) of the kernel matrix.
@@ -93,9 +111,10 @@ public:
      * @return Element (i, j) of the kernel matrix
      */
 	inline double operator()(int i, int j) {
-		const long double weight = this->weights[i * this->n + j];
+        const int k = this->convert_index(i, j);
+		const long double weight = this->weights[k];
 		if (weight == 0.0) return 0.0;
-		return this->data[i * this->n + j] / weight;
+		return this->data[k] / weight;
 	}
 
     /**
@@ -116,18 +135,16 @@ public:
      * @param weight Value to add (inplace) to the denominator of the kernel function.
      */
 	inline void add_sym(float value, int i, int j, float weight) {
-        this->weights[i * this->n + j] += weight;
-        this->weights[j * this->n + i] += weight;
-        const long double vw = static_cast<long double>(value * weight);
-        this->data[i * this->n + j] += vw;
-        this->data[j * this->n + i] += vw;
+        const int k = this->convert_index(i, j);
+        this->weights[k] += weight;
+        this->data[k] += static_cast<long double>(value * weight);
 	}
 
     // Number of rows (= number of columns)
-	inline size_t n_rows() { return this->n; }
+	inline size_t n_rows() const { return this->n; }
 
     // Number of columns (= number of rows)
-	inline size_t n_cols() { return this->n; }
+	inline size_t n_cols() const { return this->n; }
 };
 
 
@@ -195,7 +212,7 @@ void compute_kernel_matrices_for_one_chromosome(
 
     // Copy fragment counters -> one counter per sample and chromosome
     std::vector<Counter> counters;
-    for (Counter _counter : _counters) {
+    for (const Counter& _counter : _counters) {
         counters.push_back(Counter(_counter));
     }
 
@@ -283,8 +300,8 @@ void compute_kernel_matrices_for_one_chromosome(
                 w[j] *= w[j];
 
                 // The two fragments being compared should be sufficiently close
-                w[j] *= (chr_id == chr_ids[j]);
-                w[j] *= (std::labs(coord_i - coords[j]) <= MAX_FRAGMENT_DISTANCE);
+                w[j] *= static_cast<float>(chr_id == chr_ids[j]);
+                w[j] *= static_cast<float>(std::labs(coord_i - coords[j]) <= MAX_FRAGMENT_DISTANCE);
 
                 // Account for the coverage -> downweight high-coverage bins and vice versa
                 w[j] *= bin_weight;
@@ -301,7 +318,7 @@ void compute_kernel_matrices_for_one_chromosome(
 
             const uint16_t l_i = frag_i.size;
             const float m_i = frag_i.get_meth_ratio();
-            const float depth_i = static_cast<float>(frag_i.n_sites());
+            const auto depth_i = static_cast<float>(frag_i.n_sites());
             const float density_i = counters.at(i).get_density(frag_i);
             const float mb_i = frag_i.get_mutation_burden();
             for (size_t k = 0; k < idx.size(); ++k) {
@@ -353,6 +370,9 @@ void compute_kernel_matrices_for_one_chromosome(
                     score = 1.0f - std::fabs(mb_i - frags[j].get_mutation_burden());
                 #endif
                 matrices.at(4).add_sym(score, i, j, w[j] * std::sqrt(frag_i.s_count * frags[j].s_count));
+
+                // Debug information
+                matrices.at(5).add_sym(w[k], i, j, 1.0f);
             }
         }
 
@@ -385,6 +405,7 @@ std::unordered_map<uint8_t, std::vector<KernelMatrix>> compute_kernel_matrices(
 	std::unordered_map<uint8_t, std::vector<KernelMatrix>> matrices;
 	for (uint8_t chr_id = 0; chr_id < CHROMOSOME_BOUNDS.size(); ++chr_id) {
         matrices[chr_id] = std::vector<KernelMatrix>({
+            KernelMatrix(n),
             KernelMatrix(n),
             KernelMatrix(n),
             KernelMatrix(n),
@@ -426,4 +447,4 @@ std::unordered_map<uint8_t, std::vector<KernelMatrix>> compute_kernel_matrices(
 
 } // namespace modalib
 
-#endif // _KERNEL_H__
+#endif // KERNEL_H_

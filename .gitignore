@@ -11,9 +11,13 @@
 *.short
 *.pickle
 
+cmake_install.cmake
+
 X.npz
 K.npz
 
+_deps/
+venv/
 nucleosomes/
 cmake-build-debug/
 .egg-info/
@@ -21,3 +25,4 @@ dist/
 build/
 .idea/
 cmake-build-*/
+CMakeFiles
