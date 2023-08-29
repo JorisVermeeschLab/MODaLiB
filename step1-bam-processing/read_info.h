@@ -1,23 +1,50 @@
-#ifndef READ_INFO_H__
-#define READ_INFO_H__
+//  read_info.h
+//
+//  Copyright 2023 Antoine Passemiers <antoine.passemiers@gmail.com>
+//
+//  This program is free software; you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation; either version 2 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program; if not, write to the Free Software
+//  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+//  MA 02110-1301, USA.
+
+#ifndef READ_INFO_H_
+#define READ_INFO_H_
 
 #include <cstring>
 #include <cstdlib>
 #include <vector>
 
 
+/**
+ * Parse chromosome name and return chromosome identifier.
+ *
+ * @param c Chromosome name.
+ * @return Chromosome identifier.
+ */
 inline uint8_t parse_chr_name(const char* c) {
-    // TODO: check the rest of the string (discard chrY_90308243)
     size_t n = strlen(c);
     uint8_t chr;
-    if ((n > 3) && (c[0] == 'c')) {
-        c = c + 3;
+
+    // If string starts with "chr", ignore the 3 first characters
+    if ((n > 3) && (c[0] == 'c') && (c[1] == 'h') && (c[2] == 'r')) {
+        c += 3;
+        n -= 3;
     }
+
     char *p;
     long converted = strtol(c, &p, 10);
-    if (*p) {
-        if (n > 3) {
-            n -= 3;
+    if (*p) { // If not numeric
+        if (n == 1) {
             if (c[0] == 'X') chr = 23;
             else if (c[0] == 'Y') chr = 24;
             else if (c[0] == 'M') chr = 25;
@@ -28,7 +55,7 @@ inline uint8_t parse_chr_name(const char* c) {
             chr = 0;
         }
     }
-    else {
+    else { // If numeric
         chr = (uint8_t) converted;
     }
     return chr;
@@ -146,4 +173,4 @@ public:
     }
 };
 
-#endif // READ_INFO_H__
+#endif // READ_INFO_H_

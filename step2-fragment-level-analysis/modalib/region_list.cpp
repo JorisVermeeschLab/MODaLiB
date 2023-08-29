@@ -17,14 +17,16 @@
 //  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 //  MA 02110-1301, USA.
 
-#include "modalib/region_list.h"
-#include "modalib/utils.h"
+#include "region_list.h"
+#include "utils.h"
+
+#include <string>
 
 
 namespace modalib {
 
-void _RegionList::add_region(const std::string &chr_name, uint32_t start, uint32_t end) {
-    regions.push_back(Region(parse_chr_name(chr_name), start, end));
+void _RegionList::add_region(uint8_t chr_id, uint32_t start, uint32_t end) {
+    regions.push_back(Region(chr_id, start, end));
 }
 
 void _RegionList::load(const std::string &filepath) {

@@ -118,7 +118,7 @@ void processRead(Config *config, bam1_t *b, char *seq, uint32_t sequenceStart, i
     int strand = get_strand(b);
 
     while ((readPosition < b->core.l_qseq) && (cigarOPNumber < b->core.n_cigar)) {
-        if (cigarOPOffset >= bam_cigar_oplen(CIGAR[cigarOPNumber])) {
+        if (cigarOPOffset >= bam_cigar_oplen(CIGAR[cigarOPNumber])) {  // TODO (URGENT): remove this?
             cigarOPOffset = 0;
             cigarOPNumber++;
         }

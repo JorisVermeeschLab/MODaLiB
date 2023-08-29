@@ -17,8 +17,8 @@
 //  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 //  MA 02110-1301, USA.
 
-#ifndef _REGION_LIST_H__
-#define _REGION_LIST_H__
+#ifndef REGION_LIST_H_
+#define REGION_LIST_H_
 
 #include "fragment_info.h"
 #include "site.h"
@@ -38,7 +38,7 @@ private:
 public:
     _RegionList(): regions(), cursor(0) {}
     void load(const std::string &filepath);
-    void add_region(const std::string &chr_name, uint32_t start, uint32_t end);
+    void add_region(uint8_t chr_id, uint32_t start, uint32_t end);
     bool contains(const FragmentInfo&);
     std::size_t get_region_id() { return cursor; }
     Region& get_region(std::size_t i) { return regions[i]; }
@@ -50,4 +50,4 @@ public:
 
 } // namespace modalib
 
-#endif // _REGION_LIST_H__
+#endif // REGION_LIST_H_

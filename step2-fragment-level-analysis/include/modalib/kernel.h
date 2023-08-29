@@ -156,8 +156,8 @@ public:
  * Count the fragments in one sample.
  *
  * @param sample Sample to be processed
- * @param counter Counter where to store the counts per GC-stratum
- * @param counts Per-bin counts
+ * @param counter Counter where to store the counts per GC-stratum (unique to current sample).
+ * @param counts Per-bin counts, shared across all samples.
  */
 void init_counter(const _Sample& _sample, Counter& counter, std::unordered_map<uint8_t, FeatureMatrix>& counts) {
     _Sample sample(_sample);
@@ -169,6 +169,8 @@ void init_counter(const _Sample& _sample, Counter& counter, std::unordered_map<u
         const long coord = frag.start_pos;
         const size_t j = coord / BIN_SIZE;
         if (j < counts.at(chr_id).n_cols()) {
+            // `counts` matrix is of shape (1, p), as the per-bin counts
+            // are shared across all samples. For this reason, we increment the 1 first row only.
             counts.at(chr_id).add(1.0f, 0, j, 1.0f);
         }
 
@@ -203,6 +205,19 @@ std::vector<Counter> init_counters(std::vector<_Sample>& samples, std::unordered
     return counters;
 }
 
+
+/**
+ * Compute the kernel matrices for one partition.
+ *
+ * Each partition is processed by a different thread,
+ * allowing the parallel processing of multiple (non-overlapping) portions of the genome.
+ *
+ * @param partition_id 0-based index of current partition.
+ * @param _samples Samples for which to compute the kernel matrices.
+ *     Assuming there are `n` samples, each kernel matrix will be of shape `n × n`.
+ * @param all_matrices Kernel matrices to be computed.
+ * TODO
+ */
 void compute_kernel_matrices_for_one_chromosome(
         int partition_id,
         const std::vector<_Sample>& _samples,

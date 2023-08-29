@@ -1,5 +1,5 @@
-#ifndef _READ_INFO_H
-#define _READ_INFO_H
+#ifndef READ_INFO_H_
+#define READ_INFO_H_
 
 #include <cstdint>
 #include <utility>
@@ -10,9 +10,10 @@
 
 namespace modalib {
 
+// Number of bytes used to represent each fragment in the input binary file
 static constexpr size_t FRAGMENT_SIZE_IN_BYTES = 22;
 
-struct FragmentInfo {  // TODO: should be called FragmentInfo, or Fragment
+struct FragmentInfo {
 
     // Genomic coordinates of the fragment start
     uint8_t start_chr_id = 0;
@@ -104,4 +105,4 @@ struct FragmentInfo {  // TODO: should be called FragmentInfo, or Fragment
 
 } // namespace modalib
 
-#endif //_READ_INFO_H
+#endif //READ_INFO_H_

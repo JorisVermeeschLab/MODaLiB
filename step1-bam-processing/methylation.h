@@ -35,6 +35,11 @@
 
 #include "utils.h"
 
+
+// End of sequence
+static constexpr int END_OF_SEQUENCE = -2;
+
+
 std::vector<std::string> split(std::string s, const std::string delimiter) {
     std::vector<std::string> elements;
     int pos;
@@ -73,12 +78,12 @@ bool is_cpg(uint8_t* seq, int pos, int seq_len, int strand) {
 }
 
 int move_to_next_cytosine(uint8_t* seq, int offset, int seq_len, int strand) {
-    if ((seq_len < 1) or (offset >= seq_len)) return -2;
+    if ((seq_len < 1) or (offset >= seq_len)) return END_OF_SEQUENCE;
     offset++;
     while ((!is_cytosine(get_base(seq, offset, seq_len, strand), strand)) and (offset < seq_len)) {
         offset++;
     }
-    if (offset >= seq_len) return -2;
+    if (offset >= seq_len) return END_OF_SEQUENCE;
     return offset;
 }
 
@@ -121,7 +126,7 @@ std::pair<int, int> methylation_from_aux(bam1_t *b, uint8_t ml_cutoff) {
                 ml_pos++;
             }
 
-            while (seq_pos >= -1) {
+            while (seq_pos != END_OF_SEQUENCE) {
                 seq_pos = move_to_next_cytosine(seq, seq_pos, seq_len, strand);
                 if (is_cpg(seq, seq_pos, seq_len, strand)) counts.second++;
             }

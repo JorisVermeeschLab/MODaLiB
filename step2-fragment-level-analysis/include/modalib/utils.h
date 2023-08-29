@@ -1,5 +1,24 @@
-#ifndef _UTILS_H__
-#define _UTILS_H__
+//  utils.h
+//
+//  Copyright 2023 Antoine Passemiers <antoine.passemiers@gmail.com>
+//
+//  This program is free software; you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation; either version 2 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program; if not, write to the Free Software
+//  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+//  MA 02110-1301, USA.
+
+#ifndef UTILS_H_
+#define UTILS_H_
 
 #include <cstring>
 #include <iostream>
@@ -11,40 +30,19 @@ namespace modalib {
 // Constant indicating that EOF has been reached
 const long END_OF_SAMPLE = std::numeric_limits<long>::max();
 
-typedef unsigned int count_t;
 
+/**
+ * Combine genomic coordinates to a single integer.
+ *
+ * @param chr_id Chromosome identifier
+ * @param pos Position on chromosome (in bp).
+ * @return Combined genomic coordinates.
+ */
 inline long combine_coords(uint8_t chr_id, long pos) {
     if (pos == END_OF_SAMPLE) return END_OF_SAMPLE;
     else return static_cast<long>(chr_id) * 1e+9 + pos;
 }
 
-inline int8_t parse_chr_name(const std::string &chr_name) {
-    std::size_t n = chr_name.size();
-    uint8_t chr;
-    const char *c = chr_name.c_str();
-    if ((n > 3) && (c[0] == 'c')) {
-        c = c + 3;
-    }
-    char *p;
-    long converted = strtol(c, &p, 10);
-    if (*p) {
-        if (n > 3) {
-            if (c[0] == 'X') chr = 23;
-            else if (c[0] == 'Y') chr = 24;
-            else if (c[0] == 'M') chr = 25;
-            else chr = 0;
-        } else if ((n == 3) && (strncmp(c, "EBV", 3) == 0)) {
-            chr = 26;
-        } else {
-            chr = 0;
-        }
-    }
-    else {
-        chr = static_cast<uint8_t>(converted);
-    }
-    return chr;
-}
-
 } // namespace modalib
 
-#endif // _UTILS_H__
+#endif // UTILS_H_

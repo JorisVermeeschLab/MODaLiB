@@ -28,6 +28,7 @@
 #include "serialization.h"
 
 
+// Number of bytes used to represent a fragment in the output binary format
 static constexpr size_t FRAGMENT_SIZE_IN_BYTES = 22;
 
 
@@ -68,6 +69,8 @@ public:
     ReadInfo r2;
 
 public:
+
+    // Construct a fragment from a single read
     Fragment(ReadInfo& r) {
         this->single_read = true;
         this->r1 = r;
@@ -83,6 +86,8 @@ public:
         this->gc_count = r.gc_count;
         this->s_count = r.s_count;
     }
+
+    // Construct a fragment from paired-end reads
     Fragment(ReadInfo& r1, ReadInfo& r2) {
         this->single_read = false;
         this->r1 = r1;

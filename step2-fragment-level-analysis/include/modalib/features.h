@@ -17,8 +17,8 @@
 //  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 //  MA 02110-1301, USA.
 
-#ifndef _FEATURES_H__
-#define _FEATURES_H__
+#ifndef FEATURES_H_
+#define FEATURES_H_
 
 #include <fstream>
 #include <iostream>
@@ -163,4 +163,4 @@ std::unordered_map<uint8_t, std::vector<FeatureMatrix>> extract_all_features(
 
 } // namespace modalib
 
-#endif // _FEATURES_H__
+#endif // FEATURES_H_
