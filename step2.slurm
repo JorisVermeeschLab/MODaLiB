@@ -6,7 +6,7 @@
 #SBATCH --ntasks 1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task 15
-#SBATCH --mem=64G
+#SBATCH --mem=128G
 #SBATCH -A lp_joris_vermeesch
 #SBATCH -J mkl
 #SBATCH -o mkl.out
@@ -21,6 +21,7 @@ module use /apps/leuven/skylake/2018a/modules/all
 module load Python/3.6.4-foss-2018a
 module load matplotlib/2.1.2-foss-2018a-Python-3.6.4
 module load GDB/8.1-foss-2018a
+module load SAMtools/1.9-foss-2018a
 
 # Compilation
 cd /lustre1/project/stg_00019/research/Antoine/MODaLiB/step2-fragment-level-analysis

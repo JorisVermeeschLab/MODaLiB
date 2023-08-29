@@ -17,8 +17,8 @@
 //  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 //  MA 02110-1301, USA.
 
-#include "region_list.h"
-#include "utils.h"
+#include "modalib/region_list.h"
+#include "modalib/utils.h"
 
 #include <string>
 
@@ -39,13 +39,13 @@ void _RegionList::load(const std::string &filepath) {
             std::stringstream ss(line);
             std::string token;
             std::size_t i = 0;
-            std::string chr_name;
+            uint8_t chr_id;
             uint32_t start;
             uint32_t end;
             while(std::getline(ss, token, ',')) {
                 switch (i) {
                     case 0:
-                        chr_name = token;
+                        chr_id = std::stoi(token);
                         break;
                     case 1:
                         start = std::stoi(token);
@@ -56,7 +56,7 @@ void _RegionList::load(const std::string &filepath) {
                 }
                 i++;
             }
-            add_region(chr_name, start, end);
+            add_region(chr_id, start, end);
         }
     }
 }

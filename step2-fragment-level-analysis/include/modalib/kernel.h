@@ -426,7 +426,7 @@ std::unordered_map<uint8_t, std::vector<KernelMatrix>> compute_kernel_matrices(
 	for (uint8_t chr_id = 0; chr_id < CHROMOSOME_BOUNDS.size(); ++chr_id) {
         matrices[chr_id] = std::vector<KernelMatrix>();
         for (int k = 0; k < KERNEL_BOUNDS.at(chr_id).second * NUM_KERNELS; k++) {
-            matrices[chr_id].push_back(n);
+            matrices[chr_id].push_back(KernelMatrix(n));
         }
 	}
 

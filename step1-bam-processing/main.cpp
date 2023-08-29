@@ -6,11 +6,13 @@
 #include "htslib/kstring.h"
 
 #include <getopt.h>
+#include <cassert>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <cinttypes>
 #include <pthread.h>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -21,6 +23,7 @@
 #include "utils.h"
 
 
+#define NDEBUG
 static constexpr bool DEBUG_TEXT_OUTPUT = true;
 
 
@@ -103,87 +106,84 @@ void addRead(kstring_t *os, bam1_t *b, bam_hdr_t *hdr, ReadInfo& read) {
     kputs(str, os);
 }
 
-void processRead(Config *config, bam1_t *b, char *seq, uint32_t sequenceStart, int seqLen, ReadInfo& read_info) {
 
-    // Use inclusion bounds to trim alignments
-    b = trimAlignmentSimple(b, config->bounds);
+// TODO: replace seq, sequenceStart and seqLen by a custom object ("AlignedRefSequence"?)
+void compute_read_statistics(bam1_t *b, char *seq, uint32_t sequenceStart, int seqLen, ReadInfo& read_info, int min_phred) {
 
-    uint32_t readPosition = 0;
-    uint32_t mappedPosition = b->core.pos;
-    int cigarOPNumber = 0;
-    int cigarOPOffset = 0;
-    uint32_t *CIGAR = bam_get_cigar(b);
-    uint8_t *readSeq = bam_get_seq(b);
-    uint8_t *readQual = bam_get_qual(b);
+    uint32_t query_pos = 0;
+    uint32_t ref_pos = b->core.pos;
+    uint32_t* CIGAR = bam_get_cigar(b);
+    uint8_t* read_seq = bam_get_seq(b);
+    uint8_t* read_qual = bam_get_qual(b);
     int strand = get_strand(b);
 
-    while ((readPosition < b->core.l_qseq) && (cigarOPNumber < b->core.n_cigar)) {
-        if (cigarOPOffset >= bam_cigar_oplen(CIGAR[cigarOPNumber])) {  // TODO (URGENT): remove this?
-            cigarOPOffset = 0;
-            cigarOPNumber++;
-        }
-        int cigarOPType = bam_cigar_type(CIGAR[cigarOPNumber]);
-        if (cigarOPType & 2) { //not ISHPB
-            if (cigarOPType & 1) { //M=X
+    while (int cigar_pos = 0; cigar_pos < b->core.n_cigar; cigar_pos++) {
 
-                // Skip poor base calls
-                if (readQual[readPosition] < config->minPhred) {
-                    mappedPosition++;
-                    readPosition++;
-                    cigarOPOffset++;
-                    continue;
+        int cigar_op_type = bam_cigar_op(CIGAR[cigar_pos]);
+
+        if ((cigar_op_type == BAM_CMATCH) || (cigar_op_type == BAM_CEQUAL) || (cigar_op_type == BAM_CDIFF)) {  // M, = or X (alignment match, but can be sequence match or mismatch)
+
+            for (int kk = 0; kk < bam_cigar_oplen(CIGAR[cigar_pos]); kk++) {
+                if (read_qual[query_pos] >= min_phred) {  // Consider only high-quality base calls
+
+                    // Get bases from the reference and query sequences
+                    int base = bam_seqi(read_seq, query_pos);
+                    int ref_base = *(seq + ref_pos - sequenceStart);
+
+                    // Check that bases indeed match or mismatch
+                    if (cigar_op_type == BAM_CEQUAL) assert(base == ref_base);
+                    else if (cigar_op_type == BAM_CDIFF) assert(base != ref_base);
+
+                    // Update read-level statistics with the new base
+                    bool is_snp = ((base != ref_base) && (static_cast<char>(ref_base) != 'C'));
+                    // TODO: count non_snp bases
+                    read_info.add_base(base, query_pos, strand, is_snp);
+
+                    // Check if CpG site
+                    int direction = isCpG(seq, ref_pos - sequenceStart, seqLen);
+
+                    // Check methylation status (if CpG)
+                    if (direction == 1 && (strand & 1) == 1) { // C & OT/CTOT
+                        if (base == 2) read_info.inc_methyl_count(query_pos);  //C
+                        else if (base == 8) read_info.inc_unmethyl_count(query_pos);  //T
+                        read_info.cpgs.push_back(query_pos);
+                    } else if (direction == -1 && (strand & 1) == 0) { // G & OB/CTOB
+                        if (base == 4) read_info.inc_methyl_count(query_pos);  //G
+                        else if (base == 1) read_info.inc_unmethyl_count(query_pos);  //A
+                        read_info.cpgs.push_back(query_pos);
+                    }
                 }
-
-                // Add base
-                int base = bam_seqi(readSeq, readPosition);
-                int ref_base = *(seq + mappedPosition - sequenceStart);
-                bool is_snp = ((base != ref_base) && (static_cast<char>(ref_base) != 'C'));
-                // TODO: count non_snp bases
-                read_info.add_base(base, readPosition, strand, is_snp);
-
-                // Check if CpG site
-                int direction = isCpG(seq, mappedPosition - sequenceStart, seqLen);
-
-                // Check methylation status (if CpG)
-                if (direction == 1 && (strand & 1) == 1) { // C & OT/CTOT
-                    if (base == 2) read_info.inc_methyl_count(readPosition);  //C
-                    else if (base == 8) read_info.inc_unmethyl_count(readPosition);  //T
-                    read_info.cpgs.push_back(readPosition);
-                } else if (direction == -1 && (strand & 1) == 0) { // G & OB/CTOB
-                    if (base == 4) read_info.inc_methyl_count(readPosition);  //G
-                    else if (base == 1) read_info.inc_unmethyl_count(readPosition);  //A
-                    read_info.cpgs.push_back(readPosition);
-                }
-
-                mappedPosition++;
-                readPosition++;
-                cigarOPOffset++;
-            } else {  // Deletion
-                const int deleted = bam_cigar_oplen(CIGAR[cigarOPNumber++]);
-                read_info.deleted += deleted;
-                mappedPosition += deleted;
-                cigarOPOffset = 0;
-                continue;
+                ref_pos++;
+                query_pos++;
             }
-        } else if (cigarOPType & 1) {  // Insertion
+        } else if (cigar_op_type == BAM_CINS) {  // I (insertion to the reference)
 
-            // Add bases
-            const int inserted = bam_cigar_oplen(CIGAR[cigarOPNumber++]);
-            for (int i = 0; i < inserted; ++i) {
-                int base = bam_seqi(readSeq, readPosition);
-                read_info.add_base(base, readPosition, strand);
-                readPosition++;
+            // Update read statistics with the inserted bases
+            int inserted = bam_cigar_oplen(CIGAR[cigar_pos]);
+            for (int i = 0; i < inserted; i++) {
+                int base = bam_seqi(read_seq, query_pos);
+                read_info.add_base(base, query_pos, strand);
+                query_pos++;
             }
 
             read_info.inserted += inserted;
-            cigarOPOffset = 0;
-            continue;
-        } else { // HPB Note that B is not handled properly, but it doesn't currently exist in the wild
-            cigarOPOffset = 0;
-            cigarOPNumber++;
-            continue;
+        } else if (cigar_op_type == BAM_CDEL) {  // D (deletion from the reference)
+            int n_deleted = bam_cigar_oplen(CIGAR[cigar_pos]);
+            read_info.deleted += n_deleted;
+            ref_pos += n_deleted;
+        } else if (cigar_op_type == BAM_CREF_SKIP) {  // N (skipped region from the reference)
+            int n_skipped = bam_cigar_oplen(CIGAR[cigar_pos]);
+            ref_pos += n_skipped;
+        } else if ((cigar_op_type == BAM_CSOFT_CLIP) || (cigar_op_type == BAM_CBACK)) {  // S (soft clipping) or B ("backwards" skip operator)
+            int n_clipped = bam_cigar_oplen(CIGAR[cigar_pos]);
+            query_pos += n_clipped;
+            cigar_n_bases_processed += n_clipped;
+        } else {  // Ignore H and P operations
+            // Do nothing
         }
     }
+
+    assert(query_pos == b->core.l_qseq);
 }
 
 void* perReadMetrics(void *foo) {
@@ -237,9 +237,9 @@ void* perReadMetrics(void *foo) {
         globalPos = localEnd;
         if (globalEnd > 0 && globalPos >= globalEnd) {
             //If we've specified a region, then break once we're outside of it
-            globalTid = (uint32_t) -1;
+            globalTid = std::numeric_limits<uint32_t>::max();
         }
-        if(localTid < hdr->n_targets && globalTid != (uint32_t) -1) {
+        if(localTid < hdr->n_targets && globalTid != std::numeric_limits<uint32_t>::max()) {
             if(globalPos >= hdr->target_len[localTid]) {
                 localEnd = hdr->target_len[localTid];
                 globalTid++;
@@ -274,9 +274,14 @@ void* perReadMetrics(void *foo) {
             if (config->requireFlags && (config->requireFlags & b->core.flag) != config->requireFlags) continue;
             if (config->ignoreFlags && (config->ignoreFlags & b->core.flag) != 0) continue;
             if (b->core.qual < config->minMapq) continue;
-            processRead(config, b, seq, localPos2, seqlen, read);
 
-            // Compute methylation using MM and ML tags
+            // Use inclusion bounds to trim alignments
+            b = trimAlignmentSimple(b, config->bounds);
+
+            // Extract read-level statistics from read
+            compute_read_statistics(b, seq, localPos2, seqlen, read, config->minPhred);
+
+            // Compute methylation using MM and ML tags (if required)
             if (config->use_mm_ml) {
                 std::pair<int, int> meth = methylation_from_aux(b, config->ml_cutoff);
                 read.n_methylated = meth.first;

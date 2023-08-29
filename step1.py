@@ -32,7 +32,7 @@ def process_bam_file(gc_code: str, filepath: str, override: bool = False) -> boo
             return False
         ot, ob = bounds[gc_code]
         print(f'Processing {gc_code}')
-        cmd = f'{EXE_PATH} perRead {REF_GENOME_PATH} {filepath} ' \
+        cmd = f'{EXE_PATH} {REF_GENOME_PATH} {filepath} ' \
               f'-o {OUT_DIR}/{gc_code}.txt --OT {ot} --OB {ob}'
         try:
             os.system(cmd)
