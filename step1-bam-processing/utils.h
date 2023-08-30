@@ -37,7 +37,7 @@
  on how strand is determined from this, see the source code for this function or
  the documentation for either Bison or bismark. This method can handle non-
  directional libraries. If an XG auxiliary tag is not present, then the
- orientation of each alignment (and whethers it's read #1 or #2 of a pair, if
+ orientation of each alignment (and whether it's read #1 or #2 of a pair, if
  applicable) determines the strand.
 */
 int get_strand(bam1_t *b) {
@@ -81,7 +81,7 @@ std::string get_read_as_string(bam1_t *b) {
 
 	std::stringstream ss;
 	for (int i = 0; i < seq_len; i++) {
-		int base = bam_seqi(seq, i);
+		int base = seq_nt16_str[bam_seqi(seq, i)];
 		switch (base) {
 		case 2:
 			ss << "C";

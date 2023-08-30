@@ -39,7 +39,9 @@ def process_bam_file(gc_code: str, filepath: str, override: bool = False) -> boo
         except KeyboardInterrupt:
             return True
         except Exception as e:
+            print(e)
             logging.exception(e)
+            raise e
             return False
     return True
 

@@ -64,20 +64,6 @@ typedef struct {
 //Used internally to parse things like --OT 0,1,2,3
 void parseBounds(char *s2, int *vals, int mult);
 
-inline int isCpG(char *seq, int pos, int seqlen) {
-    if(pos >= seqlen) return 0;
-    if(*(seq+pos) == 'C' || *(seq+pos) == 'c') {
-        if(pos+1 == seqlen) return 0;
-        if(*(seq+pos+1) == 'G' || *(seq+pos+1) == 'g') return 1;
-        return 0;
-    } else if(*(seq+pos) == 'G' || *(seq+pos) == 'g') {
-        if(pos == 0) return 0;
-        if(*(seq+pos-1) == 'C' || *(seq+pos-1) == 'c') return -1;
-        return 0;
-    }
-    return 0;
-}
-
 //returns <0 if region0 comes before region1
 //returns >0 if region0 comes after region1
 //returns 0 on overlap

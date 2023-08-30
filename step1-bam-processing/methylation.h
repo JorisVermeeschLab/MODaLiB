@@ -57,7 +57,7 @@ inline int get_base(uint8_t* seq, int pos, int seq_len, int strand) {
         pos = seq_len - 1 - pos;
     }
     if ((pos < 0) or (pos >= seq_len)) return -1;
-    return bam_seqi(seq, pos);
+    return seq_nt16_str[bam_seqi(seq, pos)];
 }
 
 inline bool is_cytosine(int base, int strand) {

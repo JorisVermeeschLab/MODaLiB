@@ -20,10 +20,11 @@
 #include "read_info.h"
 #include "fragment.h"
 #include "methylation.h"
+#include "reference.h"
 #include "utils.h"
 
 
-#define NDEBUG
+// #define NDEBUG
 static constexpr bool DEBUG_TEXT_OUTPUT = true;
 
 
@@ -37,22 +38,7 @@ uint32_t bin = 0;
 uint32_t outputBin = 0;
 
 
-void addFragment(kstring_t *os, Fragment& fragment) {
-
-    if (fragment.start_chr_id == fragment.end_chr_id) {
-        // Quality checks
-        if (!fragment.mapped_in_proper_pair()) return;
-        if (fragment.failed_quality_checks()) return;
-        if (fragment.is_duplicate()) return;
-    } else {
-        // Do nothing: keep fragments that may potentially highlight translocations
-    }
-
-    // Ensure known chromosome
-    if ((fragment.start_chr_id == 0) || (fragment.end_chr_id == 0)) return;
-
-    // Ensure fragment is not too long
-    // if (read.insert_size > 1000) return;
+void write_fragment(kstring_t *os, Fragment& fragment) {
 
     if (DEBUG_TEXT_OUTPUT) {
         char str[10000];
@@ -77,39 +63,9 @@ void addFragment(kstring_t *os, Fragment& fragment) {
 }
 
 
-void addRead(kstring_t *os, bam1_t *b, bam_hdr_t *hdr, ReadInfo& read) {
+void compute_read_statistics(bam1_t *b, AlignmentRefSequence& ref, ReadInfo& read_info, int min_phred) {
 
-    // Do some checks
-    if (read.failed_quality_checks()) return;
-    if (read.is_duplicate()) return;
-    if (!read.mapped_in_proper_pair()) return;
-
-    // Ensure known chromosome
-    if (read.chr_id == 0) return;
-
-    char str[10000];
-
-    snprintf(str, 10000, "%" PRId32 "\t%" PRIu16 "\t%" PRId32 "\t%" PRIu32 "\t%" PRIu32 "\t%" PRIu32 "\t%" PRIu32 "\t%" PRId16 "\t%" PRIu16 "\t%" PRIu16 "\t%" PRIu16 "\n",
-        read.length,
-        read.chr_id,
-        read.start,
-        read.n_methylated,
-        read.n_unmethylated,
-        read.gc_count,
-        read.s_count,
-        read.insert_size,
-        read.sam_flag,
-        read.inserted,
-        read.deleted
-    );
-
-    kputs(str, os);
-}
-
-
-// TODO: replace seq, sequenceStart and seqLen by a custom object ("AlignedRefSequence"?)
-void compute_read_statistics(bam1_t *b, char *seq, uint32_t sequenceStart, int seqLen, ReadInfo& read_info, int min_phred) {
-
+    uint32_t start_query_pos = b->core.pos;
     uint32_t query_pos = 0;
     uint32_t ref_pos = b->core.pos;
     uint32_t* CIGAR = bam_get_cigar(b);
@@ -117,7 +73,7 @@ void compute_read_statistics(bam1_t *b, char *seq, uint32_t sequenceStart, int s
     uint8_t* read_qual = bam_get_qual(b);
     int strand = get_strand(b);
 
-    while (int cigar_pos = 0; cigar_pos < b->core.n_cigar; cigar_pos++) {
+    for (int cigar_pos = 0; cigar_pos < b->core.n_cigar; cigar_pos++) {
 
         int cigar_op_type = bam_cigar_op(CIGAR[cigar_pos]);
 
@@ -127,30 +83,37 @@ void compute_read_statistics(bam1_t *b, char *seq, uint32_t sequenceStart, int s
                 if (read_qual[query_pos] >= min_phred) {  // Consider only high-quality base calls
 
                     // Get bases from the reference and query sequences
-                    int base = bam_seqi(read_seq, query_pos);
-                    int ref_base = *(seq + ref_pos - sequenceStart);
+                    char base = seq_nt16_str[bam_seqi(read_seq, query_pos)];
+                    char ref_base = ref.get_base(ref_pos);
 
                     // Check that bases indeed match or mismatch
                     if (cigar_op_type == BAM_CEQUAL) assert(base == ref_base);
                     else if (cigar_op_type == BAM_CDIFF) assert(base != ref_base);
 
                     // Update read-level statistics with the new base
-                    bool is_snp = ((base != ref_base) && (static_cast<char>(ref_base) != 'C'));
-                    // TODO: count non_snp bases
+                    bool is_snp = ((base != ref_base) && (ref_base != 'C'));
                     read_info.add_base(base, query_pos, strand, is_snp);
 
                     // Check if CpG site
-                    int direction = isCpG(seq, ref_pos - sequenceStart, seqLen);
+                    int direction = ref.is_cpg(ref_pos);
 
                     // Check methylation status (if CpG)
                     if (direction == 1 && (strand & 1) == 1) { // C & OT/CTOT
-                        if (base == 2) read_info.inc_methyl_count(query_pos);  //C
-                        else if (base == 8) read_info.inc_unmethyl_count(query_pos);  //T
-                        read_info.cpgs.push_back(query_pos);
+                        if (base == 'C') {
+                            read_info.add_methylated_cpg(start_query_pos + query_pos);
+                        }
+                        else if (base == 'T') {
+                            read_info.add_unmethylated_cpg(start_query_pos + query_pos);
+                        }
                     } else if (direction == -1 && (strand & 1) == 0) { // G & OB/CTOB
-                        if (base == 4) read_info.inc_methyl_count(query_pos);  //G
-                        else if (base == 1) read_info.inc_unmethyl_count(query_pos);  //A
-                        read_info.cpgs.push_back(query_pos);
+                        if (base == 'G') {
+                            read_info.add_methylated_cpg(start_query_pos + query_pos);
+                        }
+                        else if (base == 'A') {
+                            read_info.add_unmethylated_cpg(start_query_pos + query_pos);
+                        }
+                    } else {  // Not a CpG site
+
                     }
                 }
                 ref_pos++;
@@ -161,7 +124,7 @@ void compute_read_statistics(bam1_t *b, char *seq, uint32_t sequenceStart, int s
             // Update read statistics with the inserted bases
             int inserted = bam_cigar_oplen(CIGAR[cigar_pos]);
             for (int i = 0; i < inserted; i++) {
-                int base = bam_seqi(read_seq, query_pos);
+                char base = seq_nt16_str[bam_seqi(read_seq, query_pos)];
                 read_info.add_base(base, query_pos, strand);
                 query_pos++;
             }
@@ -177,7 +140,6 @@ void compute_read_statistics(bam1_t *b, char *seq, uint32_t sequenceStart, int s
         } else if ((cigar_op_type == BAM_CSOFT_CLIP) || (cigar_op_type == BAM_CBACK)) {  // S (soft clipping) or B ("backwards" skip operator)
             int n_clipped = bam_cigar_oplen(CIGAR[cigar_pos]);
             query_pos += n_clipped;
-            cigar_n_bases_processed += n_clipped;
         } else {  // Ignore H and P operations
             // Do nothing
         }
@@ -279,27 +241,24 @@ void* perReadMetrics(void *foo) {
             b = trimAlignmentSimple(b, config->bounds);
 
             // Extract read-level statistics from read
-            compute_read_statistics(b, seq, localPos2, seqlen, read, config->minPhred);
+            AlignmentRefSequence ref(seq, localPos2, seqlen);
+            compute_read_statistics(b, ref, read, config->minPhred);
 
             // Compute methylation using MM and ML tags (if required)
             if (config->use_mm_ml) {
                 std::pair<int, int> meth = methylation_from_aux(b, config->ml_cutoff);
-                read.n_methylated = meth.first;
-                read.n_methylated_nov = meth.first;
-                read.n_unmethylated = meth.second;
-                read.n_unmethylated_nov = meth.second;
+                // TODO: add cpg site positions
             }
 
             // Combine read pairs into fragments
             if (config->singleRead) {  // Single-read
                 Fragment fragment(read);
-                addFragment(os, fragment);
+                if (fragment.is_valid()) write_fragment(os, fragment);
             } else {  // Paired-end
                 bool found_pair = false;
                 auto pr_iter = paired_reads.begin();
                 while (pr_iter != paired_reads.end()) {
                     if (read.paired_with(*pr_iter)) {
-                        paired_reads.erase(pr_iter);
                         ReadInfo r1, r2;
                         if (pr_iter->start < read.start) {
                             r1 = *pr_iter;
@@ -308,13 +267,13 @@ void* perReadMetrics(void *foo) {
                             r1 = read;
                             r2 = *pr_iter;
                         }
+
                         Fragment fragment(r1, r2);
-                        if (DEBUG_TEXT_OUTPUT) {
-                            addRead(os, b, hdr, r1);
-                            addRead(os, b, hdr, r2);
-                        }
-                        addFragment(os, fragment);
+                        if (fragment.is_valid()) write_fragment(os, fragment);
                         found_pair = true;
+
+                        paired_reads.erase(pr_iter);
+
                         break;
                     }
                     ++pr_iter;
@@ -569,7 +528,7 @@ int run_convertor(int argc, char *argv[]) {
     // Spin up the threads
     pthread_mutex_init(&positionMutex, NULL);
     pthread_t *threads = (pthread_t*) calloc(config.nThreads, sizeof(pthread_t));
-    for (i=0; i < config.nThreads; i++) pthread_create(threads+i, NULL, &perReadMetrics, &config);
+    for (i=0; i < config.nThreads; i++) pthread_create(threads + i, NULL, &perReadMetrics, &config);
     for (i=0; i < config.nThreads; i++) pthread_join(threads[i], NULL);
     free(threads);
     pthread_mutex_destroy(&positionMutex);

@@ -22,6 +22,7 @@
 
 #include <cstring>
 #include <cstdlib>
+#include <unordered_set>
 #include <vector>
 
 
@@ -74,14 +75,6 @@ public:
     // Left-most coordinate on chromosome
     uint32_t start;
 
-    // Number of methylated CpG sites
-    uint16_t n_methylated = 0;
-    uint16_t n_methylated_nov = 0;  // Non-overlapping
-
-    // Number of non-methylated CpG sites
-    uint16_t n_unmethylated = 0;
-    uint16_t n_unmethylated_nov = 0;  // Non-overlapping
-
     // Number of single nucleotide polymorphisms
     uint16_t snp_count = 0;
     uint16_t snp_count_nov = 0;  // Non-overlapping
@@ -109,8 +102,14 @@ public:
     // Number of deleted bases
     uint16_t deleted = 0;
 
-    // Positions of CpG sites
-    std::vector<int> cpgs;
+    // Positions of methylated CpG sites on chromosome
+    std::unordered_set<uint32_t> methylated_cpg_sites;
+
+    // Positions of unmethylated CpG sites on chromosome
+    std::unordered_set<uint32_t> unmethylated_cpg_sites;
+
+    // Positions of CpG sites on chromosome
+    std::unordered_set<uint32_t> cpg_sites;
 
 public:
     ReadInfo() = default;
@@ -121,15 +120,16 @@ public:
         length(length),
         insert_size(insert_size),
         sam_flag(sam_flag),
-        cpgs() {}
+        methylated_cpg_sites(),
+        unmethylated_cpg_sites() {}
     ReadInfo(const ReadInfo& other) = default;
-    bool is_first_in_pair() { return 0x40 & sam_flag; }
-    bool is_reverse_strand() { return 0x10 & sam_flag; }
-    bool mapped_in_proper_pair() { return 0x3 & sam_flag; }
-    bool failed_quality_checks() { return 0x200 & sam_flag; }
-    bool is_duplicate() { return 0x400 & sam_flag; }
-    bool paired_with(ReadInfo& other) { return this->id == other.id; }
-    bool is_non_overlapping(uint32_t read_position) {
+    bool is_first_in_pair() const { return 0x40 & sam_flag; }
+    bool is_reverse_strand() const { return 0x10 & sam_flag; }
+    bool mapped_in_proper_pair() const { return 0x3 & sam_flag; }
+    bool failed_quality_checks() const { return 0x200 & sam_flag; }
+    bool is_duplicate() const { return 0x400 & sam_flag; }
+    bool paired_with(const ReadInfo& other) const { return this->id == other.id; }
+    bool is_non_overlapping(uint32_t read_position) const {
         if (!is_first_in_pair()) return true;
         else {
             // TODO: We assume that the 2 paired reads have the same length
@@ -137,19 +137,31 @@ public:
             return (int) read_position < (int) insert_size - (int) length;
         }
     }
-    void add_base(int base, uint32_t read_position, int strand) {
+    void add_base(char base, uint32_t read_position, int strand) {
         this->add_base(base, read_position, strand, false);
     }
-    void add_base(int base, uint32_t read_position, int strand, bool is_snp) {
+    void add_base(char base, uint32_t read_position, int strand, bool is_snp) {
         if (is_snp) inc_snp_count(read_position);
         inc_s_count(read_position);
         if ((strand & 1) == 1) {
-            if (base == 2) inc_gc_count(read_position);  // C
-            else if (base == 4) inc_gc_count(read_position);  // G
+            if ((base == 'C') || (base == 'G')) inc_gc_count(read_position);
         } else if ((strand & 1) == 0) {
-            if (base == 1) inc_gc_count(read_position);  // A
-            else if (base == 8) inc_gc_count(read_position);  // T
+            if ((base == 'A') || (base == 'T')) inc_gc_count(read_position);
         }
+    }
+    void add_methylated_cpg(uint32_t pos) { 
+        methylated_cpg_sites.insert(pos);
+        cpg_sites.insert(pos);
+    }
+    void add_unmethylated_cpg(uint32_t pos) { 
+        unmethylated_cpg_sites.insert(pos);
+        cpg_sites.insert(pos);
+    }
+    int num_methylated_cpg_sites() const { 
+        return methylated_cpg_sites.size();
+    }
+    int num_unmethylated_cpg_sites() const { 
+        return unmethylated_cpg_sites.size();
     }
     void inc_gc_count(uint32_t read_position) {
         gc_count++;
@@ -158,14 +170,6 @@ public:
     void inc_s_count(uint32_t read_position) {
         s_count++;
         if (is_non_overlapping(read_position)) s_count_nov++;
-    }
-    void inc_methyl_count(uint32_t read_position) {
-        n_methylated++;
-        if (is_non_overlapping(read_position)) n_methylated_nov++;
-    }
-    void inc_unmethyl_count(uint32_t read_position) {
-        n_unmethylated++;
-        if (is_non_overlapping(read_position)) n_unmethylated_nov++;
     }
     void inc_snp_count(uint32_t read_position) {
         snp_count++;

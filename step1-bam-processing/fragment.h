@@ -20,6 +20,7 @@
 #ifndef FRAGMENT_H_
 #define FRAGMENT_H_
 
+#include <algorithm>
 #include <cstring>
 #include <cstdlib>
 #include <stdexcept>
@@ -80,8 +81,8 @@ public:
         this->end_chr_id = r.chr_id;
         this->end_pos = r.start + r.length - 1;
         this->length = r.length;
-        this->n_methylated = r.n_methylated;
-        this->n_unmethylated = r.n_unmethylated;
+        this->n_methylated = r.num_methylated_cpg_sites();
+        this->n_unmethylated = r.num_unmethylated_cpg_sites();
         this->snp_count = r.snp_count;
         this->gc_count = r.gc_count;
         this->s_count = r.s_count;
@@ -97,11 +98,17 @@ public:
         this->end_chr_id = r2.chr_id;
         this->end_pos = r2.start + r2.length - 1;
         this->length = r1.insert_size;
-        this->n_methylated = r1.n_methylated_nov + r2.n_methylated;
-        this->n_unmethylated = r1.n_unmethylated_nov + r2.n_unmethylated;
+        this->n_methylated = union_size(r1.methylated_cpg_sites, r2.methylated_cpg_sites);
+        this->n_unmethylated = union_size(r1.unmethylated_cpg_sites, r2.unmethylated_cpg_sites);
         this->snp_count = r1.snp_count_nov + r2.snp_count;
         this->gc_count = r1.gc_count_nov + r2.gc_count;
         this->s_count = r1.s_count_nov + r2.s_count;
+    }
+    static int union_size(std::unordered_set<uint32_t>& s1, std::unordered_set<uint32_t>& s2) {
+        std::unordered_set<uint32_t> s3;
+        s3.insert(s1.begin(), s1.end());
+        s3.insert(s2.begin(), s2.end());
+        return s3.size();
     }
     bool failed_quality_checks() {
         return this->r1.failed_quality_checks() && this->r2.failed_quality_checks();
@@ -115,6 +122,22 @@ public:
         } else {
             return this->r1.mapped_in_proper_pair() && this->r2.mapped_in_proper_pair();
         }
+    }
+    bool is_valid() {
+        if (start_chr_id == end_chr_id) {
+            // Quality checks
+            if (!mapped_in_proper_pair()) return false;
+            if (failed_quality_checks()) return false;
+            if (is_duplicate()) return false;
+        }
+
+        // Ensure known chromosome
+        if ((start_chr_id == 0) || (end_chr_id == 0)) return false;
+
+        // Ensure fragment is not too long
+        // if (read.insert_size > 1000) return false;
+
+        return true;
     }
     void serialize(char* buffer) const {
         int offset = 0;
