@@ -59,6 +59,9 @@ public:
     // Number of single nucleotide polymorphisms
     uint16_t snp_count = 0;
 
+    // Number of adenines and thymines
+    uint16_t at_count = 0;
+
     // Number of cytosines and guanines
     uint16_t gc_count = 0;
 
@@ -83,9 +86,10 @@ public:
         this->length = r.length;
         this->n_methylated = r.num_methylated_cpg_sites();
         this->n_unmethylated = r.num_unmethylated_cpg_sites();
-        this->snp_count = r.snp_count;
-        this->gc_count = r.gc_count;
-        this->s_count = r.s_count;
+        this->snp_count = r.num_putative_mutations();;
+        this->at_count = r.get_at_count();
+        this->gc_count = r.get_gc_count();
+        this->s_count = r.num_informative_bases();
     }
 
     // Construct a fragment from paired-end reads
@@ -100,30 +104,31 @@ public:
         this->length = r1.insert_size;
         this->n_methylated = union_size(r1.methylated_cpg_sites, r2.methylated_cpg_sites);
         this->n_unmethylated = union_size(r1.unmethylated_cpg_sites, r2.unmethylated_cpg_sites);
-        this->snp_count = r1.snp_count_nov + r2.snp_count;
-        this->gc_count = r1.gc_count_nov + r2.gc_count;
-        this->s_count = r1.s_count_nov + r2.s_count;
+        this->snp_count = union_size(r1.mut_positions, r2.mut_positions);
+        this->at_count = union_size(r1.at_positions, r2.at_positions);
+        this->gc_count = union_size(r1.gc_positions, r2.gc_positions);
+        this->s_count = union_size(r1.informative_positions, r2.informative_positions);
     }
-    static int union_size(std::unordered_set<uint32_t>& s1, std::unordered_set<uint32_t>& s2) {
+    static int union_size(const std::unordered_set<uint32_t>& s1, const std::unordered_set<uint32_t>& s2) {
         std::unordered_set<uint32_t> s3;
         s3.insert(s1.begin(), s1.end());
         s3.insert(s2.begin(), s2.end());
         return s3.size();
     }
-    bool failed_quality_checks() {
+    bool failed_quality_checks() const {
         return this->r1.failed_quality_checks() && this->r2.failed_quality_checks();
     }
-    bool is_duplicate() {
+    bool is_duplicate() const {
         return this->r1.is_duplicate() && this->r2.is_duplicate();
     }
-    bool mapped_in_proper_pair() {
+    bool mapped_in_proper_pair() const {
         if (this->single_read) {
             return true;
         } else {
             return this->r1.mapped_in_proper_pair() && this->r2.mapped_in_proper_pair();
         }
     }
-    bool is_valid() {
+    bool is_valid() const {
         if (start_chr_id == end_chr_id) {
             // Quality checks
             if (!mapped_in_proper_pair()) return false;

@@ -150,6 +150,10 @@ public:
     inline void add_unmethylated_cpg(uint32_t pos) { unmethylated_cpg_sites.insert(pos); }
     inline int num_methylated_cpg_sites() const { return methylated_cpg_sites.size(); }
     inline int num_unmethylated_cpg_sites() const { return unmethylated_cpg_sites.size(); }
+    inline int num_putative_mutations() const { return mut_positions.size(); }
+    inline int num_informative_bases() const { return informative_positions.size(); }
+    inline int get_at_count() const { return at_positions.size(); }
+    inline int get_gc_count() const { return gc_positions.size(); }
     inline void add_at_base(uint32_t pos) { at_positions.insert(pos); }
     inline void add_gc_base(uint32_t pos) { gc_positions.insert(pos); }
     inline void add_mutation(uint32_t pos) { mut_positions.insert(pos); }

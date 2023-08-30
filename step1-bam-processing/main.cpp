@@ -42,7 +42,7 @@ void write_fragment(kstring_t *os, Fragment& fragment) {
 
     if (DEBUG_TEXT_OUTPUT) {
         char str[10000];
-        snprintf(str, 10000, "COMBINED: %" PRIu8 "\t%" PRIu32 "\t%" PRIu8 "\t%" PRIu32 "\t%" PRIu16" \t%" PRIu16 "\t%" PRIu16 "\t%" PRIu16 "\t%" PRIu16 "\t%" PRIu16 "\n",
+        snprintf(str, 10000, "%" PRIu8 "\t%" PRIu32 "\t%" PRIu8 "\t%" PRIu32 "\t%" PRIu16" \t%" PRIu16 "\t%" PRIu16 "\t%" PRIu16 "\t%" PRIu16 "\t%" PRIu16 "\n",
             fragment.start_chr_id,
             fragment.start_pos,
             fragment.end_chr_id,
@@ -63,7 +63,7 @@ void write_fragment(kstring_t *os, Fragment& fragment) {
 }
 
 
-void compute_read_statistics(bam1_t *b, AlignmentRefSequence& ref, ReadInfo& read_info, int min_phred) {
+void compute_read_statistics(bam1_t *b, AlignmentRefSequence& ref, ReadInfo& read_info, int min_phred, bool with_c_conversion) {
 
     uint32_t start_query_pos = b->core.pos;
     uint32_t query_pos = 0;
@@ -80,7 +80,7 @@ void compute_read_statistics(bam1_t *b, AlignmentRefSequence& ref, ReadInfo& rea
         if ((cigar_op_type == BAM_CMATCH) || (cigar_op_type == BAM_CEQUAL) || (cigar_op_type == BAM_CDIFF)) {  // M, = or X (alignment match, but can be sequence match or mismatch)
 
             for (int kk = 0; kk < bam_cigar_oplen(CIGAR[cigar_pos]); kk++) {
-                if (read_qual[query_pos] >= min_phred) {  // Consider only high-quality base calls only
+                if (read_qual[query_pos] >= min_phred) {  // Consider only high-quality base calls
 
                     // Get bases from the reference and query sequences
                     char base = seq_nt16_str[bam_seqi(read_seq, query_pos)];
@@ -90,50 +90,63 @@ void compute_read_statistics(bam1_t *b, AlignmentRefSequence& ref, ReadInfo& rea
                     if (cigar_op_type == BAM_CEQUAL) assert(base == ref_base);
                     else if (cigar_op_type == BAM_CDIFF) assert(base != ref_base);
 
-                    // Check if CpG site
-                    int direction = ref.is_cpg(ref_pos);
+                    if (with_c_conversion) {  // If unmethylated cytosines have been converted (either chemically or enzymatically)
 
-                    // Check methylation status (if CpG)
-                    if (direction == 1 && (strand & 1) == 1) {  // C & OT/CTOT
-                        if (base == 'C') read_info.add_methylated_cpg(start_query_pos + query_pos);
-                        else if (base == 'T') read_info.add_unmethylated_cpg(start_query_pos + query_pos);
-                        read_info.add_gc_base(start_query_pos + query_pos);
-                        read_info.add_informative_base(start_query_pos + query_pos);
-                    } else if (direction == -1 && (strand & 1) == 0) {  // G & OB/CTOB
-                        if (base == 'G') read_info.add_methylated_cpg(start_query_pos + query_pos);
-                        else if (base == 'A') read_info.add_unmethylated_cpg(start_query_pos + query_pos);
-                        read_info.add_gc_base(start_query_pos + query_pos);
-                        read_info.add_informative_base(start_query_pos + query_pos);
-                    } else {  // Not a CpG site
-                        if (base != ref_base) {  // base mismatch
+                        // Check if CpG site
+                        int direction = ref.is_cpg(ref_pos);
 
-                            // If bases mismatch, consider this as a putative mutation
-                            // unless it's a putative C->T conversion caused by bisulfite
-                            // or enzymatic conversion of unmethylated cytosines
-                            bool putative_mutation = false;
-                            if (((strand & 1) == 1) && ((base != 'T') || (ref_base != 'C'))) {
-                                putative_mutation = true;
-                            } else if ((base != 'A') || (ref_base != 'G')) {
-                                putative_mutation = true;
-                            }
-                            if (putative_mutation) {
-                                read_info.add_mutation(start_query_pos + query_pos);
+                        // Check methylation status if CpG site, and check the presence of a putative mutation otherwise
+                        if (direction == 1 && (strand & 1) == 1) {  // C & OT/CTOT
+                            if (base == 'C') read_info.add_methylated_cpg(start_query_pos + query_pos);
+                            else if (base == 'T') read_info.add_unmethylated_cpg(start_query_pos + query_pos);
+                            read_info.add_gc_base(start_query_pos + query_pos);
+                            read_info.add_informative_base(start_query_pos + query_pos);
+                        } else if (direction == -1 && (strand & 1) == 0) {  // G & OB/CTOB
+                            if (base == 'G') read_info.add_methylated_cpg(start_query_pos + query_pos);
+                            else if (base == 'A') read_info.add_unmethylated_cpg(start_query_pos + query_pos);
+                            read_info.add_gc_base(start_query_pos + query_pos);
+                            read_info.add_informative_base(start_query_pos + query_pos);
+                        } else {  // Not a CpG site
+                            if (base != ref_base) {  // base mismatch
+
+                                // If bases mismatch, consider this as a putative mutation
+                                // unless it's a putative C->T conversion caused by bisulfite
+                                // or enzymatic conversion of unmethylated cytosines
+                                bool putative_mutation = false;
+                                if (((strand & 1) == 1) && ((base != 'T') || (ref_base != 'C'))) {
+                                    putative_mutation = true;
+                                } else if ((base != 'A') || (ref_base != 'G')) {
+                                    putative_mutation = true;
+                                }
+                                if (putative_mutation) {
+                                    read_info.add_mutation(start_query_pos + query_pos);
+                                    read_info.add_informative_base(start_query_pos + query_pos);
+                                    if ((base == 'C') || (base == 'G')) {
+                                        read_info.add_gc_base(start_query_pos + query_pos);
+                                    } else {
+                                        read_info.add_at_base(start_query_pos + query_pos);
+                                    }
+                                } else {  // Ambiguous case: can be either a mutation or a converted cytosine
+                                    // Do nothing: base is uninformative
+                                }
+                            } else {  // Base match
                                 read_info.add_informative_base(start_query_pos + query_pos);
                                 if ((base == 'C') || (base == 'G')) {
                                     read_info.add_gc_base(start_query_pos + query_pos);
                                 } else {
                                     read_info.add_at_base(start_query_pos + query_pos);
                                 }
-                            } else {  // Ambiguous case: can be either a mutation or a converted cytosine
-                                // Do nothing: base is uninformative
                             }
-                        } else {  // Base match
-                            read_info.add_informative_base(start_query_pos + query_pos);
-                            if ((base == 'C') || (base == 'G')) {
-                                read_info.add_gc_base(start_query_pos + query_pos);
-                            } else {
-                                read_info.add_at_base(start_query_pos + query_pos);
-                            }
+                        }
+                    } else {  // No conversion of unmethylated cytosines
+                        // In the absence of bisulfite/enzymatic conversion, any base mismatch
+                        // is treated as a putative point mutation
+                        if (base != ref_base) read_info.add_mutation(start_query_pos + query_pos);
+                        read_info.add_informative_base(start_query_pos + query_pos);
+                        if ((base == 'C') || (base == 'G')) {
+                            read_info.add_gc_base(start_query_pos + query_pos);
+                        } else {
+                            read_info.add_at_base(start_query_pos + query_pos);
                         }
                     }
                 }
@@ -141,19 +154,12 @@ void compute_read_statistics(bam1_t *b, AlignmentRefSequence& ref, ReadInfo& rea
                 query_pos++;
             }
         } else if (cigar_op_type == BAM_CINS) {  // I (insertion to the reference)
-
-            // Update read statistics with the inserted bases
-            int inserted = bam_cigar_oplen(CIGAR[cigar_pos]);
-            for (int i = 0; i < inserted; i++) {
-                char base = seq_nt16_str[bam_seqi(read_seq, query_pos)];
-                read_info.add_base(base, query_pos, strand);
-                query_pos++;
-            }
-
-            read_info.inserted += inserted;
+            int n_inserted = bam_cigar_oplen(CIGAR[cigar_pos]);
+            read_info.inserted += n_inserted;  // Increment count of inserted bases
+            query_pos += n_inserted;
         } else if (cigar_op_type == BAM_CDEL) {  // D (deletion from the reference)
             int n_deleted = bam_cigar_oplen(CIGAR[cigar_pos]);
-            read_info.deleted += n_deleted;
+            read_info.deleted += n_deleted;  // Increment count of deleted bases
             ref_pos += n_deleted;
         } else if (cigar_op_type == BAM_CREF_SKIP) {  // N (skipped region from the reference)
             int n_skipped = bam_cigar_oplen(CIGAR[cigar_pos]);
@@ -263,7 +269,10 @@ void* perReadMetrics(void *foo) {
 
             // Extract read-level statistics from read
             AlignmentRefSequence ref(seq, localPos2, seqlen);
-            compute_read_statistics(b, ref, read, config->minPhred);
+            compute_read_statistics(
+                b, ref, read, config->minPhred,
+                !config->use_mm_ml  // IMPORTANT: When using MM/ML flags to call methylation, we assume that Cs have not been converted
+            );
 
             // Compute methylation using MM and ML tags (if required)
             if (config->use_mm_ml) {
