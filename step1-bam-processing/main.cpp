@@ -80,7 +80,7 @@ void compute_read_statistics(bam1_t *b, AlignmentRefSequence& ref, ReadInfo& rea
         if ((cigar_op_type == BAM_CMATCH) || (cigar_op_type == BAM_CEQUAL) || (cigar_op_type == BAM_CDIFF)) {  // M, = or X (alignment match, but can be sequence match or mismatch)
 
             for (int kk = 0; kk < bam_cigar_oplen(CIGAR[cigar_pos]); kk++) {
-                if (read_qual[query_pos] >= min_phred) {  // Consider only high-quality base calls
+                if (read_qual[query_pos] >= min_phred) {  // Consider only high-quality base calls only
 
                     // Get bases from the reference and query sequences
                     char base = seq_nt16_str[bam_seqi(read_seq, query_pos)];
@@ -90,30 +90,51 @@ void compute_read_statistics(bam1_t *b, AlignmentRefSequence& ref, ReadInfo& rea
                     if (cigar_op_type == BAM_CEQUAL) assert(base == ref_base);
                     else if (cigar_op_type == BAM_CDIFF) assert(base != ref_base);
 
-                    // Update read-level statistics with the new base
-                    bool is_snp = ((base != ref_base) && (ref_base != 'C'));
-                    read_info.add_base(base, query_pos, strand, is_snp);
-
                     // Check if CpG site
                     int direction = ref.is_cpg(ref_pos);
 
                     // Check methylation status (if CpG)
-                    if (direction == 1 && (strand & 1) == 1) { // C & OT/CTOT
-                        if (base == 'C') {
-                            read_info.add_methylated_cpg(start_query_pos + query_pos);
-                        }
-                        else if (base == 'T') {
-                            read_info.add_unmethylated_cpg(start_query_pos + query_pos);
-                        }
-                    } else if (direction == -1 && (strand & 1) == 0) { // G & OB/CTOB
-                        if (base == 'G') {
-                            read_info.add_methylated_cpg(start_query_pos + query_pos);
-                        }
-                        else if (base == 'A') {
-                            read_info.add_unmethylated_cpg(start_query_pos + query_pos);
-                        }
+                    if (direction == 1 && (strand & 1) == 1) {  // C & OT/CTOT
+                        if (base == 'C') read_info.add_methylated_cpg(start_query_pos + query_pos);
+                        else if (base == 'T') read_info.add_unmethylated_cpg(start_query_pos + query_pos);
+                        read_info.add_gc_base(start_query_pos + query_pos);
+                        read_info.add_informative_base(start_query_pos + query_pos);
+                    } else if (direction == -1 && (strand & 1) == 0) {  // G & OB/CTOB
+                        if (base == 'G') read_info.add_methylated_cpg(start_query_pos + query_pos);
+                        else if (base == 'A') read_info.add_unmethylated_cpg(start_query_pos + query_pos);
+                        read_info.add_gc_base(start_query_pos + query_pos);
+                        read_info.add_informative_base(start_query_pos + query_pos);
                     } else {  // Not a CpG site
+                        if (base != ref_base) {  // base mismatch
 
+                            // If bases mismatch, consider this as a putative mutation
+                            // unless it's a putative C->T conversion caused by bisulfite
+                            // or enzymatic conversion of unmethylated cytosines
+                            bool putative_mutation = false;
+                            if (((strand & 1) == 1) && ((base != 'T') || (ref_base != 'C'))) {
+                                putative_mutation = true;
+                            } else if ((base != 'A') || (ref_base != 'G')) {
+                                putative_mutation = true;
+                            }
+                            if (putative_mutation) {
+                                read_info.add_mutation(start_query_pos + query_pos);
+                                read_info.add_informative_base(start_query_pos + query_pos);
+                                if ((base == 'C') || (base == 'G')) {
+                                    read_info.add_gc_base(start_query_pos + query_pos);
+                                } else {
+                                    read_info.add_at_base(start_query_pos + query_pos);
+                                }
+                            } else {  // Ambiguous case: can be either a mutation or a converted cytosine
+                                // Do nothing: base is uninformative
+                            }
+                        } else {  // Base match
+                            read_info.add_informative_base(start_query_pos + query_pos);
+                            if ((base == 'C') || (base == 'G')) {
+                                read_info.add_gc_base(start_query_pos + query_pos);
+                            } else {
+                                read_info.add_at_base(start_query_pos + query_pos);
+                            }
+                        }
                     }
                 }
                 ref_pos++;
@@ -317,27 +338,20 @@ void* perReadMetrics(void *foo) {
 
 void cli_help() {
     fprintf(stderr,
-"\nUsage: BAMExtractor [OPTIONS] <ref.fa> <input>\n"
 "\n"
-"Arguments:\n"
+"Usage: BAMExtractor [OPTIONS] <ref.fa> <input>\n"
+"\n"
+"Positional arguments:\n"
 "  ref.fa    Reference genome in fasta format. This must be indexed with\n"
-"            samtools faidx\n"
+"            samtools faidx.\n"
 "  input     An input BAM or CRAM file. This MUST be sorted and should be indexed.\n"
-"\nOptions:\n"
+"\n"
+"Optional arguments:\n"
 " -q INT     Minimum MAPQ threshold to include an alignment (default 10)\n"
 " -p INT     Minimum Phred threshold to include a base (default 5). This must "
 "            be >0.\n"
 " -r STR     Region string in which to extract methylation\n"
 " -o STR     Output file name [stdout]\n"
-" -F         By default, all reads are output. If you would like to\n"
-"            ignore certain classes of reads then simply give a value for their\n"
-"            flags here. Note that an alignment will be logically anded with this\n"
-"            flag, so a single bit overlap will lead to exclusion. The default\n"
-"            for this is 0.\n"
-" -R         Require each alignment to have all bits in this value\n"
-"            present, or else the alignment is ignored. This is equivalent to the\n"
-"            -f option in samtools. The default is 0, which includes all\n"
-"            alignments.\n"
 " -nthreads INT    The number of threads to use, the default is 1\n"
 " --chunkSize INT  The size of the genome processed by a single thread at a time.\n"
 "            The default is 1000000 bases. This value MUST be at least 1.\n"
@@ -377,8 +391,6 @@ int run_convertor(int argc, char *argv[]) {
             {"useMMML",   0, NULL, 21},
             {"mlCutoff",   1, NULL, 22},
             {"chunkSize",    1, NULL,  19},
-            {"ignoreFlags",  1, NULL, 'F'},
-            {"requireFlags", 1, NULL, 'R'},
             {"OT",           1, NULL,   7},
             {"OB",           1, NULL,   8},
             {"CTOT",         1, NULL,   9},

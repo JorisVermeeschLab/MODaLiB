@@ -108,8 +108,17 @@ public:
     // Positions of unmethylated CpG sites on chromosome
     std::unordered_set<uint32_t> unmethylated_cpg_sites;
 
-    // Positions of CpG sites on chromosome
-    std::unordered_set<uint32_t> cpg_sites;
+    // Positions of adenines and thymines on chromosome
+    std::unordered_set<uint32_t> at_positions;
+
+    // Positions of cytosines and guanines on chromosome
+    std::unordered_set<uint32_t> gc_positions;
+
+    // Positions of "mutations" on chromosome
+    std::unordered_set<uint32_t> mut_positions;
+
+    // Positions of informative bases on chromosome
+    std::unordered_set<uint32_t> informative_positions;
 
 public:
     ReadInfo() = default;
@@ -123,13 +132,13 @@ public:
         methylated_cpg_sites(),
         unmethylated_cpg_sites() {}
     ReadInfo(const ReadInfo& other) = default;
-    bool is_first_in_pair() const { return 0x40 & sam_flag; }
-    bool is_reverse_strand() const { return 0x10 & sam_flag; }
-    bool mapped_in_proper_pair() const { return 0x3 & sam_flag; }
-    bool failed_quality_checks() const { return 0x200 & sam_flag; }
-    bool is_duplicate() const { return 0x400 & sam_flag; }
-    bool paired_with(const ReadInfo& other) const { return this->id == other.id; }
-    bool is_non_overlapping(uint32_t read_position) const {
+    inline bool is_first_in_pair() const { return 0x40 & sam_flag; }
+    inline bool is_reverse_strand() const { return 0x10 & sam_flag; }
+    inline bool mapped_in_proper_pair() const { return 0x3 & sam_flag; }
+    inline bool failed_quality_checks() const { return 0x200 & sam_flag; }
+    inline bool is_duplicate() const { return 0x400 & sam_flag; }
+    inline bool paired_with(const ReadInfo& other) const { return this->id == other.id; }
+    inline bool is_non_overlapping(uint32_t read_position) const {
         if (!is_first_in_pair()) return true;
         else {
             // TODO: We assume that the 2 paired reads have the same length
@@ -137,44 +146,14 @@ public:
             return (int) read_position < (int) insert_size - (int) length;
         }
     }
-    void add_base(char base, uint32_t read_position, int strand) {
-        this->add_base(base, read_position, strand, false);
-    }
-    void add_base(char base, uint32_t read_position, int strand, bool is_snp) {
-        if (is_snp) inc_snp_count(read_position);
-        inc_s_count(read_position);
-        if ((strand & 1) == 1) {
-            if ((base == 'C') || (base == 'G')) inc_gc_count(read_position);
-        } else if ((strand & 1) == 0) {
-            if ((base == 'A') || (base == 'T')) inc_gc_count(read_position);
-        }
-    }
-    void add_methylated_cpg(uint32_t pos) { 
-        methylated_cpg_sites.insert(pos);
-        cpg_sites.insert(pos);
-    }
-    void add_unmethylated_cpg(uint32_t pos) { 
-        unmethylated_cpg_sites.insert(pos);
-        cpg_sites.insert(pos);
-    }
-    int num_methylated_cpg_sites() const { 
-        return methylated_cpg_sites.size();
-    }
-    int num_unmethylated_cpg_sites() const { 
-        return unmethylated_cpg_sites.size();
-    }
-    void inc_gc_count(uint32_t read_position) {
-        gc_count++;
-        if (is_non_overlapping(read_position)) gc_count_nov++;
-    }
-    void inc_s_count(uint32_t read_position) {
-        s_count++;
-        if (is_non_overlapping(read_position)) s_count_nov++;
-    }
-    void inc_snp_count(uint32_t read_position) {
-        snp_count++;
-        if (is_non_overlapping(read_position)) snp_count_nov++;
-    }
+    inline void add_methylated_cpg(uint32_t pos) { methylated_cpg_sites.insert(pos); }
+    inline void add_unmethylated_cpg(uint32_t pos) { unmethylated_cpg_sites.insert(pos); }
+    inline int num_methylated_cpg_sites() const { return methylated_cpg_sites.size(); }
+    inline int num_unmethylated_cpg_sites() const { return unmethylated_cpg_sites.size(); }
+    inline void add_at_base(uint32_t pos) { at_positions.insert(pos); }
+    inline void add_gc_base(uint32_t pos) { gc_positions.insert(pos); }
+    inline void add_mutation(uint32_t pos) { mut_positions.insert(pos); }
+    inline void add_informative_base(uint32_t pos) { informative_positions.insert(pos); }
 };
 
 #endif // READ_INFO_H_
