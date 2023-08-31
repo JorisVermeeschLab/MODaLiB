@@ -17,7 +17,7 @@ module use /apps/leuven/skylake/2018a/modules/all
 module load foss/2018a
 module load Python/3.6.4-foss-2018a
 
-cd /lustre1/project/stg_00019/research/Antoine/MODaLiB/step1-bam-processing/dependencies/htslib-1.13/
+cd /lustre1/project/stg_00019/research/Antoine/MODaLiB/step1-bam-processing/dependencies/htslib-1.18/
 make clean
 make
 
@@ -32,6 +32,6 @@ make
 
 cd /lustre1/project/stg_00019/research/Antoine/MODaLiB
 
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:step1-bam-processing/dependencies/htslib-1.13/
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:step1-bam-processing/dependencies/htslib-1.18/
 
 python step1.py

@@ -108,7 +108,7 @@ cdef cnp.ndarray to_array(KernelMatrix &km):
     cdef size_t n = km.n_rows()
     cdef size_t m = km.n_cols()
     cdef size_t i, j
-    cdef cnp.float_t[:, :] arr = np.empty((n, m), dtype=np.float)
+    cdef cnp.float_t[:, :] arr = np.empty((n, m), dtype=float)
     with nogil:
         for i in range(n):
             for j in range(m):
@@ -181,7 +181,7 @@ cdef cnp.ndarray fm_to_array(FeatureMatrix &km):
     cdef size_t n = km.n_rows()
     cdef size_t m = km.n_cols()
     cdef size_t i, j
-    cdef cnp.float_t[:, :] arr = np.empty((n, m), dtype=np.float)
+    cdef cnp.float_t[:, :] arr = np.empty((n, m), dtype=float)
     with nogil:
         for i in range(n):
             for j in range(m):

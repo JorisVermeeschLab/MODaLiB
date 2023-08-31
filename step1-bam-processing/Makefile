@@ -1,10 +1,9 @@
 prefix ?= /usr/local/bin
 CC ?= g++
-LIBS ?=  -Ldependencies/htslib-1.13 -lhts -lm -lz -lstdc++ -lpthread
-INCLUDES ?= -Idependencies/htslib-1.13
+LIBS ?=  -Ldependencies/htslib-1.18 -lhts -lm -lz -lstdc++ -lpthread
+INCLUDES ?= -Idependencies/htslib-1.18
 CPPFLAGS ?= -Wall -g -O3 -pthread --std=c++14
-OBJS = perRead.o
-VERSION = 0.6.1
+VERSION = 0.0.2
 
 CPPFLAGS += $(INCLUDES)
 

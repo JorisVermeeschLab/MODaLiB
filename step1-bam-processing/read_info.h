@@ -75,18 +75,6 @@ public:
     // Left-most coordinate on chromosome
     uint32_t start;
 
-    // Number of single nucleotide polymorphisms
-    uint16_t snp_count = 0;
-    uint16_t snp_count_nov = 0;  // Non-overlapping
-
-    // Number of cytosines and guanines
-    uint16_t gc_count = 0;
-    uint16_t gc_count_nov = 0;  // Non-overlapping
-
-    // Number of informative bases
-    uint16_t s_count = 0;
-    uint16_t s_count_nov = 0;  // Non-overlapping
-
     // Length of the query sequence (read)
     uint16_t length;
 
@@ -130,7 +118,11 @@ public:
         insert_size(insert_size),
         sam_flag(sam_flag),
         methylated_cpg_sites(),
-        unmethylated_cpg_sites() {}
+        unmethylated_cpg_sites(),
+        at_positions(),
+        gc_positions(),
+        mut_positions(),
+        informative_positions() {}
     ReadInfo(const ReadInfo& other) = default;
     inline bool is_first_in_pair() const { return 0x40 & sam_flag; }
     inline bool is_reverse_strand() const { return 0x10 & sam_flag; }
@@ -146,18 +138,18 @@ public:
             return (int) read_position < (int) insert_size - (int) length;
         }
     }
-    inline void add_methylated_cpg(uint32_t pos) { methylated_cpg_sites.insert(pos); }
-    inline void add_unmethylated_cpg(uint32_t pos) { unmethylated_cpg_sites.insert(pos); }
+    inline void add_at_base(uint32_t pos) { at_positions.insert(start + pos); }
+    inline void add_gc_base(uint32_t pos) { gc_positions.insert(start + pos); }
+    inline void add_mutation(uint32_t pos) { mut_positions.insert(start + pos); }
+    inline void add_informative_base(uint32_t pos) { informative_positions.insert(start + pos); }
+    inline void add_methylated_cpg(uint32_t pos) { methylated_cpg_sites.insert(start + pos); }
+    inline void add_unmethylated_cpg(uint32_t pos) { unmethylated_cpg_sites.insert(start + pos); }
     inline int num_methylated_cpg_sites() const { return methylated_cpg_sites.size(); }
     inline int num_unmethylated_cpg_sites() const { return unmethylated_cpg_sites.size(); }
     inline int num_putative_mutations() const { return mut_positions.size(); }
     inline int num_informative_bases() const { return informative_positions.size(); }
     inline int get_at_count() const { return at_positions.size(); }
     inline int get_gc_count() const { return gc_positions.size(); }
-    inline void add_at_base(uint32_t pos) { at_positions.insert(pos); }
-    inline void add_gc_base(uint32_t pos) { gc_positions.insert(pos); }
-    inline void add_mutation(uint32_t pos) { mut_positions.insert(pos); }
-    inline void add_informative_base(uint32_t pos) { informative_positions.insert(pos); }
 };
 
 #endif // READ_INFO_H_

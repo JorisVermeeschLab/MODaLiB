@@ -25,7 +25,7 @@
 
 
 // #define NDEBUG
-static constexpr bool DEBUG_TEXT_OUTPUT = true;
+static constexpr bool DEBUG_TEXT_OUTPUT = false;
 
 
 
@@ -65,7 +65,6 @@ void write_fragment(kstring_t *os, Fragment& fragment) {
 
 void compute_read_statistics(bam1_t *b, AlignmentRefSequence& ref, ReadInfo& read_info, int min_phred, bool with_c_conversion) {
 
-    uint32_t start_query_pos = b->core.pos;
     uint32_t query_pos = 0;
     uint32_t ref_pos = b->core.pos;
     uint32_t* CIGAR = bam_get_cigar(b);
@@ -92,20 +91,22 @@ void compute_read_statistics(bam1_t *b, AlignmentRefSequence& ref, ReadInfo& rea
 
                     if (with_c_conversion) {  // If unmethylated cytosines have been converted (either chemically or enzymatically)
 
+                        // TODO: disentangle converted cytosines from point mutations using the second read in the pair.
+
                         // Check if CpG site
                         int direction = ref.is_cpg(ref_pos);
 
                         // Check methylation status if CpG site, and check the presence of a putative mutation otherwise
                         if (direction == 1 && (strand & 1) == 1) {  // C & OT/CTOT
-                            if (base == 'C') read_info.add_methylated_cpg(start_query_pos + query_pos);
-                            else if (base == 'T') read_info.add_unmethylated_cpg(start_query_pos + query_pos);
-                            read_info.add_gc_base(start_query_pos + query_pos);
-                            read_info.add_informative_base(start_query_pos + query_pos);
+                            if (base == 'C') read_info.add_methylated_cpg(query_pos);
+                            else if (base == 'T') read_info.add_unmethylated_cpg(query_pos);
+                            read_info.add_gc_base(query_pos);
+                            read_info.add_informative_base(query_pos);
                         } else if (direction == -1 && (strand & 1) == 0) {  // G & OB/CTOB
-                            if (base == 'G') read_info.add_methylated_cpg(start_query_pos + query_pos);
-                            else if (base == 'A') read_info.add_unmethylated_cpg(start_query_pos + query_pos);
-                            read_info.add_gc_base(start_query_pos + query_pos);
-                            read_info.add_informative_base(start_query_pos + query_pos);
+                            if (base == 'G') read_info.add_methylated_cpg(query_pos);
+                            else if (base == 'A') read_info.add_unmethylated_cpg(query_pos);
+                            read_info.add_gc_base(query_pos);
+                            read_info.add_informative_base(query_pos);
                         } else {  // Not a CpG site
                             if (base != ref_base) {  // base mismatch
 
@@ -119,34 +120,34 @@ void compute_read_statistics(bam1_t *b, AlignmentRefSequence& ref, ReadInfo& rea
                                     putative_mutation = true;
                                 }
                                 if (putative_mutation) {
-                                    read_info.add_mutation(start_query_pos + query_pos);
-                                    read_info.add_informative_base(start_query_pos + query_pos);
+                                    read_info.add_mutation(query_pos);
+                                    read_info.add_informative_base(query_pos);
                                     if ((base == 'C') || (base == 'G')) {
-                                        read_info.add_gc_base(start_query_pos + query_pos);
+                                        read_info.add_gc_base(query_pos);
                                     } else {
-                                        read_info.add_at_base(start_query_pos + query_pos);
+                                        read_info.add_at_base(query_pos);
                                     }
                                 } else {  // Ambiguous case: can be either a mutation or a converted cytosine
                                     // Do nothing: base is uninformative
                                 }
                             } else {  // Base match
-                                read_info.add_informative_base(start_query_pos + query_pos);
+                                read_info.add_informative_base(query_pos);
                                 if ((base == 'C') || (base == 'G')) {
-                                    read_info.add_gc_base(start_query_pos + query_pos);
+                                    read_info.add_gc_base(query_pos);
                                 } else {
-                                    read_info.add_at_base(start_query_pos + query_pos);
+                                    read_info.add_at_base(query_pos);
                                 }
                             }
                         }
                     } else {  // No conversion of unmethylated cytosines
                         // In the absence of bisulfite/enzymatic conversion, any base mismatch
                         // is treated as a putative point mutation
-                        if (base != ref_base) read_info.add_mutation(start_query_pos + query_pos);
-                        read_info.add_informative_base(start_query_pos + query_pos);
+                        if (base != ref_base) read_info.add_mutation(query_pos);
+                        read_info.add_informative_base(query_pos);
                         if ((base == 'C') || (base == 'G')) {
-                            read_info.add_gc_base(start_query_pos + query_pos);
+                            read_info.add_gc_base(query_pos);
                         } else {
-                            read_info.add_at_base(start_query_pos + query_pos);
+                            read_info.add_at_base(query_pos);
                         }
                     }
                 }
@@ -167,7 +168,7 @@ void compute_read_statistics(bam1_t *b, AlignmentRefSequence& ref, ReadInfo& rea
         } else if ((cigar_op_type == BAM_CSOFT_CLIP) || (cigar_op_type == BAM_CBACK)) {  // S (soft clipping) or B ("backwards" skip operator)
             int n_clipped = bam_cigar_oplen(CIGAR[cigar_pos]);
             query_pos += n_clipped;
-        } else {  // Ignore H and P operations
+        } else {  // Ignore H (hard clipping) and P (padding) operations
             // Do nothing
         }
     }
@@ -175,8 +176,8 @@ void compute_read_statistics(bam1_t *b, AlignmentRefSequence& ref, ReadInfo& rea
     assert(query_pos == b->core.l_qseq);
 }
 
-void* perReadMetrics(void *foo) {
-    Config *config = (Config*) foo;
+void* perReadMetrics(void *config_) {
+    Config *config = static_cast<Config*>(config_);
     bam_hdr_t *hdr;
     int seqlen;
     uint32_t localBin = 0, localPos = 0, localEnd = 0, localTid = 0, localPos2 = 0;
@@ -276,8 +277,8 @@ void* perReadMetrics(void *foo) {
 
             // Compute methylation using MM and ML tags (if required)
             if (config->use_mm_ml) {
-                std::pair<int, int> meth = methylation_from_aux(b, config->ml_cutoff);
-                // TODO: add cpg site positions
+                methylation_from_aux(b, read, config->ml_cutoff);
+                std::cout << "METH: " << read.num_methylated_cpg_sites() << ", " << read.num_unmethylated_cpg_sites() << std::endl;
             }
 
             // Combine read pairs into fragments
@@ -429,12 +430,6 @@ int run_convertor(int argc, char *argv[]) {
             case 'r':
                 config.reg = optarg;
                 break;
-            case 'F':
-                config.ignoreFlags = atoi(optarg);
-                break;
-            case 'R':
-                config.requireFlags = atoi(optarg);
-                break;
             case 20:
                 config.singleRead = 1;
                 break;
@@ -540,9 +535,9 @@ int run_convertor(int argc, char *argv[]) {
             fprintf(stderr, "%s did not match a known chromosome/contig name!\n", config.reg);
             return -6;
         }
-        if(s>0) globalPos = s;
-        if(e>0) globalEnd = e;
-        if(globalEnd > hdr->target_len[globalTid]) globalEnd = hdr->target_len[globalTid];
+        if (s>0) globalPos = s;
+        if (e>0) globalEnd = e;
+        if (globalEnd > hdr->target_len[globalTid]) globalEnd = hdr->target_len[globalTid];
         free(bar);
     }
 
