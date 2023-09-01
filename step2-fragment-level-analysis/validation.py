@@ -22,6 +22,7 @@ from sklearn.svm import SVC
 BINARY = True
 
 
+
 df = pd.read_csv('../samples-details.tsv', delimiter='\t')
 categories = df['category'].to_numpy()
 gc_codes = df['GC CODE'].to_numpy()

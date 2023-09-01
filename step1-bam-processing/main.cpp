@@ -177,17 +177,17 @@ void compute_read_statistics(bam1_t *b, AlignmentRefSequence& ref, ReadInfo& rea
 }
 
 void* perReadMetrics(void *config_) {
-    Config *config = static_cast<Config*>(config_);
-    bam_hdr_t *hdr;
+    Config* config = static_cast<Config*>(config_);
+    bam_hdr_t* hdr;
     int seqlen;
     uint32_t localBin = 0, localPos = 0, localEnd = 0, localTid = 0, localPos2 = 0;
-    char *seq = NULL;
-    kstring_t *os = NULL;
-    faidx_t *fai;
-    hts_idx_t *bai;
-    htsFile *fp;
-    bam1_t *b = bam_init1();
-    hts_itr_t *iter;
+    char* seq = nullptr;
+    kstring_t* os = nullptr;
+    faidx_t* fai;
+    hts_idx_t* bai;
+    htsFile* fp;
+    bam1_t* b = bam_init1();
+    hts_itr_t* iter;
 
     os = (kstring_t*) calloc(1, sizeof(kstring_t));
     if(!os) {
@@ -196,15 +196,15 @@ void* perReadMetrics(void *config_) {
     }
 
     //Open the files
-    if((fai = fai_load(config->FastaName)) == NULL) {
+    if((fai = fai_load(config->FastaName)) == nullptr) {
         fprintf(stderr, "Couldn't open the index for %s!\n", config->FastaName);
         return nullptr;
     }
-    if((fp = hts_open(config->BAMName, "rb")) == NULL) {
+    if((fp = hts_open(config->BAMName, "rb")) == nullptr) {
         fprintf(stderr, "Couldn't open %s for reading!\n", config->BAMName);
         return nullptr;
     }
-    if((bai = sam_index_load(fp, config->BAMName)) == NULL) {
+    if((bai = sam_index_load(fp, config->BAMName)) == nullptr) {
         fprintf(stderr, "Couldn't load the index for %s\n", config->BAMName);
         return nullptr;
     }
@@ -391,29 +391,29 @@ int run_convertor(int argc, char *argv[]) {
     FILE *ofile = stdout;
     int i;
     faidx_t *fai;
-    bam_hdr_t *hdr = NULL;
+    bam_hdr_t *hdr = nullptr;
     char c;
 
     static struct option lopts[] = {
-            {"help",    0, NULL, 'h'},
-            {"version", 0, NULL, 'v'},
-            {"singleRead",   0, NULL, 20},
-            {"useMMML",   0, NULL, 21},
-            {"mlCutoff",   1, NULL, 22},
-            {"chunkSize",    1, NULL,  19},
-            {"OT",           1, NULL,   7},
-            {"OB",           1, NULL,   8},
-            {"CTOT",         1, NULL,   9},
-            {"CTOB",         1, NULL,  10},
-            {0,         0, NULL,   0}
+            {"help",    0, nullptr, 'h'},
+            {"version", 0, nullptr, 'v'},
+            {"singleRead",   0, nullptr, 20},
+            {"useMMML",   0, nullptr, 21},
+            {"mlCutoff",   1, nullptr, 22},
+            {"chunkSize",    1, nullptr,  19},
+            {"OT",           1, nullptr,   7},
+            {"OB",           1, nullptr,   8},
+            {"CTOT",         1, nullptr,   9},
+            {"CTOB",         1, nullptr,  10},
+            {0,         0, nullptr,   0}
     };
-    while((c = getopt_long(argc, argv, "hvq:p:o:@:r:l:F:R:", lopts, NULL)) >= 0) {
+    while((c = getopt_long(argc, argv, "hvq:p:o:@:r:l:F:R:", lopts, nullptr)) >= 0) {
         switch(c) {
             case 'h':
                 cli_help();
                 return 0;
             case 'o':
-                if((ofile = fopen(optarg, "wb")) == NULL) {
+                if((ofile = fopen(optarg, "wb")) == nullptr) {
                     fprintf(stderr, "Couldn't open %s for writing\n", optarg);
                     return 2;
                 }
@@ -452,7 +452,7 @@ int run_convertor(int argc, char *argv[]) {
                 parseBounds(optarg, config.bounds, 3);
                 break;
             case 19:
-                config.chunkSize = strtoul(optarg, NULL, 10);
+                config.chunkSize = strtoul(optarg, nullptr, 10);
                 if(config.chunkSize < 1) {
                     fprintf(stderr, "Error: The chunk size must be at least 1!\n");
                     return 1;
@@ -485,24 +485,24 @@ int run_convertor(int argc, char *argv[]) {
         config.minMapq = 0;
     }
 
-    if ((fai = fai_load(argv[optind])) == NULL) {
+    if ((fai = fai_load(argv[optind])) == nullptr) {
         fprintf(stderr, "Couldn't open the index for %s!\n", argv[optind]);
         cli_help();
         return -2;
     }
     config.FastaName = argv[optind];
     config.BAMName = argv[optind+1];
-    if ((config.fp = hts_open(argv[optind+1], "rb")) == NULL) {
+    if ((config.fp = hts_open(argv[optind+1], "rb")) == nullptr) {
         fprintf(stderr, "Couldn't open %s for reading!\n", argv[optind+1]);
         return -4;
     }
-    if ((config.bai = sam_index_load(config.fp, argv[optind+1])) == NULL) {
+    if ((config.bai = sam_index_load(config.fp, argv[optind+1])) == nullptr) {
         fprintf(stderr, "Couldn't load the index for %s, will attempt to build it.\n", argv[optind+1]);
         if (bam_index_build(argv[optind+1], 0) < 0) {
             fprintf(stderr, "Couldn't build the index for %s! File corrupted?\n", argv[optind+1]);
             return -5;
         }
-        if ((config.bai = sam_index_load(config.fp, argv[optind+1])) == NULL) {
+        if ((config.bai = sam_index_load(config.fp, argv[optind+1])) == nullptr) {
             fprintf(stderr, "Still couldn't load the index, quiting.\n");
             return -5;
         }
@@ -515,16 +515,16 @@ int run_convertor(int argc, char *argv[]) {
     // Parse the region, if needed
     if (config.reg) {
         const char *foo;
-        char *bar = NULL;
+        char* bar = nullptr;
         int s, e;
         hdr = sam_hdr_read(config.fp);
         foo = hts_parse_reg(config.reg, &s, &e);
-        if(foo == NULL) {
+        if (foo == nullptr) {
             fprintf(stderr, "Could not parse the specified region!\n");
             return -4;
         }
         bar = (char*) malloc(foo - config.reg + 1);
-        if(bar == NULL) {
+        if (bar == nullptr) {
             fprintf(stderr, "Could not allocate temporary space for parsing the requested region!\n");
             return -5;
         }
@@ -542,10 +542,10 @@ int run_convertor(int argc, char *argv[]) {
     }
 
     // Spin up the threads
-    pthread_mutex_init(&positionMutex, NULL);
+    pthread_mutex_init(&positionMutex, nullptr);
     pthread_t *threads = (pthread_t*) calloc(config.nThreads, sizeof(pthread_t));
-    for (i=0; i < config.nThreads; i++) pthread_create(threads + i, NULL, &perReadMetrics, &config);
-    for (i=0; i < config.nThreads; i++) pthread_join(threads[i], NULL);
+    for (i=0; i < config.nThreads; i++) pthread_create(threads + i, nullptr, &perReadMetrics, &config);
+    for (i=0; i < config.nThreads; i++) pthread_join(threads[i], nullptr);
     free(threads);
     pthread_mutex_destroy(&positionMutex);
 
@@ -560,10 +560,7 @@ int run_convertor(int argc, char *argv[]) {
 }
 
 int main(int argc, char *argv[]) {
-    if (argc == 1) {
-        cli_help();
-        return 0;
-    } else if(strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0) {
+    if ((argc == 1) || (strcmp(argv[1], "-h") == 0) || (strcmp(argv[1], "--help") == 0)) {
         cli_help();
         return 0;
     } else {

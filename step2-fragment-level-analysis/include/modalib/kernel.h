@@ -98,7 +98,7 @@ public:
      * @param j Column index
      * @return Flat index.
      */
-    inline int convert_index(int i, int j) {
+    [[nodiscard]] inline int convert_index(int i, int j) const {
         if (i > j) {
             int temp = i;
             i = j;
@@ -232,7 +232,7 @@ void compute_kernel_matrices_for_one_chromosome(
     // Copy fragment counters -> one counter per sample and chromosome
     std::vector<Counter> counters;
     for (const Counter& _counter : _counters) {
-        counters.push_back(Counter(_counter));
+        counters.emplace_back(_counter);
     }
 
     // Reset samples
@@ -293,7 +293,7 @@ void compute_kernel_matrices_for_one_chromosome(
 
         // Compute bin weight
         float bin_weight = 0.0f;
-        const unsigned int bin_id = coord_i / BIN_SIZE;
+        const int bin_id = coord_i / BIN_SIZE;
         if ((bin_id < counts.at(chr_id).n_cols()) && (counts.at(chr_id)(0, bin_id)) > 0) {
             bin_weight = 1.0f / counts.at(chr_id)(0, bin_id);
         }

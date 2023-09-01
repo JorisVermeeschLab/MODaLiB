@@ -1,7 +1,7 @@
 // IMPORTANT NOTE: this file is a modified version of the header file from the MethylDackel software
 
-#include <inttypes.h>
-#include <stdio.h>
+#include <cinttypes>
+#include <cstdio>
 #include <zlib.h>
 #include "htslib/sam.h"
 #include "htslib/faidx.h"
@@ -48,7 +48,7 @@ typedef struct {
     int requireFlags = 0;
     int singleRead = 0;
     int use_mm_ml = 0;
-    uint8_t ml_cutoff = 1;
+    uint8_t ml_cutoff = 168;  // 0.66 * 255
     FILE **output_fp;
     char *reg = NULL;
     char *BAMName;

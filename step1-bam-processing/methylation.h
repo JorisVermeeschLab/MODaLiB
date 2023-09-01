@@ -41,19 +41,19 @@
 static constexpr int END_OF_SEQUENCE = -2;
 
 
-std::vector<std::string> split(std::string s, const std::string delimiter) {
+std::vector<std::string> split(std::string s, const std::string& delimiter) {
     std::vector<std::string> elements;
-    int pos;
+    size_t pos;
     while ((pos = s.find(delimiter)) != std::string::npos) {
         std::string token = s.substr(0, pos);
         elements.push_back(token);
         s.erase(0, pos + delimiter.length());
     }
-    if (s.size() > 0) elements.push_back(s);
+    if (!s.empty()) elements.push_back(s);
     return elements;
 }
 
-inline char get_base(uint8_t* seq, int pos, int seq_len, int strand) {
+inline char get_base(const uint8_t* seq, int pos, int seq_len, int strand) {
     if (!(strand & 1)) {
         pos = seq_len - 1 - pos;
     }
@@ -104,11 +104,15 @@ void methylation_from_aux(bam1_t *b, ReadInfo& read, uint8_t ml_cutoff) {
     int seq_pos = -1;
     std::vector<std::string> modifications = split(mm, ";");
 
-    int ml_pos = 0;
+    size_t ml_pos = 0;
 
-    for (std::string modification : modifications) {
+    for (const std::string& modification : modifications) {
 
         if (modification.rfind("C+m", 0) == 0) {
+
+            // If '?' is present in the operation, then it means that
+            // we don't know the methylation status for skipped cytosines
+            bool skipped_are_unmodified = (modification.back() == '.');
 
             std::vector<std::string> elements = split(modification, ",");
 
@@ -117,7 +121,7 @@ void methylation_from_aux(bam1_t *b, ReadInfo& read, uint8_t ml_cutoff) {
                 // Skip unmodified cytosines
                 for (int k = 0; k < std::stoi(elements.at(i)); k++) {
                     seq_pos = move_to_next_cytosine(seq, seq_pos, seq_len, strand);
-                    // Do not call methylation as these cytosines are inconclusive
+                    if (skipped_are_unmodified) read.add_unmethylated_cpg(seq_pos);
                 }
 
                 // Go to next modified cytosine. If confidence exceeds the threshold,
@@ -135,7 +139,7 @@ void methylation_from_aux(bam1_t *b, ReadInfo& read, uint8_t ml_cutoff) {
             // Treat remaining unmodified cytosines as unmethylated
             while (seq_pos != END_OF_SEQUENCE) {
                 seq_pos = move_to_next_cytosine(seq, seq_pos, seq_len, strand);
-                // Do not call methylation as these cytosines are inconclusive
+                if (skipped_are_unmodified) read.add_unmethylated_cpg(seq_pos);
             }
 
             break;

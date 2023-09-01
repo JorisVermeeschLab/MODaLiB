@@ -109,7 +109,7 @@ public:
         this->gc_count = union_size(r1.gc_positions, r2.gc_positions);
         this->s_count = union_size(r1.informative_positions, r2.informative_positions);
     }
-    static int union_size(const std::unordered_set<uint32_t>& s1, const std::unordered_set<uint32_t>& s2) {
+    static size_t union_size(const std::unordered_set<uint32_t>& s1, const std::unordered_set<uint32_t>& s2) {
         std::unordered_set<uint32_t> s3;
         s3.insert(s1.begin(), s1.end());
         s3.insert(s2.begin(), s2.end());
