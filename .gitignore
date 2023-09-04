@@ -16,9 +16,11 @@ cmake_install.cmake
 X.npz
 K.npz
 
+kernels/
+nucleosomes/
+
 _deps/
 venv/
-nucleosomes/
 cmake-build-debug/
 .egg-info/
 dist/
