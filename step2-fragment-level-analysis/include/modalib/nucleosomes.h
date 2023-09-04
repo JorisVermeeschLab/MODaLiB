@@ -62,7 +62,7 @@ public:
         for (std::string line; std::getline(file, line);) {
             line_elements.clear();
             std::istringstream ss(line);
-            for (std::string value; std::getline(ss, value, ',');) {
+            for (std::string value; std::getline(ss, value, '\t');) {
                 line_elements.push_back(std::move(value));
             }
             if (line_elements.size() == 4) {
@@ -113,6 +113,7 @@ public:
             for (int i = 1; i < n; i++) {
                 const long x1 = pos[i - 1];
                 const long x2 = pos[i];
+                if (x2 >= ca.size()) continue;
                 if ((x2 - x1 > 500) || (x2 - x1 < 100)) {
                     for (long j = 0; j < x2 - x1; j++) {
                         ca[x1 + j] = 0.0f;
@@ -123,11 +124,12 @@ public:
                 }
             }
         }
+        std::cout << "Reference nucleosome map loaded." << std::endl;
     }
 
     inline float angle(uint8_t chr_id, unsigned long genomic_coord) const {
         const std::vector<float>& ca = this->chr_angles.at(chr_id);
-        return (genomic_coord >= ca.size()) ? 0.0 : ca[genomic_coord];
+        return (genomic_coord >= ca.size()) ? 0.0f : ca[genomic_coord];
     }
 
     std::valarray<float> phase_shift_scores(
@@ -136,22 +138,25 @@ public:
 
         std::valarray<float> pss(0.0f, idx.size());
 
+        if (this->chr_angles.find(chr_id) == this->chr_angles.end()) return pss;
         const std::vector<float>& ca = this->chr_angles.at(chr_id);
         if (frag_i.end_pos >= ca.size()) return pss;
 
         const float phi2 = ca.at(frag_i.start_pos);
         const float psi2 = ca.at(frag_i.end_pos);
+
         for (size_t k = 0; k < idx.size(); k++) {
+
             const int j = idx[k];
 
             if (frags[j].end_pos >= ca.size()) continue; // TODO: set weight to 0 (add weights as function arg)
 
             // Compute score for start positions
-            float phi = std::fabs(ca[frags[j].start_pos] - phi2);
+            float phi = std::fabs(ca.at(frags[j].start_pos) - phi2);
             phi = 1.0f - std::fmin(phi, 2.0f - phi);
 
             // Compute score for end positions
-            float psi = std::fabs(ca[frags[j].end_pos] - psi2);
+            float psi = std::fabs(ca.at(frags[j].end_pos) - psi2);
             psi = 1.0f - std::fmin(psi, 2.0f - psi);
 
             // Compute total score

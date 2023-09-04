@@ -155,7 +155,7 @@ def pairwise_kernels(
         raise ValueError(f'Number of samples should be at least 2. Got {n}.')
 
     # Load reference nucleosome map
-    cdef RefNucMap nuc_map = RefNucMap(nuc_filepath)
+    cdef RefNucMap nuc_map = RefNucMap(nuc_filepath.encode('utf-8'))
 
     # Compute kernel matrices
     cdef vector[_Sample] samples = samples_from_filepaths(filepaths)
@@ -200,7 +200,7 @@ def extract_features(
         raise ValueError(f'Number of samples should be at least 1. Got {n}.')
 
     # Load reference nucleosome map
-    cdef RefNucMap nuc_map = RefNucMap(nuc_filepath)
+    cdef RefNucMap nuc_map = RefNucMap(nuc_filepath.encode('utf-8'))
 
     # Compute feature matrices
     cdef vector[_Sample] samples = samples_from_filepaths(filepaths)
