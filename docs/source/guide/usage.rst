@@ -11,7 +11,7 @@ Process BAM files
 The reference genome can be found at ``/lustre1/project/stg_00019/methylation_data/human_genome/GCA_000001405.15_GRCh38_no_alt_analysis_set.fa``.
 The inclusion bounds ``ot`` and ``ob`` can be used to mitigate the methylation biases at the ends of the reads.
 
-By default, reads are assumed to be paired. If not, the ``--singleRead`` flag should be added.
+By default, reads are assumed to be paired. If not, the ``--single_read`` flag should be added.
 
 By default, unmethylated cytosines are assumed to be converted to uracils (i.e., using bisulfite sequencing).
 Alternatively, methylation information can be stored in the SAM/BAM optional fields called ``MM`` and ``ML``.

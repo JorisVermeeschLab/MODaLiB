@@ -16,13 +16,16 @@
 #include <string>
 #include <vector>
 
-#include "MethylDackel.h"
+#include "params.h"
 #include "read_info.h"
 #include "fragment.h"
 #include "methylation.h"
 #include "reference.h"
 #include "utils.h"
 
+#if HTS_VERSION < 101100
+#error "HTSlib version should be >= 1.11"
+#endif
 
 // #define NDEBUG
 static constexpr bool DEBUG_TEXT_OUTPUT = false;
@@ -60,6 +63,33 @@ void write_fragment(kstring_t *os, Fragment& fragment) {
         fragment.serialize(buffer);
         kputsn(buffer, sizeof(buffer), os);
     }
+}
+
+
+void trim_alignment(bam1_t *b, const Parameters& config) {
+
+    int strand = get_strand(b);
+    const int* bounds = config.get_bounds(strand);
+
+    // Determine the left and right bounds
+    int lb, rb;
+    if(b->core.flag & BAM_FREAD2) {
+        lb = bounds[2];
+        rb = bounds[3];
+    } else {
+        lb = bounds[0];
+        rb = bounds[1];
+    }
+
+    // Make sure the leftmost bound does not exceed the size of the read
+    lb = (lb < b->core.l_qseq) ? lb : b->core.l_qseq;
+
+    // Trim left part of the read
+    uint8_t* qual = bam_get_qual(b);
+    if (lb) for (int i = 0; i < lb; i++) qual[i] = 0;
+
+    // Trim right part of the read
+    if (rb) for (int i = rb; i < b->core.l_qseq; i++) qual[i] = 0;
 }
 
 
@@ -176,39 +206,38 @@ void compute_read_statistics(bam1_t *b, AlignmentRefSequence& ref, ReadInfo& rea
     assert(query_pos == b->core.l_qseq);
 }
 
-void* perReadMetrics(void *config_) {
-    Config* config = static_cast<Config*>(config_);
-    bam_hdr_t* hdr;
-    int seqlen;
+void* perReadMetrics(void* config_) {
+    Parameters* config = static_cast<Parameters*>(config_);
     uint32_t localBin = 0, localPos = 0, localEnd = 0, localTid = 0, localPos2 = 0;
-    char* seq = nullptr;
-    kstring_t* os = nullptr;
-    faidx_t* fai;
-    hts_idx_t* bai;
-    htsFile* fp;
     bam1_t* b = bam_init1();
-    hts_itr_t* iter;
 
-    os = (kstring_t*) calloc(1, sizeof(kstring_t));
-    if(!os) {
+    kstring_t* os = (kstring_t*) calloc(1, sizeof(kstring_t));
+    if (!os) {
         fprintf(stderr, "Couldn't allocate space the for kstring_t structure in perRead!\n");
         return nullptr;
     }
 
-    //Open the files
-    if((fai = fai_load(config->FastaName)) == nullptr) {
-        fprintf(stderr, "Couldn't open the index for %s!\n", config->FastaName);
+    // Load reference genome
+    faidx_t* fai;
+    if ((fai = fai_load(config->fasta_filename)) == nullptr) {
+        fprintf(stderr, "Couldn't open the index for %s!\n", config->fasta_filename);
         return nullptr;
     }
-    if((fp = hts_open(config->BAMName, "rb")) == nullptr) {
-        fprintf(stderr, "Couldn't open %s for reading!\n", config->BAMName);
+
+    // Open BAM file
+    htsFile* fp;
+    if ((fp = hts_open(config->bam_filename, "rb")) == nullptr) {
+        fprintf(stderr, "Couldn't open BAM file %s\n", config->bam_filename);
         return nullptr;
     }
-    if((bai = sam_index_load(fp, config->BAMName)) == nullptr) {
-        fprintf(stderr, "Couldn't load the index for %s\n", config->BAMName);
+
+    // Open BAM index file
+    hts_idx_t* bai;
+    if ((bai = sam_index_load(fp, config->bam_filename)) == nullptr) {
+        fprintf(stderr, "Couldn't open BAM index %s\n", config->bam_filename);
         return nullptr;
     }
-    hdr = sam_hdr_read(fp);
+    bam_hdr_t* hdr = sam_hdr_read(fp);
 
     std::vector<ReadInfo> paired_reads;
 
@@ -218,7 +247,7 @@ void* perReadMetrics(void *config_) {
         localBin = bin++;
         localTid = globalTid;
         localPos = globalPos;
-        localEnd = localPos + config->chunkSize;
+        localEnd = localPos + config->partition_size;
         if(localTid >= hdr->n_targets) {
             pthread_mutex_unlock(&positionMutex);
             break;
@@ -246,10 +275,11 @@ void* perReadMetrics(void *config_) {
         //Break out of the loop if finished
         if(localTid >= hdr->n_targets) break; //Finish looping
         if(globalEnd && localPos >= globalEnd) break;
-        iter = sam_itr_queryi(bai, localTid, localPos, localEnd);
+        hts_itr_t* iter = sam_itr_queryi(bai, localTid, localPos, localEnd);
 
         //Fetch the sequence and then iterate over the reads. There's a 10kb buffer on the end
-        seq = faidx_fetch_seq(fai, hdr->target_name[localTid], localPos2, localEnd+10000, &seqlen);
+        int seqlen;
+        char* seq = faidx_fetch_seq(fai, hdr->target_name[localTid], localPos2, localEnd+10000, &seqlen);
         while (sam_itr_next(fp, iter, b) >= 0) {
             if (b->core.pos < localPos) continue;
             if (b->core.pos >= localEnd) break;
@@ -261,28 +291,23 @@ void* perReadMetrics(void *config_) {
                 abs(b->core.l_qseq), abs(b->core.isize), b->core.flag
             );
 
-            if (config->requireFlags && (config->requireFlags & b->core.flag) != config->requireFlags) continue;
-            if (config->ignoreFlags && (config->ignoreFlags & b->core.flag) != 0) continue;
-            if (b->core.qual < config->minMapq) continue;
+            if (b->core.qual < config->min_mapq) continue;
 
             // Use inclusion bounds to trim alignments
-            b = trimAlignmentSimple(b, config->bounds);
+            trim_alignment(b, *config);
 
             // Extract read-level statistics from read
             AlignmentRefSequence ref(seq, localPos2, seqlen);
             compute_read_statistics(
-                b, ref, read, config->minPhred,
+                b, ref, read, config->min_phred,
                 !config->use_mm_ml  // IMPORTANT: When using MM/ML flags to call methylation, we assume that Cs have not been converted
             );
 
-            // Compute methylation using MM and ML tags (if required)
-            if (config->use_mm_ml) {
-                methylation_from_aux(b, read, config->ml_cutoff);
-                std::cout << "METH: " << read.num_methylated_cpg_sites() << ", " << read.num_unmethylated_cpg_sites() << std::endl;
-            }
+            // Call methylation using MM and ML tags (if required)
+            if (config->use_mm_ml) methylation_from_aux(b, read, config->ml_cutoff);
 
             // Combine read pairs into fragments
-            if (config->singleRead) {  // Single-read
+            if (config->single_read) {  // Single-read
                 Fragment fragment(read);
                 if (fragment.is_valid()) write_fragment(os, fragment);
             } else {  // Paired-end
@@ -311,7 +336,7 @@ void* perReadMetrics(void *config_) {
                 }
                 if (!found_pair) {
                     paired_reads.push_back(read);
-                    if (paired_reads.size() > 40) {
+                    if (paired_reads.size() > 40) {   // TODO: check if more is needed, use hashmaps instead of lists
                         paired_reads.erase(paired_reads.begin());
                     }
                 }
@@ -363,7 +388,7 @@ void cli_help() {
 " -r STR     Region string in which to extract methylation\n"
 " -o STR     Output file name [stdout]\n"
 " -nthreads INT    The number of threads to use, the default is 1\n"
-" --chunkSize INT  The size of the genome processed by a single thread at a time.\n"
+" --partition_size INT  The size of the genome processed by a single thread at a time.\n"
 "            The default is 1000000 bases. This value MUST be at least 1.\n"
 " --OT INT,INT,INT,INT Inclusion bounds for methylation calls from reads/pairs\n"
 "                  originating from the original top strand. Suggested values can\n"
@@ -376,37 +401,33 @@ void cli_help() {
 "                  include all but the first 4 bases on read #1. Users are\n"
 "                  strongly advised to consult a methylation bias plot, for\n"
 "                  example by using the MBias program.\n"
-" --OB INT,INT,INT,INT\n"
-" --CTOT INT,INT,INT,INT\n"
-" --CTOB INT,INT,INT,INT As with --OT, but for the original bottom, complementary\n"
-"                  to the original top, and complementary to the original bottom\n"
-"                  strands, respectively.\n"
+" --OB INT,INT,INT,INT As with --OT, but for the original bottom.\n"
+" --CTOT INT,INT,INT,INT As with --OT, but for complementary to the original top.\n"
+" --CTOB INT,INT,INT,INT As with --OT, but for complementary to the original bottom.\n"
 "\n"
 "Note that this program will produce incorrect values for alignments spanning\n"
 "more than 10kb.\n");
 }
 
 int run_convertor(int argc, char *argv[]) {
-    Config config;
+    Parameters config;
     FILE *ofile = stdout;
-    int i;
     faidx_t *fai;
-    bam_hdr_t *hdr = nullptr;
-    char c;
 
     static struct option lopts[] = {
             {"help",    0, nullptr, 'h'},
             {"version", 0, nullptr, 'v'},
-            {"singleRead",   0, nullptr, 20},
+            {"single_read",   0, nullptr, 20},
             {"useMMML",   0, nullptr, 21},
             {"mlCutoff",   1, nullptr, 22},
-            {"chunkSize",    1, nullptr,  19},
+            {"partition_size",    1, nullptr,  19},
             {"OT",           1, nullptr,   7},
             {"OB",           1, nullptr,   8},
             {"CTOT",         1, nullptr,   9},
             {"CTOB",         1, nullptr,  10},
             {0,         0, nullptr,   0}
     };
+    char c;
     while((c = getopt_long(argc, argv, "hvq:p:o:@:r:l:F:R:", lopts, nullptr)) >= 0) {
         switch(c) {
             case 'h':
@@ -419,19 +440,19 @@ int run_convertor(int argc, char *argv[]) {
                 }
                 break;
             case 'q':
-                config.minMapq = atoi(optarg);
+                config.min_mapq = atoi(optarg);
                 break;
             case 'p':
-                config.minPhred = atoi(optarg);
+                config.min_phred = atoi(optarg);
                 break;
             case '@':
-                config.nThreads = atoi(optarg);
+                config.n_threads = atoi(optarg);
                 break;
             case 'r':
                 config.reg = optarg;
                 break;
             case 20:
-                config.singleRead = 1;
+                config.single_read = 1;
                 break;
             case 21:
                 config.use_mm_ml = 1;
@@ -440,20 +461,20 @@ int run_convertor(int argc, char *argv[]) {
                 config.ml_cutoff = static_cast<uint8_t>(atoi(optarg));
                 break;
             case 7:
-                parseBounds(optarg, config.bounds, 0);
+                config.parse_ot_bounds(optarg);
                 break;
             case 8:
-                parseBounds(optarg, config.bounds, 1);
+                config.parse_ob_bounds(optarg);
                 break;
             case 9:
-                parseBounds(optarg, config.bounds, 2);
+                config.parse_ctot_bounds(optarg);
                 break;
             case 10:
-                parseBounds(optarg, config.bounds, 3);
+                config.parse_ctob_bounds(optarg);
                 break;
             case 19:
-                config.chunkSize = strtoul(optarg, nullptr, 10);
-                if(config.chunkSize < 1) {
+                config.partition_size = strtoul(optarg, nullptr, 10);
+                if(config.partition_size < 1) {
                     fprintf(stderr, "Error: The chunk size must be at least 1!\n");
                     return 1;
                 }
@@ -476,13 +497,13 @@ int run_convertor(int argc, char *argv[]) {
     }
 
     // Are the options reasonable?
-    if (config.minPhred < 1) {
-        fprintf(stderr, "-p %i is invalid. resetting to 1, which is the lowest possible value.\n", config.minPhred);
-        config.minPhred = 1;
+    if (config.min_phred < 1) {
+        fprintf(stderr, "-p %i is invalid. resetting to 1, which is the lowest possible value.\n", config.min_phred);
+        config.min_phred = 1;
     }
-    if (config.minMapq < 0) {
-        fprintf(stderr, "-q %i is invalid. Resetting to 0, which is the lowest possible value.\n", config.minMapq);
-        config.minMapq = 0;
+    if (config.min_mapq < 0) {
+        fprintf(stderr, "-q %i is invalid. Resetting to 0, which is the lowest possible value.\n", config.min_mapq);
+        config.min_mapq = 0;
     }
 
     if ((fai = fai_load(argv[optind])) == nullptr) {
@@ -490,8 +511,8 @@ int run_convertor(int argc, char *argv[]) {
         cli_help();
         return -2;
     }
-    config.FastaName = argv[optind];
-    config.BAMName = argv[optind+1];
+    config.fasta_filename = argv[optind];
+    config.bam_filename = argv[optind + 1];
     if ((config.fp = hts_open(argv[optind+1], "rb")) == nullptr) {
         fprintf(stderr, "Couldn't open %s for reading!\n", argv[optind+1]);
         return -4;
@@ -516,8 +537,8 @@ int run_convertor(int argc, char *argv[]) {
     if (config.reg) {
         const char *foo;
         char* bar = nullptr;
+        bam_hdr_t *hdr = sam_hdr_read(config.fp);
         int s, e;
-        hdr = sam_hdr_read(config.fp);
         foo = hts_parse_reg(config.reg, &s, &e);
         if (foo == nullptr) {
             fprintf(stderr, "Could not parse the specified region!\n");
@@ -543,15 +564,15 @@ int run_convertor(int argc, char *argv[]) {
 
     // Spin up the threads
     pthread_mutex_init(&positionMutex, nullptr);
-    pthread_t *threads = (pthread_t*) calloc(config.nThreads, sizeof(pthread_t));
-    for (i=0; i < config.nThreads; i++) pthread_create(threads + i, nullptr, &perReadMetrics, &config);
-    for (i=0; i < config.nThreads; i++) pthread_join(threads[i], nullptr);
+    pthread_t *threads = (pthread_t*) calloc(config.n_threads, sizeof(pthread_t));
+    for (int i = 0; i < config.n_threads; i++) pthread_create(threads + i, nullptr, &perReadMetrics, &config);
+    for (int i = 0; i < config.n_threads; i++) pthread_join(threads[i], nullptr);
     free(threads);
     pthread_mutex_destroy(&positionMutex);
 
     // Close files and free memory
     hts_close(config.fp);
-    if(ofile != stdout) fclose(ofile);
+    if (ofile != stdout) fclose(ofile);
     free(config.output_fp);
     fai_destroy(fai);
     hts_idx_destroy(config.bai);

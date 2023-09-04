@@ -31,6 +31,7 @@
 #include <utility>
 
 #include "read_info.h"
+#include "reference.h"
 #include "utils.h"
 
 #include "htslib/sam.h"
@@ -53,10 +54,7 @@ std::vector<std::string> split(std::string s, const std::string& delimiter) {
     return elements;
 }
 
-inline char get_base(const uint8_t* seq, int pos, int seq_len, int strand) {
-    if (!(strand & 1)) {
-        pos = seq_len - 1 - pos;
-    }
+inline char get_base(const uint8_t* seq, int pos, int seq_len) {
     if ((pos < 0) or (pos >= seq_len)) return -1;
     return seq_nt16_str[bam_seqi(seq, pos)];
 }
@@ -73,15 +71,17 @@ inline bool is_guanine(char base, int strand) {
 
 bool is_cpg(uint8_t* seq, int pos, int seq_len, int strand) {
     if (pos >= seq_len - 1) return false;
-    char base = get_base(seq, pos, seq_len, strand);
-    char next_base = get_base(seq, pos + 1, seq_len, strand);
+    char base = get_base(seq, pos, seq_len);
+    char next_base;
+    if (strand & 1) next_base = get_base(seq, pos + 1, seq_len);
+    else next_base = get_base(seq, pos - 1, seq_len);
     return is_cytosine(base, strand) and is_guanine(next_base, strand);
 }
 
 int move_to_next_cytosine(uint8_t* seq, int offset, int seq_len, int strand) {
     if ((seq_len < 1) or (offset >= seq_len)) return END_OF_SEQUENCE;
     offset++;
-    while ((!is_cytosine(get_base(seq, offset, seq_len, strand), strand)) and (offset < seq_len)) {
+    while ((!is_cytosine(get_base(seq, offset, seq_len), strand)) and (offset < seq_len)) {
         offset++;
     }
     if (offset >= seq_len) return END_OF_SEQUENCE;
@@ -108,17 +108,19 @@ void methylation_from_aux(bam1_t *b, ReadInfo& read, uint8_t ml_cutoff) {
 
     for (const std::string& modification : modifications) {
 
-        if (modification.rfind("C+m", 0) == 0) {
+        if (modification.rfind("C+m", 0) == 0) {  // TODO: treat "C-m" case
 
             // If '?' is present in the operation, then it means that
-            // we don't know the methylation status for skipped cytosines
+            // we don't know the methylation status for skipped cytosines.
+            // If '.' is present instead, then the skipped cytosines
+            // are indeed unmodified (unmethylated).
             bool skipped_are_unmodified = (modification.back() == '.');
 
             std::vector<std::string> elements = split(modification, ",");
 
             for (int i = 1; i < elements.size(); i++) {
 
-                // Skip unmodified cytosines
+                // Skip unmodified cytosines, or treat them as unmethylated (if '.' mode)
                 for (int k = 0; k < std::stoi(elements.at(i)); k++) {
                     seq_pos = move_to_next_cytosine(seq, seq_pos, seq_len, strand);
                     if (skipped_are_unmodified) read.add_unmethylated_cpg(seq_pos);
@@ -136,7 +138,7 @@ void methylation_from_aux(bam1_t *b, ReadInfo& read, uint8_t ml_cutoff) {
                 ml_pos++;
             }
 
-            // Treat remaining unmodified cytosines as unmethylated
+            // Treat remaining unmodified cytosines as unmethylated (if '.' mode)
             while (seq_pos != END_OF_SEQUENCE) {
                 seq_pos = move_to_next_cytosine(seq, seq_pos, seq_len, strand);
                 if (skipped_are_unmodified) read.add_unmethylated_cpg(seq_pos);

@@ -1,3 +1,4 @@
+from typing import Tuple, List
 import collections
 
 import matplotlib
@@ -19,8 +20,32 @@ from sklearn.preprocessing import StandardScaler, KernelCenterer
 from sklearn.svm import SVC
 
 
-BINARY = True
+BINARY = False
 
+labels = ['Healthy', 'Breast', 'Cervical', 'Colorectal', 'Ovarian', 'Hematological', 'Solid (misc)', 'Skin']
+N_CLASSES = len(labels)
+
+
+def load_kernel_matrices(filepath: str) -> Tuple[np.ndarray, List[str]]:
+    data = np.load(filepath, allow_pickle=True)
+    sample_names = data['sample_names']
+    K = data['K']
+    print(len(K))
+    print(K[0].shape)
+
+    X = []
+    for k in tqdm.tqdm(range(len(K))):
+        X.append(KernelPCA(n_components=20).fit_transform(K[k, ...]))
+    X = np.asarray(X)
+    X = np.transpose(X, (1, 0, 2))
+    n, p, _ = X.shape
+    X = X.reshape(n, p // 5, 5, 20)
+    X = np.transpose(X, (0, 2, 1, 3))
+    n_kernels = X.shape[1]
+    X = X.reshape(n, 5, -1)
+    print(X.shape)
+
+    return X, sample_names
 
 
 df = pd.read_csv('../samples-details.tsv', delimiter='\t')
@@ -40,13 +65,11 @@ sample_names2 = data['sample_names']
 X = data['X'].item()
 
 # Load kernel data
-data = np.load('K.npz', allow_pickle=True)
-sample_names = data['sample_names']
-K = data['K'].item()
-
-
-K = np.asarray([K[chr_id] for chr_id in range(1, 23)])
-K = K[:, :5, :, :]
+X2 = []
+for k in range(1, 26):
+    X2_, sample_names = load_kernel_matrices(f'../kernels/K-{k}.npz')
+    X2.append(X2_)
+X2 = np.concatenate(tuple(X2), axis=2)
 
 # Make sure the samples in K and X actually match
 sample_dict = {sample_name: i for i, sample_name in enumerate(sample_names2)}
@@ -149,27 +172,11 @@ def evaluate(kernel_idx):
     X_ = StandardScaler().fit_transform(X_)
     K_f = pairwise_kernels(X_, metric='rbf')
 
-    w = np.array([24896, 24220, 19830, 19022, 18154, 17081, 15935, 14514, 13840,
-           13380, 13509, 13328, 11437, 10705, 10201,  9033,  8326,  8038,
-            5862,  6445,  4671,  5082])
-    w = w / np.sum(w)
-    K_agg = np.sum(w[:, np.newaxis, np.newaxis, np.newaxis] * K, axis=0)
-    for k in range(len(K_agg)):
 
-
-        #np.fill_diagonal(K_agg[k, :, :], 0)
-
-        # K_agg[k, :, :] /= np.outer(np.mean(K_agg[k, :, :], axis=0), np.mean(K_agg[k, :, :], axis=1))
-
-        gamma = [2, 2, 2, 1000000000, 40][k]
-        K_agg[k, :, :] = np.exp(-gamma * K_agg[k, :, :])
-
-        plt.imshow(K_agg[k, :, :])
-        plt.show()
-
-        K_agg[k, :, :] = KernelCenterer().fit_transform(K_agg[k, :, :])
-    K_agg = K_agg[kernel_idx, ...]
-    K_agg = np.mean(K_agg, axis=0)
+    X2_ = X2[:, kernel_idx, :]
+    X2_ = X2_.reshape(len(X2_), -1)
+    X2_ = StandardScaler().fit_transform(X2_)
+    K_agg = pairwise_kernels(X2_, metric='rbf')
 
 
     #alpha = 0.2
@@ -191,8 +198,10 @@ def evaluate(kernel_idx):
         model = SVC(kernel='precomputed', probability=True, C=1000, class_weight='balanced')
         model.fit(Kf_train, y_train)
         y_pred1.append(model.predict_proba(Kf_test))
+        y_pred1[-1] = np.concatenate((y_pred1[-1], np.zeros((y_pred1[-1].shape[0], N_CLASSES - y_pred1[-1].shape[1]))), axis=1)
         model.fit(K_train, y_train)  # TODO
         y_pred2.append(model.predict_proba(K_test))
+        y_pred2[-1] = np.concatenate((y_pred2[-1], np.zeros((y_pred2[-1].shape[0], N_CLASSES - y_pred2[-1].shape[1]))), axis=1)
         y_target.append(y_test)
     y_target = np.squeeze(np.concatenate(y_target, axis=0))
     y_pred1 = np.squeeze(np.concatenate(y_pred1, axis=0))
@@ -207,17 +216,13 @@ def evaluate(kernel_idx):
         print(f'AUC 1: {auc}')
         print(f'AUC 2: {roc_auc_score(y_target, y_pred2[:, 1])}')
     else:
-        auc = roc_auc_score(y_target > 0, y_pred1, multi_class='ovr')
+        auc = roc_auc_score(y_target, y_pred1, multi_class='ovr')
         roc = roc_curve(y_target > 0, 1 - y_pred1[:, 0])
         roc2 = roc_curve(y_target > 0, 1 - y_pred2[:, 0])
         print(f'AUC 1: {auc}')
         print(f'AUC 2: {roc_auc_score(y_target, y_pred2, multi_class="ovr")}')
 
     if not BINARY:
-        # labels = ['Healthy', 'Breast', 'Cervical', 'Colorectal', 'Ovarian', 'Hematological', 'Solid (misc)', 'Skin']
-        labels = ['Healthy', 'Breast', 'Cervical', 'Colorectal', 'Ovarian', 'Hematological']
-        print(list(y_target))
-        print(list(np.argmax(y_pred2, axis=1)))
         cm = confusion_matrix(y_target, np.argmax(y_pred2, axis=1))
         plt.figure(figsize=(6, 6))
         ax = plt.subplot()

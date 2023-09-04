@@ -11,7 +11,7 @@ link_directories(
 )
 
 add_executable(BAMConvertor main.cpp
-        MethylDackel.h
+        params.h
         methylation.h
         fragment.h
         read_info.h

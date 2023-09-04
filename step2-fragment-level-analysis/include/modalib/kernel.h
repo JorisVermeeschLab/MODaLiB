@@ -46,9 +46,6 @@
 namespace modalib {
 
 
-// #define DISTANCES_INSTEAD_OF_SIMILARITIES 1
-
-
 // Number of kernel functions
 const int NUM_KERNELS = 5;
 
@@ -348,9 +345,6 @@ void compute_kernel_matrices_for_one_chromosome(
                 const int j = idx[k];
 
                 // Update nucleosome positioning kernel matrix
-                #ifdef DISTANCES_INSTEAD_OF_SIMILARITIES
-                    scores[k] = 1.0f - scores[k];
-                #endif
                 matrices.at(NUM_KERNELS * kernel_bin_id).add_sym(scores[k], i, j, w[j]);
 
                 // Update fragment length kernel matrix.
@@ -359,39 +353,24 @@ void compute_kernel_matrices_for_one_chromosome(
                 // In other words, k(x_i, x_j) = 1 when x_i and x_j are either both
                 // "long" or both "short" fragments.
                 // Weighting function is the default one.
-                #ifdef DISTANCES_INSTEAD_OF_SIMILARITIES
-                    float score = ((l_i <= 167) != (frags[j].size <= 167));
-                #else
-                    float score = ((l_i <= 167) == (frags[j].size <= 167));
-                #endif
+                float score = std::fabs(l_i - frags[j].size) / std::fmax(l_i, frags[j].size);
+                // float score = ((l_i <= 167) == (frags[j].size <= 167));
                 matrices.at(NUM_KERNELS * kernel_bin_id + 1).add_sym(score, i, j, w[j]);
 
                 // Update methylation kernel matrix.
-                #ifdef DISTANCES_INSTEAD_OF_SIMILARITIES
-                    score = std::pow(m_i - frags[j].get_meth_ratio(), 2);
-                #else
-                    score = 1.0 - std::fabs(m_i - frags[j].get_meth_ratio());
-                #endif
+                score = 1.0 - std::fabs(m_i - frags[j].get_meth_ratio());
                 matrices.at(NUM_KERNELS * kernel_bin_id + 2).add_sym(score, i, j, w[j] * std::sqrt(depth_i * static_cast<float>(frags[j].n_sites())));
 
                 // Update fragment counts kernel matrix
                 const float density_j = counters.at(j).get_density(frag_i);
                 if (density_i * density_j > 0) {
-                    #ifdef DISTANCES_INSTEAD_OF_SIMILARITIES
-                        score = std::pow(density_i - density_j, 2);
-                    #else
-                        const float den = std::fmax(density_i, density_j);
-                        score = (den - std::fabs(density_i - density_j)) / den;
-                    #endif
+                    const float den = std::fmax(density_i, density_j);
+                    score = (den - std::fabs(density_i - density_j)) / den;
                     matrices.at(NUM_KERNELS * kernel_bin_id + 3).add_sym(score, i, j, bin_weight);
                 }
 
                 // Update "mutational" burden kernel matrix
-                #ifdef DISTANCES_INSTEAD_OF_SIMILARITIES
-                    score = std::pow(mb_i - frags[j].get_mutation_burden(), 2);
-                #else
-                    score = 1.0f - std::fabs(mb_i - frags[j].get_mutation_burden());
-                #endif
+                score = 1.0f - std::fabs(mb_i - frags[j].get_mutation_burden());
                 matrices.at(NUM_KERNELS * kernel_bin_id + 4).add_sym(score, i, j, w[j] * std::sqrt(frag_i.s_count * frags[j].s_count));
             }
         }
