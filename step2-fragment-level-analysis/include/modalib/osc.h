@@ -42,7 +42,7 @@ private:
     // The size of each vector corresponds to the number of nucleosomes called on each chromosome.
     std::unordered_map<uint8_t, std::vector<long>> nuc_pos;
 
-    // Angles w.r.t. nucleosome positions for the each chromosome.
+    // Angles w.r.t. nucleosome positions for each chromosome.
     // Size of each vector is the size of the corresponding chromosome (in bp).
     std::unordered_map<uint8_t, std::vector<float>> chr_angles;
 

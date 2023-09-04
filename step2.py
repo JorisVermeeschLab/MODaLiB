@@ -33,11 +33,11 @@ for sample_name in sample_names:
         filepaths.append(filepath)
         sample_names_.append(sample_name)
 
-nuc_folder = os.path.join(ROOT, 'step2-fragment-level-analysis', 'nucleosomes')
+nuc_filepath = os.path.join(ROOT, 'step2-fragment-level-analysis', 'nucleosomes', 'Homo_sapiens.hsNuc0100101.nucleosome.DANPOSPeak.sorted.bed')
 
 if COMPUTE_FEATURES and (not os.path.exists('X.npz')):
     print('Extracting features...')
-    matrices = extract_features(filepaths, nuc_folder)
+    matrices = extract_features(filepaths, nuc_filepath)
     np.savez(
         'X.npz',
         X=matrices,
@@ -48,7 +48,7 @@ t0 = time.time()
 
 if COMPUTE_KERNELS and (not os.path.exists(f'K.npz')):
     print(f'Computing kernel matrices from {len(filepaths)} sample(s)')
-    matrices = pairwise_kernels(filepaths, nuc_folder)
+    matrices = pairwise_kernels(filepaths, nuc_filepath)
 
     #print(matrices[1][3])
     #print(matrices[1][56])

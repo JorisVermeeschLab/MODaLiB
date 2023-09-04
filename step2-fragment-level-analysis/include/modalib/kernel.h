@@ -27,6 +27,7 @@
 #include "array_utils.h"
 #include "bounds.h"
 #include "features.h"
+#include "nucleosomes.h"
 #include "utils.h"
 
 #include <algorithm>
@@ -219,7 +220,7 @@ void compute_kernel_matrices_for_one_chromosome(
         int partition_id,
         const std::vector<_Sample>& _samples,
         std::unordered_map<uint8_t, std::vector<KernelMatrix>>& all_matrices,
-        const Oscillator& osc,
+        const RefNucMap& nuc_map,
         const std::vector<Counter>& _counters,
         const std::unordered_map<uint8_t, FeatureMatrix>& counts
         ) {
@@ -334,7 +335,7 @@ void compute_kernel_matrices_for_one_chromosome(
 
             // Compute phase shift scores (needed to update the nucleosome positioning kernel matrix).
             // `scores` has the same size as `idx`.
-            std::valarray<float> scores = osc.phase_shift_scores(chr_id, frags, idx, frag_i);
+            std::valarray<float> scores = nuc_map.phase_shift_scores(chr_id, frags, idx, frag_i);
 
             const uint16_t l_i = frag_i.size;
             const float m_i = frag_i.get_meth_ratio();
@@ -394,7 +395,7 @@ void compute_kernel_matrices_for_one_chromosome(
 
 std::unordered_map<uint8_t, std::vector<KernelMatrix>> compute_kernel_matrices(
         std::vector<_Sample>& samples,
-        std::unordered_map<uint8_t, std::vector<long>>& nuc_pos
+        RefNucMap& nuc_map
         ) {
 
 	size_t n = samples.size();
@@ -419,9 +420,6 @@ std::unordered_map<uint8_t, std::vector<KernelMatrix>> compute_kernel_matrices(
 	std::vector<Counter> counters = init_counters(samples, counts);
 	std::cout << "done." << std::endl;
 
-	// Initialize reference nucleosome map
-	Oscillator osc(nuc_pos);
-
     // Compute kernel matrices
     std::vector<std::thread> threads;
 	for (size_t partition_id = 0; partition_id < NUM_PARTITIONS; ++partition_id) {
@@ -430,7 +428,7 @@ std::unordered_map<uint8_t, std::vector<KernelMatrix>> compute_kernel_matrices(
             partition_id,
             std::ref(samples),
             std::ref(matrices),
-            std::ref(osc),
+            std::ref(nuc_map),
             std::ref(counters),
             std::ref(counts)
         ));

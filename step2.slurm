@@ -1,7 +1,6 @@
 #!/bin/bash -l
 #SBATCH --cluster=wice
-#SBATCH --time=7-00:00:00
-#SBATCH --partition=batch_long
+#SBATCH --time=3-00:00:00
 #SBATCH --nodes 1
 #SBATCH --ntasks 1
 #SBATCH --ntasks-per-node=1

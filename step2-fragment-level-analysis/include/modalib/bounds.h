@@ -17,8 +17,8 @@
 //  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 //  MA 02110-1301, USA.
 
-#ifndef BOUNDS_H_
-#define BOUNDS_H_
+#ifndef MODALIB_BOUNDS_H
+#define MODALIB_BOUNDS_H
 
 #include <algorithm>
 #include <string>
@@ -169,4 +169,4 @@ inline int coords_to_partition(uint8_t chr_id, long pos, size_t n_partitions) {
 
 } // namespace modalib
 
-#endif // BOUNDS_H_
+#endif // MODALIB_BOUNDS_H

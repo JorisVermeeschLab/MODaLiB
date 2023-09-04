@@ -7,4 +7,6 @@ add_library(modalib_obj OBJECT sample.cpp osc.cpp site.cpp region_list.cpp
         ../include/modalib/osc.h
         ../include/modalib/fragment_info.h
         ../include/modalib/sample.h
-        ../include/modalib/features.h)
+        ../include/modalib/features.h
+        ../include/modalib/nucleosomes.h
+        ../include/modalib/bounds.h)

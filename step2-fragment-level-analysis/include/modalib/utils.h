@@ -43,6 +43,42 @@ inline long combine_coords(uint8_t chr_id, long pos) {
     else return static_cast<long>(chr_id) * 1e+9 + pos;
 }
 
+/**
+ * Parse chromosome name and return chromosome identifier.
+ *
+ * @param c Chromosome name.
+ * @return Chromosome identifier.
+ */
+inline uint8_t parse_chr_name(const char* c) {
+    size_t n = strlen(c);
+    uint8_t chr;
+
+    // If string starts with "chr", ignore the 3 first characters
+    if ((n > 3) && (c[0] == 'c') && (c[1] == 'h') && (c[2] == 'r')) {
+        c += 3;
+        n -= 3;
+    }
+
+    char *p;
+    long converted = strtol(c, &p, 10);
+    if (*p) { // If not numeric
+        if (n == 1) {
+            if (c[0] == 'X') chr = 23;
+            else if (c[0] == 'Y') chr = 24;
+            else if (c[0] == 'M') chr = 25;
+            else chr = 0;
+        } else if ((n == 3) && (strncmp(c, "EBV", 3) == 0)) {
+            chr = 26;
+        } else {
+            chr = 0;
+        }
+    }
+    else { // If numeric
+        chr = (uint8_t) converted;
+    }
+    return chr;
+}
+
 } // namespace modalib
 
 #endif // UTILS_H_

@@ -30,6 +30,7 @@
 
 #include "array_utils.h"
 #include "fragment_info.h"
+#include "nucleosomes.h"
 #include "bounds.h"
 #include "sample.h"
 #include "utils.h"
@@ -71,7 +72,7 @@ public:
 
 std::unordered_map<uint8_t, std::vector<FeatureMatrix>> extract_all_features(
         std::vector<_Sample>& samples,
-        std::unordered_map<uint8_t, std::vector<long>>& nuc_pos
+        const RefNucMap& nuc_map
         ) {
 
 	size_t n = samples.size();
@@ -89,8 +90,6 @@ std::unordered_map<uint8_t, std::vector<FeatureMatrix>> extract_all_features(
 	}
 
     // TODO: reset samples
-
-	Oscillator osc(nuc_pos);
 
     for (size_t i = 0; i < n; ++i) {
 
@@ -122,8 +121,8 @@ std::unordered_map<uint8_t, std::vector<FeatureMatrix>> extract_all_features(
 
             // Update nucleosome features
 		    if (j < matrices.at(chr_id).at(0).n_cols()) {
-                float score = osc.phase_shift_score_wrt_reference(chr_id, static_cast<unsigned long>(coord_i));
-                score += osc.phase_shift_score_wrt_reference(chr_id, static_cast<unsigned long>(coord_i + l_i));
+                float score = nuc_map.phase_shift_score_wrt_reference(chr_id, static_cast<unsigned long>(coord_i));
+                score += nuc_map.phase_shift_score_wrt_reference(chr_id, static_cast<unsigned long>(coord_i + l_i));
                 matrices.at(chr_id).at(0).add(0.5f * score, i, j, 1.0f);
             }
 

@@ -71,6 +71,13 @@ cdef extern from "modalib/sample.h" namespace "modalib":
         bool eof() nogil
 
 
+cdef extern from "modalib/nucleosomes.h" namespace "modalib":
+
+    cdef cppclass RefNucMap:
+        RefNucMap() nogil
+        RefNucMap(const string filepath) nogil
+
+
 cdef extern from "modalib/features.h" namespace "modalib":
     
     cdef cppclass FeatureMatrix:
@@ -83,7 +90,7 @@ cdef extern from "modalib/features.h" namespace "modalib":
 
     cdef unordered_map[cnp.uint8_t, vector[FeatureMatrix]] extract_all_features(
             vector[_Sample]& samples,
-            unordered_map[cnp.uint8_t, vector[long]]& nuc_pos
+            RefNucMap& nuc_map
     ) nogil
 
 
@@ -99,5 +106,5 @@ cdef extern from "modalib/kernel.h" namespace "modalib":
 
     cdef unordered_map[cnp.uint8_t, vector[KernelMatrix]] compute_kernel_matrices(
             vector[_Sample]& samples,
-            unordered_map[cnp.uint8_t, vector[long]]& nuc_pos
+            RefNucMap& nuc_map
     ) nogil

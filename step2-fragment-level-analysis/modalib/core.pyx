@@ -146,7 +146,7 @@ cdef unordered_map[cnp.uint8_t, vector[long]] load_ref_nuc_map(nuc_folder: str):
 
 def pairwise_kernels(
         filepaths: List[str],
-        nuc_folder: str
+        nuc_filepath: str
 ) -> Dict[int, List[np.ndarray]]:
 
     # Check number of samples
@@ -155,11 +155,11 @@ def pairwise_kernels(
         raise ValueError(f'Number of samples should be at least 2. Got {n}.')
 
     # Load reference nucleosome map
-    cdef unordered_map[cnp.uint8_t, vector[long]] nuc_pos = load_ref_nuc_map(nuc_folder)
+    cdef RefNucMap nuc_map = RefNucMap(nuc_filepath)
 
     # Compute kernel matrices
     cdef vector[_Sample] samples = samples_from_filepaths(filepaths)
-    cdef unordered_map[cnp.uint8_t, vector[KernelMatrix]] matrices_ = compute_kernel_matrices(samples, nuc_pos)
+    cdef unordered_map[cnp.uint8_t, vector[KernelMatrix]] matrices_ = compute_kernel_matrices(samples, nuc_map)
 
     # Convert output kernel matrices to dict of lists of numpy arrays
     matrices = {}
@@ -191,7 +191,7 @@ cdef cnp.ndarray fm_to_array(FeatureMatrix &km):
 
 def extract_features(
         filepaths: List[str],
-        nuc_folder: str
+        nuc_filepath: str
 ) -> Dict[int, List[np.ndarray]]:
 
     # Check number of samples
@@ -200,11 +200,11 @@ def extract_features(
         raise ValueError(f'Number of samples should be at least 1. Got {n}.')
 
     # Load reference nucleosome map
-    cdef unordered_map[cnp.uint8_t, vector[long]] nuc_pos = load_ref_nuc_map(nuc_folder)
+    cdef RefNucMap nuc_map = RefNucMap(nuc_filepath)
 
     # Compute feature matrices
     cdef vector[_Sample] samples = samples_from_filepaths(filepaths)
-    cdef unordered_map[cnp.uint8_t, vector[FeatureMatrix]] matrices_ = extract_all_features(samples, nuc_pos)
+    cdef unordered_map[cnp.uint8_t, vector[FeatureMatrix]] matrices_ = extract_all_features(samples, nuc_map)
 
     # Convert output feature matrices to dict of list of numpy arrays
     matrices = {}
