@@ -108,7 +108,7 @@ std::unordered_map<uint8_t, std::vector<FeatureMatrix>> extract_all_features(
             const long coord_i = frag_i.start_pos;
             const long combined_coord_i = combine_coords(chr_id, coord_i);
             const long l_i = frag_i.size;
-            const float depth_i = static_cast<float>(frag_i.n_sites());
+            const auto depth_i = static_cast<float>(frag_i.n_sites());
             const float m_i = frag_i.get_meth_ratio();
 
             // Ensure fragments are sorted

@@ -117,20 +117,21 @@ def smooth_nucleosome_scores(arr: np.ndarray, gamma: float = 1.0) -> np.ndarray:
     # left  : |  20 | 146 |  20 | ... |  20 |     |     |
     # mid   : |     | 146 |  20 | ... |  20 | 146 |     |
     # right : |     |     |  20 | ... |  20 | 146 |  20 |
-    cs = np.cumsum(arr, dtype=float)
-    left = cs[20:-166] - cs[:-186]
-    mid = cs[166:-20] - cs[20:-166]
-    right = cs[186:] - cs[166:-20]
+    scores = np.cumsum(arr, dtype=float)
+    left = scores[20:-166] - scores[:-186]
+    mid = scores[166:-20] - scores[20:-166]
+    right = scores[186:] - scores[166:-20]
 
     # Compute nucleosome score of each base position as the mean the central region
     # minus the means of the flanking regions
     shift = 4
-    cs[shift:-186 + shift] = -left / 40.
-    cs[20 + shift:-166 + shift] += mid / 146.
-    cs[166 + shift:-20 + shift] -= right / 40.
+    scores[shift:-186 + shift] = -left / 40.
+    scores[20 + shift:-166 + shift] += mid / 146.
+    scores[166 + shift:-20 + shift] -= right / 40.
 
     # Re-scale the scores and bound them in the [0, 1] range
-    scores = scipy.special.expit(cs * gamma)
+    scores *= gamma
+    scipy.special.expit(scores, out=scores)
     scores[:186] = 0
     scores[-186:] = 0
     return scores

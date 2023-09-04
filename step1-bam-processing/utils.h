@@ -56,29 +56,13 @@ int get_strand(bam1_t *b) {
 }
 
 
-std::string get_read_as_string(bam1_t *b) {
+std::string to_string(bam1_t *b) {
 	uint8_t* seq = bam_get_seq(b);
 	int seq_len = b->core.l_qseq;
 
 	std::stringstream ss;
 	for (int i = 0; i < seq_len; i++) {
-		int base = seq_nt16_str[bam_seqi(seq, i)];
-		switch (base) {
-		case 2:
-			ss << "C";
-			break;
-		case 8:
-			ss << "T";
-			break;
-		case 4:
-			ss << "G";
-			break;
-		case 1:
-			ss << "A";
-			break;
-		default:
-			ss << "N";
-		}
+		ss << seq_nt16_str[bam_seqi(seq, i)];
 	}
 	return ss.str();
 }
