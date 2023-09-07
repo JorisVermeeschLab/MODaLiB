@@ -52,7 +52,8 @@ struct Parameters {
     // If `use_mm_ml` is true, this threshold defines the minimum values in
     // the ML auxiliary field for a base to be considered as modified (i.e., methylated).
     uint8_t ml_cutoff = 168;  // 0.66 * 255
-    FILE** output_fp = nullptr;
+    FILE* out_fp = nullptr;
+    BGZF* gz_out_fp = nullptr;
     char* reg = nullptr;
     char* bam_filename = nullptr;
     htsFile* fp = nullptr;
@@ -69,6 +70,9 @@ struct Parameters {
 
     int n_threads = 1;
     unsigned long partition_size = 1000000;
+
+    int compression_level = 6;
+    int compression_threads = 0;
 
     const int* get_bounds(int strand) const {
         const int* bounds;

@@ -1,6 +1,7 @@
 // IMPORTANT NOTE: this file contains source code from multiple files taken from the MethylDackel software
 
 #include "htslib/hts.h"
+#include "htslib/bgzf.h"
 #include "htslib/sam.h"
 #include "htslib/faidx.h"
 #include "htslib/kstring.h"
@@ -29,8 +30,6 @@
 
 // #define NDEBUG
 static constexpr bool DEBUG_TEXT_OUTPUT = false;
-
-
 
 pthread_mutex_t positionMutex;
 pthread_mutex_t outputMutex;
@@ -353,7 +352,17 @@ void* perReadMetrics(void* config_) {
                 pthread_mutex_unlock(&outputMutex);
                 continue;
             }
-            if (os->l) fwrite(os->s, 1, os->l, config->output_fp[0]);
+            if (os->l){
+                if(config->gz_out_fp){
+                    int bytes_written = bgzf_write(config->gz_out_fp, os->s, os->l);
+                    if (os->l > 0 and bytes_written < 0){
+                        fprintf(stderr, "BGZF write failed.");
+                        // TODO: how do we exit?
+                    }
+                } else {
+                    fwrite(os->s, 1, os->l, config->out_fp);
+                }
+            }
             os->l = 0;
             outputBin++;
             pthread_mutex_unlock(&outputMutex);
@@ -387,7 +396,9 @@ void cli_help() {
 "            be >0.\n"
 " -r STR     Region string in which to extract methylation\n"
 " -o STR     Output file name [stdout]\n"
-" -nthreads INT    The number of threads to use, the default is 1\n"
+" -l INT     Compression level for the output file from 0 to 9 (default 6)\n"
+" -@ INT     The number of threads to use, the default is 1\n"
+" --compression_threads INT    The number of gzip compression threads to use for output file (default 0)\n"
 " --partition_size INT  The size of the genome processed by a single thread at a time.\n"
 "            The default is 1000000 bases. This value MUST be at least 1.\n"
 " --OT INT,INT,INT,INT Inclusion bounds for methylation calls from reads/pairs\n"
@@ -411,12 +422,14 @@ void cli_help() {
 
 int run_convertor(int argc, char *argv[]) {
     Parameters config;
-    FILE *ofile = stdout;
+    std::string out_path = "-";  // opening "-" path with bgzf_open means use stdout
     faidx_t *fai;
 
     static struct option lopts[] = {
             {"help",    0, nullptr, 'h'},
             {"version", 0, nullptr, 'v'},
+            {"compression_threads",    1, nullptr,  30},
+            {"compression_level",    1, nullptr,  'l'},
             {"single_read",   0, nullptr, 20},
             {"useMMML",   0, nullptr, 21},
             {"mlCutoff",   1, nullptr, 22},
@@ -434,10 +447,7 @@ int run_convertor(int argc, char *argv[]) {
                 cli_help();
                 return 0;
             case 'o':
-                if((ofile = fopen(optarg, "wb")) == nullptr) {
-                    fprintf(stderr, "Couldn't open %s for writing\n", optarg);
-                    return 2;
-                }
+                out_path = optarg;
                 break;
             case 'q':
                 config.min_mapq = atoi(optarg);
@@ -450,6 +460,16 @@ int run_convertor(int argc, char *argv[]) {
                 break;
             case 'r':
                 config.reg = optarg;
+                break;
+            case 'l':
+                config.compression_level = atoi(optarg);
+                if (config.compression_level < 0 or config.compression_level > 9){
+                    fprintf(stderr, "Compression level can be 0 ... 9");
+                    return 1;
+                }
+                break;
+            case 30:
+                config.compression_threads = atoi(optarg);
                 break;
             case 20:
                 config.single_read = 1;
@@ -530,8 +550,33 @@ int run_convertor(int argc, char *argv[]) {
     }
 
     // Output file
-    config.output_fp = (FILE**) malloc(sizeof(FILE *));
-    config.output_fp[0] = ofile;
+
+
+    // if compression level is greater than 0 open  BGZF file, otherwise open a regular file
+    if(config.compression_level > 0){
+
+        // level compression is encoded into the mode ("6w" means level 6, write mode)
+        char mode[] = "0w";
+        mode[0] += config.compression_level; // change first character (if compression level is 2, mode="2w")
+
+        config.gz_out_fp = bgzf_open(out_path.c_str(), mode);
+        if(config.gz_out_fp == nullptr){
+            fprintf(stderr, "Couldn't open %s for writing\n", out_path.c_str());
+            return 2;
+        }
+
+        // set compression threads
+        bgzf_mt(config.gz_out_fp, config.compression_threads, 256);
+    } else{
+
+        config.out_fp = out_path == "-" ? stdout : fopen(out_path.c_str(), "wb");
+
+        if(config.out_fp == nullptr){
+            fprintf(stderr, "Couldn't open %s for writing\n", out_path.c_str());
+            return 2;
+        }
+
+    }
 
     // Parse the region, if needed
     if (config.reg) {
@@ -572,8 +617,20 @@ int run_convertor(int argc, char *argv[]) {
 
     // Close files and free memory
     hts_close(config.fp);
-    if (ofile != stdout) fclose(ofile);
-    free(config.output_fp);
+
+    // if regular file is used close it
+    if (config.out_fp){
+        fclose(config.out_fp);
+    }
+
+    // if gz output file is used close it
+    if (config.gz_out_fp){
+        if (bgzf_close(config.gz_out_fp) < 0){
+            fprintf(stderr, "Close failed: Error %d\n",config.gz_out_fp->errcode);
+            return 2;
+        }
+    }
+
     fai_destroy(fai);
     hts_idx_destroy(config.bai);
 
