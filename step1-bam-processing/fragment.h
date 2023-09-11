@@ -93,7 +93,17 @@ public:
     }
 
     // Construct a fragment from paired-end reads
-    Fragment(ReadInfo& r1, ReadInfo& r2) {
+    Fragment(const ReadInfo& read1, const ReadInfo& read2) {
+
+        ReadInfo r1, r2;
+        if (read2.start < read1.start) {
+            r1 = read2;
+            r2 = read1;
+        } else {
+            r1 = read1;
+            r2 = read2;
+        }
+
         this->single_read = false;
         this->r1 = r1;
         this->r2 = r2;

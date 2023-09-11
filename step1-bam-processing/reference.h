@@ -17,8 +17,8 @@
 //  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 //  MA 02110-1301, USA.
 
-#ifndef REFERENCE_H_
-#define REFERENCE_H_
+#ifndef MODALIB_REFERENCE_H
+#define MODALIB_REFERENCE_H
 
 #include <cctype>
 
@@ -34,11 +34,11 @@ public:
         this->length = length;
     }
     ~AlignmentRefSequence() = default;  // Don't delete `seq` pointer
-    char get_base(int ref_pos) {
-        return *(this->seq + ref_pos - this->start_pos);
+    char get_base(int abs_pos) {
+        return *(this->seq + abs_pos - this->start_pos);
     }
-    int is_cpg(int ref_pos) {
-        int pos = ref_pos - this->start_pos;
+    int is_cpg(int abs_pos) {
+        int pos = abs_pos - this->start_pos;
         if (pos >= this->length) return 0;
         char base = static_cast<char>(std::toupper(*(this->seq + pos)));
         if (base == 'C') {
@@ -105,6 +105,8 @@ public:
         }
         return 0;
     }
+    int get_start_pos() { return this->start_pos; }
+    int get_length() { return this->length; }
 };
 
-#endif // READ_INFO_H_
+#endif // MODALIB_REFERENCE_H

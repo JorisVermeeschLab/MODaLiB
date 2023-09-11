@@ -14,13 +14,13 @@
 #include <pthread.h>
 #include <limits>
 #include <string>
-#include <vector>
 
 #include "params.h"
 #include "read_info.h"
 #include "fragment.h"
 #include "methylation.h"
 #include "reference.h"
+#include "queue_map.h"
 #include "utils.h"
 
 #if HTS_VERSION < 101100
@@ -239,7 +239,7 @@ void* perReadMetrics(void* config_) {
     }
     bam_hdr_t* hdr = sam_hdr_read(fp);
 
-    std::vector<ReadInfo> paired_reads;
+    QueueMap<std::string, ReadInfo> paired_reads(100000);
 
     while (true) {
         //Lock and unlock the mutex, so we can get/update the tid/position
@@ -312,34 +312,19 @@ void* perReadMetrics(void* config_) {
                 if (fragment.is_valid()) write_fragment(os, fragment);
             } else {  // Paired-end
                 bool found_pair = false;
-                auto pr_iter = paired_reads.begin();
-                while (pr_iter != paired_reads.end()) {
-                    if (read.paired_with(*pr_iter)) {
-                        ReadInfo r1, r2;
-                        if (pr_iter->start < read.start) {
-                            r1 = *pr_iter;
-                            r2 = read;
-                        } else {
-                            r1 = read;
-                            r2 = *pr_iter;
-                        }
-
-                        Fragment fragment(r1, r2);
+                if (paired_reads.contains(read.id)) {
+                    ReadInfo& other_read = paired_reads.get(read.id);
+                    if (read.paired_with(other_read)) {
+                        Fragment fragment(read, other_read);
                         if (fragment.is_valid()) write_fragment(os, fragment);
                         found_pair = true;
 
-                        paired_reads.erase(pr_iter);
+                        paired_reads.remove(read.id);
 
                         break;
                     }
-                    ++pr_iter;
                 }
-                if (!found_pair) {
-                    paired_reads.push_back(read);
-                    if (paired_reads.size() > 40) {   // TODO: check if more is needed, use hashmaps instead of lists
-                        paired_reads.erase(paired_reads.begin());
-                    }
-                }
+                if (!found_pair) paired_reads.add(read.id, read);
             }
 
         }

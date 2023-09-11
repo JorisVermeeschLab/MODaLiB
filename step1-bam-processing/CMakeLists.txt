@@ -17,7 +17,9 @@ add_executable(BAMConvertor main.cpp
         read_info.h
         reference.h
         serialization.h
-        utils.h)
+        utils.h
+        vntr.h
+        queue_map.h)
 
 target_link_libraries(BAMConvertor hts)
 
