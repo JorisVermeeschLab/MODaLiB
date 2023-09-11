@@ -37,6 +37,9 @@ public:
     char get_base(int abs_pos) {
         return *(this->seq + abs_pos - this->start_pos);
     }
+    std::string get_substring(int start, int end) {
+        return std::string(seq + start, end - start);
+    }
     int is_cpg(int abs_pos) {
         int pos = abs_pos - this->start_pos;
         if (pos >= this->length) return 0;

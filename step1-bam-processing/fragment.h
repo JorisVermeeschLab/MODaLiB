@@ -65,7 +65,7 @@ public:
     // Number of cytosines and guanines
     uint16_t gc_count = 0;
 
-    // Number of informative bases
+    // Number of informative bases = gc_count + at_count
     uint16_t s_count = 0;
 
     // Reads
@@ -74,57 +74,9 @@ public:
 
 public:
 
-    // Construct a fragment from a single read
-    Fragment(ReadInfo& r) {
-        this->single_read = true;
-        this->r1 = r;
-        this->r2 = r;  // Single-read
-        this->start_chr_id = r.chr_id;
-        this->start_pos = r.start;
-        this->end_chr_id = r.chr_id;
-        this->end_pos = r.start + r.length - 1;
-        this->length = r.length;
-        this->n_methylated = r.num_methylated_cpg_sites();
-        this->n_unmethylated = r.num_unmethylated_cpg_sites();
-        this->snp_count = r.num_putative_mutations();;
-        this->at_count = r.get_at_count();
-        this->gc_count = r.get_gc_count();
-        this->s_count = r.num_informative_bases();
-    }
+    Fragment() = default;
+    ~Fragment() = default;
 
-    // Construct a fragment from paired-end reads
-    Fragment(const ReadInfo& read1, const ReadInfo& read2) {
-
-        ReadInfo r1, r2;
-        if (read2.start < read1.start) {
-            r1 = read2;
-            r2 = read1;
-        } else {
-            r1 = read1;
-            r2 = read2;
-        }
-
-        this->single_read = false;
-        this->r1 = r1;
-        this->r2 = r2;
-        this->start_chr_id = r1.chr_id;
-        this->start_pos = r1.start;
-        this->end_chr_id = r2.chr_id;
-        this->end_pos = r2.start + r2.length - 1;
-        this->length = r1.insert_size;
-        this->n_methylated = union_size(r1.methylated_cpg_sites, r2.methylated_cpg_sites);
-        this->n_unmethylated = union_size(r1.unmethylated_cpg_sites, r2.unmethylated_cpg_sites);
-        this->snp_count = union_size(r1.mut_positions, r2.mut_positions);
-        this->at_count = union_size(r1.at_positions, r2.at_positions);
-        this->gc_count = union_size(r1.gc_positions, r2.gc_positions);
-        this->s_count = union_size(r1.informative_positions, r2.informative_positions);
-    }
-    static size_t union_size(const std::unordered_set<uint32_t>& s1, const std::unordered_set<uint32_t>& s2) {
-        std::unordered_set<uint32_t> s3;
-        s3.insert(s1.begin(), s1.end());
-        s3.insert(s2.begin(), s2.end());
-        return s3.size();
-    }
     bool failed_quality_checks() const {
         return this->r1.failed_quality_checks() && this->r2.failed_quality_checks();
     }

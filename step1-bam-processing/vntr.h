@@ -20,6 +20,8 @@
 #ifndef MODALIB_VNTR_H
 #define MODALIB_VNTR_H
 
+#include <cstdint>
+#include <string>
 #include "reference.h"
 
 // Minimum length of a microsatellite motif (e.g., "AT")
@@ -28,11 +30,21 @@ const int MIN_MOTIF_LENGTH = 2;
 // Maximum length of a microsatellite motif (e.g., "ATCCA")
 const int MAX_MOTIF_LENGTH = 5;
 
-struct TandemRepeat {
+// Minimum number of repeats to be considered a microsatellite
+const int MIN_NUM_REPEATS = 5;
 
+struct TandemRepeat {
+    bool is_valid = false;
+    uint16_t start = 0;
+    uint16_t end = 0;
+    std::string motif = "";
+    uint16_t n_repeats = 0;
+    inline bool spans(uint16_t pos) const { return (start <= pos) && (pos <= end); }
 };
 
 TandemRepeat find_microsatellite(AlignmentRefSequence& seq) {
+
+    TandemRepeat tr;
 
     int n = seq.get_length();
 
@@ -55,15 +67,22 @@ TandemRepeat find_microsatellite(AlignmentRefSequence& seq) {
                 }
             }
             int n_repeats = counts[k] / motif_length;
-            if (n_repeats >= 5) {
-                if (n_repeats * motif_length > best_n_repeats * best_motif_length) {
-                    best_n_repeats = n_repeats;
-                    best_motif_length = motif_length;
-                    best_i = i;
-                }
+            if (n_repeats * motif_length > best_n_repeats * best_motif_length) {
+                best_n_repeats = n_repeats;
+                best_motif_length = motif_length;
+                best_i = i;
             }
         }
     }
+
+    if (best_n_repeats >= MIN_NUM_REPEATS) {
+        tr.is_valid = true;
+        tr.n_repeats = best_n_repeats;
+        tr.start = best_i + 1 - best_motif_length * best_n_repeats;
+        tr.end = best_i;
+        tr.motif = seq.get_substring(tr.start, tr.end + 1);
+    }
+    return tr;
 }
 
 #endif //MODALIB_VNTR_H

@@ -24,6 +24,7 @@
 #include <cstdlib>
 #include <unordered_set>
 #include <vector>
+#include "base.h"
 
 
 /**
@@ -84,45 +85,22 @@ public:
     // SAM flag
     uint16_t sam_flag;
 
-    // Number of inserted bases
-    uint16_t inserted = 0;
+    // Read strand
+    int strand;
 
-    // Number of deleted bases
-    uint16_t deleted = 0;
-
-    // Positions of methylated CpG sites on chromosome
-    std::unordered_set<uint32_t> methylated_cpg_sites;
-
-    // Positions of unmethylated CpG sites on chromosome
-    std::unordered_set<uint32_t> unmethylated_cpg_sites;
-
-    // Positions of adenines and thymines on chromosome
-    std::unordered_set<uint32_t> at_positions;
-
-    // Positions of cytosines and guanines on chromosome
-    std::unordered_set<uint32_t> gc_positions;
-
-    // Positions of "mutations" on chromosome
-    std::unordered_set<uint32_t> mut_positions;
-
-    // Positions of informative bases on chromosome
-    std::unordered_set<uint32_t> informative_positions;
+    // List of base-level statistics
+    std::vector<std::pair<uint16_t, BaseInfo>> bases;
 
 public:
     ReadInfo() = default;
-    ReadInfo(std::string& id, const char* chr_name, uint32_t start, uint16_t length, uint16_t insert_size, uint16_t sam_flag) :
+    ReadInfo(std::string& id, const char* chr_name, uint32_t start, uint16_t length, uint16_t insert_size, int strand, uint16_t sam_flag) :
         id(id),
         chr_id(parse_chr_name(chr_name)),
         start(start),
         length(length),
         insert_size(insert_size),
-        sam_flag(sam_flag),
-        methylated_cpg_sites(),
-        unmethylated_cpg_sites(),
-        at_positions(),
-        gc_positions(),
-        mut_positions(),
-        informative_positions() {}
+        strand(strand),
+        sam_flag(sam_flag) {}
     ReadInfo(const ReadInfo& other) = default;
     inline bool is_first_in_pair() const { return 0x40 & sam_flag; }
     inline bool is_reverse_strand() const { return 0x10 & sam_flag; }
@@ -138,18 +116,9 @@ public:
             return (int) read_position < (int) insert_size - (int) length;
         }
     }
-    inline void add_at_base(uint32_t pos) { at_positions.insert(start + pos); }
-    inline void add_gc_base(uint32_t pos) { gc_positions.insert(start + pos); }
-    inline void add_mutation(uint32_t pos) { mut_positions.insert(start + pos); }
-    inline void add_informative_base(uint32_t pos) { informative_positions.insert(start + pos); }
-    inline void add_methylated_cpg(uint32_t pos) { methylated_cpg_sites.insert(start + pos); }
-    inline void add_unmethylated_cpg(uint32_t pos) { unmethylated_cpg_sites.insert(start + pos); }
-    inline int num_methylated_cpg_sites() const { return methylated_cpg_sites.size(); }
-    inline int num_unmethylated_cpg_sites() const { return unmethylated_cpg_sites.size(); }
-    inline int num_putative_mutations() const { return mut_positions.size(); }
-    inline int num_informative_bases() const { return informative_positions.size(); }
-    inline int get_at_count() const { return at_positions.size(); }
-    inline int get_gc_count() const { return gc_positions.size(); }
+    inline void add_base(uint16_t pos, const BaseInfo& base) {
+        bases.push_back(std::pair<uint16_t, BaseInfo>(pos, base));
+    }
 };
 
 #endif // READ_INFO_H_

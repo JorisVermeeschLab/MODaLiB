@@ -52,8 +52,8 @@ struct Parameters {
     // If `use_mm_ml` is true, this threshold defines the minimum values in
     // the ML auxiliary field for a base to be considered as modified (i.e., methylated).
     uint8_t ml_cutoff = 168;  // 0.66 * 255
+
     FILE** output_fp = nullptr;
-    char* reg = nullptr;
     char* bam_filename = nullptr;
     htsFile* fp = nullptr;
     hts_idx_t* bai = nullptr;
@@ -61,7 +61,7 @@ struct Parameters {
 
     // Inclusion bounds for the 4 types of (converted) strands.
     // The difference between the 4 types of strands are expained is illustrated here:
-    // https://software.broadinstitute.org/software/igv/interpreting_bisulfite_mode.
+    // https://software.broadinstitute.org/software/igv/interpreting_bisulfite_mode
     int ot_bounds[4] = {0};
     int ob_bounds[4] = {0};
     int ctot_bounds[4] = {0};
@@ -73,16 +73,16 @@ struct Parameters {
     const int* get_bounds(int strand) const {
         const int* bounds;
         switch (strand) {
-            case 1:  // Original top strand
+            case STRAND_OT:  // Original top strand
                 bounds = ot_bounds;
                 break;
-            case 2:  // Original bottom strand
+            case STRAND_OB:  // Original bottom strand
                 bounds = ob_bounds;
                 break;
-            case 3:  // Complementary to the top strand
+            case STRAND_CTOT:  // Complementary to the top strand
                 bounds = ctot_bounds;
                 break;
-            case 4:  // Complementary to the bottom strand
+            case STRAND_CTOB:  // Complementary to the bottom strand
                 bounds = ctob_bounds;
                 break;
             default:

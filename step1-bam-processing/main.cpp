@@ -13,6 +13,7 @@
 #include <cinttypes>
 #include <pthread.h>
 #include <limits>
+#include <unordered_set>
 #include <string>
 
 #include "params.h"
@@ -22,6 +23,10 @@
 #include "reference.h"
 #include "queue_map.h"
 #include "utils.h"
+#include "vntr.h"
+#include "base.h"
+#include "pairing/paired_reads.h"
+#include "pairing/single_read.h"
 
 #if HTS_VERSION < 101100
 #error "HTSlib version should be >= 1.11"
@@ -73,12 +78,12 @@ void trim_alignment(bam1_t *b, const Parameters& config) {
 
     // Determine the left and right bounds
     int lb, rb;
-    if(b->core.flag & BAM_FREAD2) {
-        lb = bounds[2];
-        rb = bounds[3];
-    } else {
+    if (b->core.flag & BAM_FREAD1) {
         lb = bounds[0];
         rb = bounds[1];
+    } else {
+        lb = bounds[2];
+        rb = bounds[3];
     }
 
     // Make sure the leftmost bound does not exceed the size of the read
@@ -93,7 +98,7 @@ void trim_alignment(bam1_t *b, const Parameters& config) {
 }
 
 
-void compute_read_statistics(bam1_t *b, AlignmentRefSequence& ref, ReadInfo& read_info, int min_phred, bool with_c_conversion) {
+void process_read(bam1_t *b, AlignmentRefSequence& ref, ReadInfo& read_info, bool with_c_conversion) {
 
     uint32_t query_pos = 0;
     uint32_t ref_pos = b->core.pos;
@@ -106,107 +111,99 @@ void compute_read_statistics(bam1_t *b, AlignmentRefSequence& ref, ReadInfo& rea
 
         int cigar_op_type = bam_cigar_op(CIGAR[cigar_pos]);
 
-        if ((cigar_op_type == BAM_CMATCH) || (cigar_op_type == BAM_CEQUAL) || (cigar_op_type == BAM_CDIFF)) {  // M, = or X (alignment match, but can be sequence match or mismatch)
+        for (int kk = 0; kk < bam_cigar_oplen(CIGAR[cigar_pos]); kk++) {
 
-            for (int kk = 0; kk < bam_cigar_oplen(CIGAR[cigar_pos]); kk++) {
-                if (read_qual[query_pos] >= min_phred) {  // Consider only high-quality base calls
+            BaseInfo base_info;
 
-                    // Get bases from the reference and query sequences
-                    char base = seq_nt16_str[bam_seqi(read_seq, query_pos)];
-                    char ref_base = ref.get_base(ref_pos);
+            if ((cigar_op_type == BAM_CMATCH) || (cigar_op_type == BAM_CEQUAL) ||
+                (cigar_op_type == BAM_CDIFF)) {  // M, = or X (alignment match, but can be sequence match or mismatch)
 
-                    // Check that bases indeed match or mismatch
-                    if (cigar_op_type == BAM_CEQUAL) assert(base == ref_base);
-                    else if (cigar_op_type == BAM_CDIFF) assert(base != ref_base);
+                // Get bases from the reference and query sequences
+                char base = seq_nt16_str[bam_seqi(read_seq, query_pos)];
+                char ref_base = ref.get_base(ref_pos);
+                base_info.c = base;
+                base_info.phred_score = read_qual[query_pos];
 
-                    if (with_c_conversion) {  // If unmethylated cytosines have been converted (either chemically or enzymatically)
+                // Check that bases indeed match or mismatch
+                if (cigar_op_type == BAM_CEQUAL) assert(base == ref_base);
+                else if (cigar_op_type == BAM_CDIFF) assert(base != ref_base);
 
-                        // TODO: disentangle converted cytosines from point mutations using the second read in the pair.
+                if (with_c_conversion) {  // If unmethylated cytosines have been converted (either chemically or enzymatically)
 
-                        // Check if CpG site
-                        int direction = ref.is_cpg(ref_pos);
+                    // Check if CpG site
+                    int direction = ref.is_cpg(ref_pos);
 
-                        // Check methylation status if CpG site, and check the presence of a putative mutation otherwise
-                        if (direction == 1 && (strand & 1) == 1) {  // C & OT/CTOT
-                            if (base == 'C') read_info.add_methylated_cpg(query_pos);
-                            else if (base == 'T') read_info.add_unmethylated_cpg(query_pos);
-                            read_info.add_gc_base(query_pos);
-                            read_info.add_informative_base(query_pos);
-                        } else if (direction == -1 && (strand & 1) == 0) {  // G & OB/CTOB
-                            if (base == 'G') read_info.add_methylated_cpg(query_pos);
-                            else if (base == 'A') read_info.add_unmethylated_cpg(query_pos);
-                            read_info.add_gc_base(query_pos);
-                            read_info.add_informative_base(query_pos);
-                        } else {  // Not a CpG site
-                            if (base != ref_base) {  // base mismatch
-
-                                // If bases mismatch, consider this as a putative mutation
-                                // unless it's a putative C->T conversion caused by bisulfite
-                                // or enzymatic conversion of unmethylated cytosines
-                                bool putative_mutation = false;
-                                if (((strand & 1) == 1) && ((base != 'T') || (ref_base != 'C'))) {
-                                    putative_mutation = true;
-                                } else if ((base != 'A') || (ref_base != 'G')) {
-                                    putative_mutation = true;
-                                }
-                                if (putative_mutation) {
-                                    read_info.add_mutation(query_pos);
-                                    read_info.add_informative_base(query_pos);
-                                    if ((base == 'C') || (base == 'G')) {
-                                        read_info.add_gc_base(query_pos);
-                                    } else {
-                                        read_info.add_at_base(query_pos);
-                                    }
-                                } else {  // Ambiguous case: can be either a mutation or a converted cytosine
-                                    // Do nothing: base is uninformative
-                                }
-                            } else {  // Base match
-                                read_info.add_informative_base(query_pos);
-                                if ((base == 'C') || (base == 'G')) {
-                                    read_info.add_gc_base(query_pos);
-                                } else {
-                                    read_info.add_at_base(query_pos);
-                                }
-                            }
+                    // Check methylation status if CpG site, and check the presence of a putative mutation otherwise.
+                    // Note: it is generally admitted that CpG site are symmetrically (un)methylated on both strands.
+                    if ((direction == 1) && (strand & 1) == 1) {  // OT or CTOT case
+                        if (base == 'C') {
+                            base_info.type = BASE_TYPE_METHYLATED_CPG;
+                        } else if (base == 'T') {
+                            base_info.type = BASE_TYPE_UNMETHYLATED_CPG;
+                            base_info.c = 'C';  // TODO: keep this?
                         }
-                    } else {  // No conversion of unmethylated cytosines
-                        // In the absence of bisulfite/enzymatic conversion, any base mismatch
-                        // is treated as a putative point mutation
-                        if (base != ref_base) read_info.add_mutation(query_pos);
-                        read_info.add_informative_base(query_pos);
-                        if ((base == 'C') || (base == 'G')) {
-                            read_info.add_gc_base(query_pos);
-                        } else {
-                            read_info.add_at_base(query_pos);
+                    } else if ((direction == -1) && (strand & 1) == 0) {  // OB or CTOB
+                        if (base == 'G') {
+                            base_info.type = BASE_TYPE_METHYLATED_CPG;
+                        } else if (base == 'A') {
+                            base_info.type = BASE_TYPE_UNMETHYLATED_CPG;
+                            base_info.c = 'G';  // TODO: keep this?
+                        }
+                    } else {  // Not a CpG site
+                        if (base != ref_base) {  // base mismatch
+
+                            // If bases mismatch, consider this as a putative mutation
+                            // unless it's a putative C->T conversion caused by bisulfite
+                            // or enzymatic conversion of unmethylated cytosines
+                            bool putative_mutation = true;
+                            if (((strand & 1) == 1) && (base == 'T') && (ref_base == 'C')) {
+                                putative_mutation = false;
+                            } else if (((strand & 1) == 0) && (base == 'A') && (ref_base == 'G')) {
+                                putative_mutation = false;
+                            }
+                            if (putative_mutation) {  // Not a converted cytosine -> maybe SNP (or sequencing error)
+                                base_info.type = BASE_TYPE_PUTATIVE_SNP;
+                            } else {  // Ambiguous case: can be either a mutation or a converted cytosine
+                                // Base is uninformative
+                                base_info.phred_score = 0;
+                                base_info.type = BASE_TYPE_UNINFORMATIVE;
+                            }
+                        } else {  // Base match
+                            base_info.type = BASE_TYPE_NORMAL;
                         }
                     }
+                } else {  // No conversion of unmethylated cytosines
+                    // In the absence of bisulfite/enzymatic conversion, any base mismatch
+                    // is treated as a putative point mutation (or sequencing error)
+                    if (base != ref_base) base_info.type = BASE_TYPE_PUTATIVE_SNP;
                 }
                 ref_pos++;
                 query_pos++;
+            } else if (cigar_op_type == BAM_CINS) {  // I (insertion to the reference)
+                base_info.type = BASE_TYPE_INSERTED;
+                query_pos++;
+            } else if (cigar_op_type == BAM_CDEL) {  // D (deletion from the reference)
+                base_info.type = BASE_TYPE_DELETED;
+                ref_pos++;
+            } else if (cigar_op_type == BAM_CREF_SKIP) {  // N (skipped region from the reference)
+                ref_pos++;
+            } else if ((cigar_op_type == BAM_CSOFT_CLIP) || (cigar_op_type == BAM_CBACK)) {  // S (soft clipping) or B ("backwards" skip operator)
+                query_pos++;
+            } else {  // Ignore H (hard clipping) and P (padding) operations
+                // Do nothing
             }
-        } else if (cigar_op_type == BAM_CINS) {  // I (insertion to the reference)
-            int n_inserted = bam_cigar_oplen(CIGAR[cigar_pos]);
-            read_info.inserted += n_inserted;  // Increment count of inserted bases
-            query_pos += n_inserted;
-        } else if (cigar_op_type == BAM_CDEL) {  // D (deletion from the reference)
-            int n_deleted = bam_cigar_oplen(CIGAR[cigar_pos]);
-            read_info.deleted += n_deleted;  // Increment count of deleted bases
-            ref_pos += n_deleted;
-        } else if (cigar_op_type == BAM_CREF_SKIP) {  // N (skipped region from the reference)
-            int n_skipped = bam_cigar_oplen(CIGAR[cigar_pos]);
-            ref_pos += n_skipped;
-        } else if ((cigar_op_type == BAM_CSOFT_CLIP) || (cigar_op_type == BAM_CBACK)) {  // S (soft clipping) or B ("backwards" skip operator)
-            int n_clipped = bam_cigar_oplen(CIGAR[cigar_pos]);
-            query_pos += n_clipped;
-        } else {  // Ignore H (hard clipping) and P (padding) operations
-            // Do nothing
+
+            // If base is known, set Phred score to 0
+            if (base_info.c == 'N') base_info.phred_score = 0;
+
+            read_info.add_base(ref_pos, base_info);
         }
     }
 
     assert(query_pos == b->core.l_qseq);
 }
 
-void* perReadMetrics(void* config_) {
+void* process_partition(void* config_) {
     Parameters* config = static_cast<Parameters*>(config_);
     uint32_t localBin = 0, localPos = 0, localEnd = 0, localTid = 0, localPos2 = 0;
     bam1_t* b = bam_init1();
@@ -240,6 +237,7 @@ void* perReadMetrics(void* config_) {
     bam_hdr_t* hdr = sam_hdr_read(fp);
 
     QueueMap<std::string, ReadInfo> paired_reads(100000);
+    std::unordered_set<std::string> blacklisted_pairs;
 
     while (true) {
         //Lock and unlock the mutex, so we can get/update the tid/position
@@ -258,8 +256,8 @@ void* perReadMetrics(void* config_) {
             //If we've specified a region, then break once we're outside of it
             globalTid = std::numeric_limits<uint32_t>::max();
         }
-        if(localTid < hdr->n_targets && globalTid != std::numeric_limits<uint32_t>::max()) {
-            if(globalPos >= hdr->target_len[localTid]) {
+        if (localTid < hdr->n_targets && globalTid != std::numeric_limits<uint32_t>::max()) {
+            if (globalPos >= hdr->target_len[localTid]) {
                 localEnd = hdr->target_len[localTid];
                 globalTid++;
                 globalPos = 0;
@@ -268,18 +266,17 @@ void* perReadMetrics(void* config_) {
         pthread_mutex_unlock(&positionMutex);
 
         localPos2 = 0;
-        if(localPos > 1) {
-            localPos2 = localPos - 2;
-        }
+        if (localPos > 1) localPos2 = localPos - 2;
 
-        //Break out of the loop if finished
-        if(localTid >= hdr->n_targets) break; //Finish looping
-        if(globalEnd && localPos >= globalEnd) break;
+        // Break out of the loop if finished
+        if (localTid >= hdr->n_targets) break;
+        if (globalEnd && localPos >= globalEnd) break;
+
         hts_itr_t* iter = sam_itr_queryi(bai, localTid, localPos, localEnd);
 
         //Fetch the sequence and then iterate over the reads. There's a 10kb buffer on the end
-        int seqlen;
-        char* seq = faidx_fetch_seq(fai, hdr->target_name[localTid], localPos2, localEnd+10000, &seqlen);
+        int seq_len;
+        char* seq = faidx_fetch_seq(fai, hdr->target_name[localTid], localPos2, localEnd+10000, &seq_len);
         while (sam_itr_next(fp, iter, b) >= 0) {
             if (b->core.pos < localPos) continue;
             if (b->core.pos >= localEnd) break;
@@ -288,40 +285,51 @@ void* perReadMetrics(void* config_) {
             std::string id = std::string(bam_get_qname(b));
             ReadInfo read(
                 id, hdr->target_name[b->core.tid], b->core.pos,
-                abs(b->core.l_qseq), abs(b->core.isize), b->core.flag
+                abs(b->core.l_qseq), abs(b->core.isize),
+                get_strand(b),
+                b->core.flag
             );
 
-            if (b->core.qual < config->min_mapq) continue;
+            // If mapping quality is not sufficient, discard read.
+            if ((!config->single_read) && (blacklisted_pairs.find(read.id) != blacklisted_pairs.end())) {
+                // The other read in the pair has been discarded due to low mapping quality
+                // -> Discard the current one as well.
+                blacklisted_pairs.erase(read.id);
+                continue;
+            } else if (b->core.qual < config->min_mapq) {
+                if (!config->single_read) {
+                    // The other read (upcoming) should be discarded as well
+                    blacklisted_pairs.insert(read.id);
+                }
+                continue;
+            }
 
             // Use inclusion bounds to trim alignments
             trim_alignment(b, *config);
 
             // Extract read-level statistics from read
-            AlignmentRefSequence ref(seq, localPos2, seqlen);
-            compute_read_statistics(
-                b, ref, read, config->min_phred,
-                !config->use_mm_ml  // IMPORTANT: When using MM/ML flags to call methylation, we assume that Cs have not been converted
+            AlignmentRefSequence ref(seq, localPos2, seq_len);
+            process_read(
+                    b, ref, read, !config->use_mm_ml  // IMPORTANT: When using MM/ML flags to call methylation, we assume that Cs have not been converted
             );
 
             // Call methylation using MM and ML tags (if required)
             if (config->use_mm_ml) methylation_from_aux(b, read, config->ml_cutoff);
+            // TODO: call methylation from aligner-specific optional fields such as Bismark (XM tag), if using them
 
             // Combine read pairs into fragments
             if (config->single_read) {  // Single-read
-                Fragment fragment(read);
+                Fragment fragment = compute_fragment_statistics(read, config->min_phred);
                 if (fragment.is_valid()) write_fragment(os, fragment);
             } else {  // Paired-end
                 bool found_pair = false;
                 if (paired_reads.contains(read.id)) {
                     ReadInfo& other_read = paired_reads.get(read.id);
                     if (read.paired_with(other_read)) {
-                        Fragment fragment(read, other_read);
+                        Fragment fragment = compute_fragment_statistics(read, other_read, config->min_phred);
                         if (fragment.is_valid()) write_fragment(os, fragment);
                         found_pair = true;
-
                         paired_reads.remove(read.id);
-
-                        break;
                     }
                 }
                 if (!found_pair) paired_reads.add(read.id, read);
@@ -370,7 +378,6 @@ void cli_help() {
 " -q INT     Minimum MAPQ threshold to include an alignment (default 10)\n"
 " -p INT     Minimum Phred threshold to include a base (default 5). This must "
 "            be >0.\n"
-" -r STR     Region string in which to extract methylation\n"
 " -o STR     Output file name [stdout]\n"
 " -nthreads INT    The number of threads to use, the default is 1\n"
 " --partition_size INT  The size of the genome processed by a single thread at a time.\n"
@@ -432,9 +439,6 @@ int run_convertor(int argc, char *argv[]) {
                 break;
             case '@':
                 config.n_threads = atoi(optarg);
-                break;
-            case 'r':
-                config.reg = optarg;
                 break;
             case 20:
                 config.single_read = 1;
@@ -518,39 +522,10 @@ int run_convertor(int argc, char *argv[]) {
     config.output_fp = (FILE**) malloc(sizeof(FILE *));
     config.output_fp[0] = ofile;
 
-    // Parse the region, if needed
-    if (config.reg) {
-        const char *foo;
-        char* bar = nullptr;
-        bam_hdr_t *hdr = sam_hdr_read(config.fp);
-        int s, e;
-        foo = hts_parse_reg(config.reg, &s, &e);
-        if (foo == nullptr) {
-            fprintf(stderr, "Could not parse the specified region!\n");
-            return -4;
-        }
-        bar = (char*) malloc(foo - config.reg + 1);
-        if (bar == nullptr) {
-            fprintf(stderr, "Could not allocate temporary space for parsing the requested region!\n");
-            return -5;
-        }
-        strncpy(bar, config.reg, foo - config.reg);
-        bar[foo - config.reg] = 0;
-        globalTid = bam_name2id(hdr, bar);
-        if(globalTid == (uint32_t) -1) {
-            fprintf(stderr, "%s did not match a known chromosome/contig name!\n", config.reg);
-            return -6;
-        }
-        if (s>0) globalPos = s;
-        if (e>0) globalEnd = e;
-        if (globalEnd > hdr->target_len[globalTid]) globalEnd = hdr->target_len[globalTid];
-        free(bar);
-    }
-
     // Spin up the threads
     pthread_mutex_init(&positionMutex, nullptr);
     pthread_t *threads = (pthread_t*) calloc(config.n_threads, sizeof(pthread_t));
-    for (int i = 0; i < config.n_threads; i++) pthread_create(threads + i, nullptr, &perReadMetrics, &config);
+    for (int i = 0; i < config.n_threads; i++) pthread_create(threads + i, nullptr, &process_partition, &config);
     for (int i = 0; i < config.n_threads; i++) pthread_join(threads[i], nullptr);
     free(threads);
     pthread_mutex_destroy(&positionMutex);

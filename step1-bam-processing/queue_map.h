@@ -39,9 +39,7 @@ public:
         this->values[key] = value;
     }
     inline void remove(const K& key) { this->values.erase(key); }
-    inline bool contains(const K& key) {
-        return this->values.find(key) != this->values.end();
-    }
+    inline bool contains(const K& key) { return this->values.find(key) != this->values.end(); }
     inline V& get(const K& key) { return this->values.at(key); }
     inline size_t size() const { return this->values.size(); }
 private:

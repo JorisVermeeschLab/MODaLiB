@@ -16,13 +16,18 @@ def find_microsatellite(seq, min_motif_length=2, max_motif_length=5):
 
             n_repeats = int(counts[k] / motif_length)
             if n_repeats >= 3:
-                print(n_repeats, i, seq[i+1-motif_length:i+1])
                 if n_repeats * motif_length > best_n_repeats * best_motif_length:
                     best_n_repeats = n_repeats
                     best_motif_length = motif_length
                     best_i = i
     
-    print('BEST', best_n_repeats, best_i, seq[best_i+1-best_motif_length:best_i+1])
+    start = best_i + 1 - best_motif_length * best_n_repeats
+    end = best_i
+    print('MOTIF: ', seq[best_i+1-best_motif_length:best_i+1])
+    print('REPEATS: ', best_n_repeats)
+    print('START: ', start)
+    print('END: ', end)
+    print('SEQ: ', seq[start:end+1])
 
     # TODO: extend left and right and account for mutations
 

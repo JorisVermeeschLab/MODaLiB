@@ -1,0 +1,142 @@
+//  paired_reads.h
+//
+//  Copyright 2023 Antoine Passemiers <antoine.passemiers@gmail.com>
+//
+//  This program is free software; you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation; either version 2 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program; if not, write to the Free Software
+//  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+//  MA 02110-1301, USA.
+
+#ifndef PAIRED_READS_H
+#define PAIRED_READS_H
+
+#include <cstdint>
+#include <limits>
+
+#include "../read_info.h"
+#include "../base.h"
+#include "../fragment.h"
+
+
+void print_pair(const ReadInfo& r1, const ReadInfo& r2) {
+
+    size_t n = r1.bases.size();
+    size_t m = r2.bases.size();
+
+    size_t i = 0;
+    size_t j = 0;
+
+    std::string s1;
+    std::string s1a;
+    std::string s2;
+    std::string s2a;
+
+    while ((i < n) or (j < m)) {
+
+        uint16_t min1 = (i < n) ? r1.bases[i].first : std::numeric_limits<uint16_t>::max();
+        uint16_t min2 = (j < m) ? r2.bases[j].first : std::numeric_limits<uint16_t>::max();
+        uint16_t k = std::min(min1, min2);
+        bool use1 = (k == min1);
+        bool use2 = (k == min2);
+
+        if (use1) {
+            s1.append(1, r1.bases[i].second.c);
+            s1a.append(1, r1.bases[i].second.type_as_char());
+        } else {
+            s1.append(1, '-');
+            s1a.append(1, ' ');
+        }
+        if (use2) {
+            s2.append(1, r2.bases[j].second.c);
+            s2a.append(1, r2.bases[j].second.type_as_char());
+        } else {
+            s2.append(1, '-');
+            s2a.append(1, ' ');
+        }
+
+        if (use1) i++;
+        if (use2) j++;
+    }
+
+    std::cout << s1 << " " << r1.strand << std::endl;
+    std::cout << s1a << std::endl;
+    std::cout << s2a << std::endl;
+    std::cout << s2 << " " << r2.strand << std::endl;
+    std::cout << std::endl;
+    std::cout << std::endl;
+    std::cout << std::endl;
+}
+
+
+Fragment compute_fragment_statistics(const ReadInfo& r1, const ReadInfo& r2, uint8_t min_phred) {
+
+    print_pair(r1, r2);
+
+    Fragment fragment;
+    fragment.single_read = false;
+    fragment.r1 = r1;
+    fragment.r2 = r2;
+    fragment.start_chr_id = r1.chr_id;
+    fragment.start_pos = r1.start;
+    fragment.end_chr_id = r2.chr_id;
+    fragment.end_pos = r2.start + r2.length - 1;
+    fragment.length = r1.insert_size;
+
+    size_t n = r1.bases.size();
+    size_t m = r2.bases.size();
+
+    size_t i = 0;
+    size_t j = 0;
+
+    while ((i < n) or (j < m)) {
+
+        uint16_t min1 = (i < n) ? r1.bases[i].first : std::numeric_limits<uint16_t>::max();
+        uint16_t min2 = (j < m) ? r2.bases[j].first : std::numeric_limits<uint16_t>::max();
+        uint16_t k = std::min(min1, min2);
+        bool use1 = (k == min1);
+        bool use2 = (k == min2);
+
+        BaseInfo base;
+        if (!(use1 && use2)) {  // The base is known on one strand only
+            // Take the base from the only known strand
+            if (use1) base = r1.bases[i].second;
+            else base = r2.bases[j].second;
+        } else {
+            // Take the base on the strand with the highest Phred score
+            if (r1.bases[i].second.phred_score >= r2.bases[j].second.phred_score) {
+                base = r1.bases[i].second;
+            } else {
+                base = r2.bases[j].second;
+            }
+        }
+
+        if ((base.type != BASE_TYPE_DELETED) and (base.phred_score >= min_phred)) {
+            fragment.s_count++;
+
+            if (base.type == BASE_TYPE_METHYLATED_CPG) fragment.n_methylated++;
+            else if (base.type == BASE_TYPE_UNMETHYLATED_CPG) fragment.n_unmethylated++;
+            else if (base.type == BASE_TYPE_PUTATIVE_SNP) fragment.snp_count++;
+
+            // If cytosine or guanine, increase GC content, and vice versa
+            if (base.is_c_or_g()) fragment.gc_count++;
+            else fragment.at_count++;
+        }
+
+        if (use1) i++;
+        if (use2) j++;
+    }
+
+    return fragment;
+}
+
+#endif //PAIRED_READS_H

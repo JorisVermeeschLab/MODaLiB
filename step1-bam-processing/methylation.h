@@ -60,6 +60,7 @@ inline char get_base(const uint8_t* seq, int pos, int seq_len) {
 }
 
 inline bool is_cytosine(char base, int strand) {
+    return true;  // TODO
     if (strand & 1) return base == 'C';
     else return base == 'G';
 }
@@ -70,6 +71,7 @@ inline bool is_guanine(char base, int strand) {
 }
 
 bool is_cpg(uint8_t* seq, int pos, int seq_len, int strand) {
+    return true; // TODO
     if (pos >= seq_len - 1) return false;
     char base = get_base(seq, pos, seq_len);
     char next_base;
@@ -88,7 +90,7 @@ int move_to_next_cytosine(uint8_t* seq, int offset, int seq_len, int strand) {
     return offset;
 }
 
-void methylation_from_aux(bam1_t *b, ReadInfo& read, uint8_t ml_cutoff) {
+void methylation_from_aux(bam1_t* b, ReadInfo& read, uint8_t ml_cutoff) {
 
     // TODO: account for hard clipping (H):
     // https://github.com/samtools/hts-specs/issues/646
@@ -98,8 +100,12 @@ void methylation_from_aux(bam1_t *b, ReadInfo& read, uint8_t ml_cutoff) {
     uint8_t* ml = bam_aux_get(b, "ML");
     char* mm = bam_aux2Z(bam_aux_get(b, "MM"));
 
+    std::cout << mm << std::endl;
+
     uint8_t* seq = bam_get_seq(b);
     int seq_len = b->core.l_qseq;
+
+    std::vector<int8_t> meth_statuses;
 
     int seq_pos = -1;
     std::vector<std::string> modifications = split(mm, ";");
@@ -114,24 +120,24 @@ void methylation_from_aux(bam1_t *b, ReadInfo& read, uint8_t ml_cutoff) {
             // we don't know the methylation status for skipped cytosines.
             // If '.' is present instead, then the skipped cytosines
             // are indeed unmodified (unmethylated).
-            bool skipped_are_unmodified = (modification.back() == '.');
-
             std::vector<std::string> elements = split(modification, ",");
+            bool skipped_are_unknown = (elements.at(0).back() == '?');
 
             for (int i = 1; i < elements.size(); i++) {
 
                 // Skip unmodified cytosines, or treat them as unmethylated (if '.' mode)
                 for (int k = 0; k < std::stoi(elements.at(i)); k++) {
                     seq_pos = move_to_next_cytosine(seq, seq_pos, seq_len, strand);
-                    if (skipped_are_unmodified) read.add_unmethylated_cpg(seq_pos);
+                    if (!skipped_are_unknown) meth_statuses.push_back(0);
+                    else meth_statuses.push_back(-1);
                 }
 
                 // Go to next modified cytosine. If confidence exceeds the threshold,
                 // base is considered as methylated and vice versa.
                 seq_pos = move_to_next_cytosine(seq, seq_pos, seq_len, strand);
                 if (is_cpg(seq, seq_pos, seq_len, strand)) {
-                    if (ml[ml_pos] >= ml_cutoff) read.add_methylated_cpg(seq_pos);
-                    else read.add_unmethylated_cpg(seq_pos);
+                    if (ml[ml_pos] >= ml_cutoff) meth_statuses.push_back(1);
+                    else meth_statuses.push_back(0);
                 }
 
                 // Go to next operation
@@ -141,13 +147,25 @@ void methylation_from_aux(bam1_t *b, ReadInfo& read, uint8_t ml_cutoff) {
             // Treat remaining unmodified cytosines as unmethylated (if '.' mode)
             while (seq_pos != END_OF_SEQUENCE) {
                 seq_pos = move_to_next_cytosine(seq, seq_pos, seq_len, strand);
-                if (skipped_are_unmodified) read.add_unmethylated_cpg(seq_pos);
+                if (!skipped_are_unknown) meth_statuses.push_back(0);
+                else meth_statuses.push_back(-1);
             }
 
             break;
         } else {
             std::vector<std::string> elements = split(modification, ",");
             ml_pos += elements.size();
+        }
+    }
+
+    // Update read statistics
+    int i = 0;
+    for (auto& pair : read.bases) {
+        BaseInfo& base = pair.second;
+        if (base.c == 'C') {
+            int8_t status = meth_statuses.at(i++);
+            if (status == 1) base.type = BASE_TYPE_METHYLATED_CPG;
+            if (status == 0) base.type = BASE_TYPE_UNMETHYLATED_CPG;
         }
     }
 
