@@ -5,6 +5,7 @@
 #include <utility>
 #include <sstream>
 #include <string>
+#include <cmath>
 
 #include "deserialization.h"
 
@@ -66,6 +67,20 @@ struct FragmentInfo {
     }
     inline bool chromosomes_mismatch() const {
         return start_chr_id != end_chr_id;
+    }
+    inline float overlap(const FragmentInfo& other) const {
+        if ((this->start_chr_id != other.start_chr_id) || (this->end_chr_id != other.end_chr_id)) {
+            return 0.0f;
+        }
+        // TODO: what about this->start_chr_id != other.end_chr_id (e.g., translocations)?
+        float min1 = this->start_pos;
+        float max1 = this->start_pos + this->size + 1;
+        float min2 = other.start_pos;
+        float max2 = other.start_pos + other.size + 1;
+        float numerator = std::fmax(0.0f, std::fmin(max1, max2) - std::fmax(min1, min2));
+        float denominator = std::fmax(max1 - min1, max2 - min2);
+        if (denominator == 0.0f) return 0.0f;
+        return numerator / denominator;
     }
     void deserialize(const char* buffer) {
         int offset = 0;

@@ -4,6 +4,8 @@
 *.vcxproj
 *.vcxproj.filters
 
+*.png
+
 X.npz
 
 out/

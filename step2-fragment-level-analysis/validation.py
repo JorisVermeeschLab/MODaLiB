@@ -1,51 +1,96 @@
-from typing import Tuple, List
 import collections
+from abc import ABCMeta, abstractmethod
+from typing import Optional, List, Tuple
 
-import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import scipy.stats
-import tqdm
 import seaborn
-from scipy.stats import ks_2samp
-from sklearn.cluster import KMeans
-from sklearn.manifold import TSNE
+import tqdm
 from sklearn.decomposition import KernelPCA
-from sklearn.metrics import matthews_corrcoef, roc_auc_score, adjusted_rand_score, davies_bouldin_score, \
-    calinski_harabasz_score, roc_curve, confusion_matrix
+from sklearn.manifold import TSNE
+from sklearn.metrics import matthews_corrcoef, roc_auc_score, roc_curve, confusion_matrix
 from sklearn.metrics.pairwise import pairwise_kernels
-from sklearn.model_selection import LeaveOneOut, PredefinedSplit, KFold
+from sklearn.model_selection import LeaveOneOut
 from sklearn.preprocessing import StandardScaler, KernelCenterer
 from sklearn.svm import SVC
 
-
-BINARY = False
+BINARY = True
 
 labels = ['Healthy', 'Breast', 'Cervical', 'Colorectal', 'Ovarian', 'Hematological', 'Solid (misc)', 'Skin']
 N_CLASSES = len(labels)
 
 
-def load_kernel_matrices(filepath: str) -> Tuple[np.ndarray, List[str]]:
-    data = np.load(filepath, allow_pickle=True)
-    sample_names = data['sample_names']
-    K = data['K']
-    print(len(K))
-    print(K[0].shape)
+class Dataset(metaclass=ABCMeta):
 
-    X = []
-    for k in tqdm.tqdm(range(len(K))):
-        X.append(KernelPCA(n_components=20).fit_transform(K[k, ...]))
-    X = np.asarray(X)
-    X = np.transpose(X, (1, 0, 2))
-    n, p, _ = X.shape
-    X = X.reshape(n, p // 5, 5, 20)
-    X = np.transpose(X, (0, 2, 1, 3))
-    n_kernels = X.shape[1]
-    X = X.reshape(n, 5, -1)
-    print(X.shape)
+    @abstractmethod
+    def to_kernel_matrix(self, kernel_idx: np.ndarray) -> np.ndarray:
+        pass
 
-    return X, sample_names
+
+class KernelDataset(Dataset):
+
+    def __init__(self, filepaths: List[str]):
+        self.filepaths: List[str] = filepaths
+        self.n_kernel_types: int = 5  # TODO
+        self.pca: bool = True
+
+        self.tmp = {}
+
+    def to_kernel_matrix(self, kernel_idx: np.ndarray) -> np.ndarray:
+
+        if self.pca:
+            X = []
+            for filepath in self.filepaths:
+                data = np.load(filepath, allow_pickle=True)
+                Ks = data['K']
+                n_bins = len(data['K']) // self.n_kernel_types
+                for k in kernel_idx:
+                    for j in range(n_bins):
+                        key = (filepath, k, j)
+                        if key not in self.tmp:
+                            K = Ks[j * self.n_kernel_types + k, :, :]
+                            X.append(KernelPCA(n_components=20, kernel='precomputed').fit_transform(K))
+                            self.tmp[key] = X[-1]
+                        else:
+                            X.append(self.tmp[key])
+            X = np.concatenate(X, axis=1)
+            X = StandardScaler().fit_transform(X)
+            return pairwise_kernels(X, metric='rbf')
+        else:
+            X = []
+            for filepath in self.filepaths:
+                data = np.load(filepath, allow_pickle=True)
+                Ks = data['K']
+                n_bins = len(data['K']) // self.n_kernel_types
+                for k in kernel_idx:
+                    for j in range(n_bins):
+                        key = (filepath, k, j)
+                        if key not in self.tmp:
+                            K = Ks[j * self.n_kernel_types + k, :, :]
+                            n = len(K)
+                            #V = np.eye(n) - (1. / n)
+                            #K = V @ K @ V
+                            K = KernelCenterer().fit_transform(K)
+                            # TODO: manage complex eigenvalues
+                            variance = np.sum(np.abs(np.clip(np.linalg.eigvals(K), 0, None)))
+                            if variance > 0:
+                                K /= variance
+                            X.append(K)
+                            self.tmp[key] = X[-1]
+                        else:
+                            X.append(self.tmp[key])
+            K = np.sum(X, axis=0)
+            D = np.diagonal(K)[:, np.newaxis] + np.diagonal(K)[np.newaxis, :] - 2 * K
+            np.fill_diagonal(D, 0)
+            gamma = 1. / 50
+            return np.exp(-gamma * (D ** 2))
+            return K
+
+
+    def get_sample_names(self) -> np.ndarray:
+        data = np.load(self.filepaths[-1], allow_pickle=True)
+        return data['sample_names']
 
 
 df = pd.read_csv('../samples-details.tsv', delimiter='\t')
@@ -61,22 +106,19 @@ for gc_code, category in zip(gc_codes, categories):
 
 # Load feature data
 data = np.load('X.npz', allow_pickle=True)
-sample_names2 = data['sample_names']
+sample_names = data['sample_names']
 X = data['X'].item()
 
 # Load kernel data
-X2 = []
-for k in range(1, 26):
-    X2_, sample_names = load_kernel_matrices(f'../kernels/K-{k}.npz')
-    X2.append(X2_)
-X2 = np.concatenate(tuple(X2), axis=2)
+dataset2 = KernelDataset([f'../kernels/K-{k}.npz' for k in range(1, 26)])
+sample_names2 = dataset2.get_sample_names()
 
 # Make sure the samples in K and X actually match
 sample_dict = {sample_name: i for i, sample_name in enumerate(sample_names2)}
 sample_dict['GC1002975'] = sample_dict['GC110694']  # TODO
 sample_dict['GC1002979'] = sample_dict['GC110695']  # TODO
 X_new = {c: [[] for s in range(5)] for c in range(1, 23)}
-for sample_name in sample_names:
+for sample_name in sample_names2:
     for c in range(1, 23):
         for s in range(5):
             if sample_name in sample_dict:
@@ -173,10 +215,7 @@ def evaluate(kernel_idx):
     K_f = pairwise_kernels(X_, metric='rbf')
 
 
-    X2_ = X2[:, kernel_idx, :]
-    X2_ = X2_.reshape(len(X2_), -1)
-    X2_ = StandardScaler().fit_transform(X2_)
-    K_agg = pairwise_kernels(X2_, metric='rbf')
+    K_agg = dataset2.to_kernel_matrix(kernel_idx)
 
 
     #alpha = 0.2

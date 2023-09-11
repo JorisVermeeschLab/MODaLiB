@@ -259,6 +259,7 @@ void compute_kernel_matrices_for_one_chromosome(
     std::valarray<FragmentInfo> frags(n);
     std::valarray<uint8_t> chr_ids(n);
 	std::valarray<long> coords(n);
+    std::valarray<uint16_t> lengths(n);
 	std::valarray<long> combined_coords(n);
 	std::valarray<float> gc_ratios(n);
 	for (size_t i = 0; i < n; ++i) {
@@ -268,7 +269,8 @@ void compute_kernel_matrices_for_one_chromosome(
 	    chr_ids[i] = (sample.eof()) ? 0 : frag_i.start_chr_id;
 		coords[i] = (sample.eof()) ? END_OF_SAMPLE : frag_i.start_pos;
 		combined_coords[i] = combine_coords(chr_ids[i], coords[i]);
-		gc_ratios[i] = frag_i.get_gc_ratio();
+        lengths[i] = (sample.eof()) ? 0 : frag_i.size;
+        gc_ratios[i] = frag_i.get_gc_ratio();
 	}
 
     unsigned int n_processed = 0;
@@ -308,6 +310,7 @@ void compute_kernel_matrices_for_one_chromosome(
             chr_ids[i] = previous_frag_i.start_chr_id;
             coords[i] = previous_frag_i.start_pos;
             combined_coords[i] = combine_coords(chr_ids[i], coords[i]);
+            lengths[i] = previous_frag_i.size;
             gc_ratios[i] = previous_frag_i.get_gc_ratio();
 
             // Get the indices of the samples whose current fragments are comparable with
@@ -317,15 +320,20 @@ void compute_kernel_matrices_for_one_chromosome(
             for (size_t j = 0; j < n; ++j) {
 
                 // Alleviate sequencing biases by computing inter-fragment weights
-                w[j] = 1.0f - std::fabs(w[j]);
-                w[j] *= w[j];
+                w[j] = 1.0f;
+                // w[j] = 1.0f - std::fabs(w[j]);
+                // w[j] *= w[j];
 
                 // The two fragments being compared should be sufficiently close
                 w[j] *= static_cast<float>(chr_id == chr_ids[j]);
                 w[j] *= static_cast<float>(std::labs(coord_i - coords[j]) <= MAX_FRAGMENT_DISTANCE);
 
                 // Account for the coverage -> downweight high-coverage bins and vice versa
-                w[j] *= bin_weight;
+                // w[j] *= bin_weight;
+
+                // Give more importance to fragment pairs with high overlap
+                float overlap = frag_i.overlap(frags[j]);
+                w[j] = 1.0f + 2.0f * overlap;
 
                 // If the two fragments are comparable, then add sample j to the list
                 // of valid indices
@@ -382,11 +390,12 @@ void compute_kernel_matrices_for_one_chromosome(
 		sample.next();
 
 		// Update fragment statistics
-		chr_ids[i] = (sample.eof()) ? 0 : sample.get().start_chr_id;
-		coords[i] = (sample.eof()) ? END_OF_SAMPLE : sample.get().start_pos;
+		chr_ids[i] = (sample.eof()) ? 0 : frag_i.start_chr_id;
+		coords[i] = (sample.eof()) ? END_OF_SAMPLE : frag_i.start_pos;
 		combined_coords[i] = combine_coords(chr_ids[i], coords[i]);
+        lengths[i] = (sample.eof()) ? 0 : frag_i.size;
 		gc_ratios[i] = sample.get().get_gc_ratio();
-		frags[i] = sample.get();
+		frags[i] = frag_i;
 	}
 
 	std::cout << "Finished processing partition " << partition_id << "." << std::endl;
