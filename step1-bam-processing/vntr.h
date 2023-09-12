@@ -37,16 +37,16 @@ struct TandemRepeat {
     bool is_valid = false;
     uint16_t start = 0;
     uint16_t end = 0;
-    std::string motif = "";
+    std::string motif;
     uint16_t n_repeats = 0;
     inline bool spans(uint16_t pos) const { return (start <= pos) && (pos <= end); }
 };
 
-TandemRepeat find_microsatellite(AlignmentRefSequence& seq) {
+TandemRepeat find_microsatellite(std::vector<char> seq) {
 
     TandemRepeat tr;
 
-    int n = seq.get_length();
+    int n = seq.size();
 
     int counts[MAX_MOTIF_LENGTH - MIN_MOTIF_LENGTH + 1];
     for (int k = MIN_MOTIF_LENGTH; k <= MAX_MOTIF_LENGTH; k++) counts[k - MIN_MOTIF_LENGTH] = k;
@@ -54,13 +54,13 @@ TandemRepeat find_microsatellite(AlignmentRefSequence& seq) {
     int best_n_repeats = 1;
     int best_motif_length = 1;
 
-    int start_abs_pos = seq.get_start_pos();
-
     for (int i = 0; i < n; i++) {
         for (int k = 0; k < MAX_MOTIF_LENGTH - MIN_MOTIF_LENGTH + 1; k++) {
             int motif_length = k + MIN_MOTIF_LENGTH;
             if (i - motif_length >= 0) {
-                if (seq.get_base(i + start_abs_pos) == seq.get_base(i + start_abs_pos - motif_length)) {
+                if (seq.at(i) == seq.at(i - 1)) {
+                    counts[k] = 1;  // Disregard homopolymeric sequences
+                } else if (seq.at(i) == seq.at(i - motif_length)) {
                     counts[k]++;
                 } else {
                     counts[k] = motif_length;
@@ -80,7 +80,7 @@ TandemRepeat find_microsatellite(AlignmentRefSequence& seq) {
         tr.n_repeats = best_n_repeats;
         tr.start = best_i + 1 - best_motif_length * best_n_repeats;
         tr.end = best_i;
-        tr.motif = seq.get_substring(tr.start, tr.end + 1);
+        tr.motif = std::string(&seq[tr.end + 1 - best_motif_length], best_motif_length);
     }
     return tr;
 }

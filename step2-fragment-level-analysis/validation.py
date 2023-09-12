@@ -15,7 +15,7 @@ from sklearn.model_selection import LeaveOneOut
 from sklearn.preprocessing import StandardScaler, KernelCenterer
 from sklearn.svm import SVC
 
-BINARY = True
+BINARY = False
 
 labels = ['Healthy', 'Breast', 'Cervical', 'Colorectal', 'Ovarian', 'Hematological', 'Solid (misc)', 'Skin']
 N_CLASSES = len(labels)
@@ -50,8 +50,11 @@ class KernelDataset(Dataset):
                         key = (filepath, k, j)
                         if key not in self.tmp:
                             K = Ks[j * self.n_kernel_types + k, :, :]
-                            X.append(KernelPCA(n_components=20, kernel='precomputed').fit_transform(K))
-                            self.tmp[key] = X[-1]
+                            try:
+                                X.append(KernelPCA(n_components=20, kernel='precomputed').fit_transform(K))
+                                self.tmp[key] = X[-1]
+                            except ValueError:
+                                pass
                         else:
                             X.append(self.tmp[key])
             X = np.concatenate(X, axis=1)

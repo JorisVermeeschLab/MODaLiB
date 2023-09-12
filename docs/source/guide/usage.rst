@@ -48,42 +48,10 @@ The file can be decomposed in chunks of 22 bytes. Each chunk follows the followi
 Convention: filenames extensions should be `.modalib`.
 
 
-Create a reference nucleosome map
----------------------------------
+Reference nucleosome map
+------------------------
 
-As a first step, the fragments stored in the different files should be aggregated by piling them up.
-The output is a NumPy `.npz` file with multiple arrays, each array corresponding to one chromosome.
-Each array has the same size as the chromosome (in bp), and each value corresponds to the number of fragments spanning that locus.
-
-.. code-block:: python
-
-    from modalib.nucleosomes import save_piled_up_fragments_counts
-
-    input_filepaths = [
-        'sample1.modalib',
-        'sample2.modalib',
-        ...
-        'sample135.modalib'
-    ]
-    save_piled_up_fragment_counts(input_filepaths, 'folder/refcounts.npz')
-
-It is recommended using controls or samples that are representative of the same population.
-
-After computing the fragment counts, the nucleosome positions are called by executing the following function:
-
-.. code-block:: python
-
-    from modalib.nucleosomes import create_reference_nucleosome_map
-
-    create_reference_nucleosome_map('folder/refcounts.npz', 'nucleosomes/folder')
-
-This function will store one `.npy` file per chromosome. For example, `6.npy` contains a NumPy array
-with the inferred positions for the nucleosomes in chromosome 6.
-This array can be loaded as such:
-
-.. code-block:: python
-
-    positions = np.load('nucleosomes/folder/6.npy')
+TODO
 
 
 Extract features
@@ -101,11 +69,10 @@ be extracted from each sample separately:
         Sample('path/to/sample/2'),
         Sample('path/to/sample/3')
     ]
-    matrices = extract_features(samples, nuc_folder)
+    matrices = extract_features(samples, ref_nuc_filepath)
 
-``nuc_folder`` is the path to the folder containing the nucleosome reference map described in previous section.
-On the VSC, there is a reference map already built for paired-end EMseq samples, located at
-``/lustre1/project/stg_00019/research/Antoine/MODaLiB/step2-fragment-level-analysis/nucleosomes``.
+`ref_nuc_filepath` is the path to the reference nucleosome map.
+For example, `/lustre1/project/stg_00019/research/Antoine/MODaLiB/step2-fragment-level-analysis/nucleosomes/Homo_sapiens.hsNuc0100101.nucleosome.DANPOSPeak.sorted.bed`.
 
 The output ``matrices`` is a `dict` with as many entries as chromosomes. For example, the key for chromosome 6 is simply 6.
 Each value is a list of size `p`, where `p` is the number of feature types (e.g., read counts, methylation).
@@ -135,7 +102,7 @@ To perform multimodal analysis of cfDNA using fragment-level kernel matrices ins
         Sample('path/to/sample/2'),
         Sample('path/to/sample/3')
     ]
-    matrices = pairwise_kernels(filepaths, nuc_folder)
+    matrices = pairwise_kernels(filepaths, ref_nuc_filepath)
 
 The output ``matrices`` is a `dict` with as many entries as chromosomes. For example, the key for chromosome 6 is simply 6.
 Each value is a list of size `p`, where `p` is the number of kernels (e.g., read counts, methylation), which is the same as the number

@@ -17,8 +17,8 @@
 //  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 //  MA 02110-1301, USA.
 
-#ifndef KERNEL_H_
-#define KERNEL_H_
+#ifndef MODALIB_KERNEL_H
+#define MODALIB_KERNEL_H
 
 #include "counter.h"
 #include "fragment_info.h"
@@ -362,12 +362,13 @@ void compute_kernel_matrices_for_one_chromosome(
                 // In other words, k(x_i, x_j) = 1 when x_i and x_j are either both
                 // "long" or both "short" fragments.
                 // Weighting function is the default one.
-                float score = std::fabs(l_i - frags[j].size) / std::fmax(l_i, frags[j].size);
+                float max_score = std::fmax(l_i, frags[j].size);
+                float score = (max_score - std::fabs(l_i - frags[j].size)) / max_score;
                 // float score = ((l_i <= 167) == (frags[j].size <= 167));
                 matrices.at(NUM_KERNELS * kernel_bin_id + 1).add_sym(score, i, j, w[j]);
 
                 // Update methylation kernel matrix.
-                score = 1.0 - std::fabs(m_i - frags[j].get_meth_ratio());
+                score = 1.0f - std::fabs(m_i - frags[j].get_meth_ratio());
                 matrices.at(NUM_KERNELS * kernel_bin_id + 2).add_sym(score, i, j, w[j] * std::sqrt(depth_i * static_cast<float>(frags[j].n_sites())));
 
                 // Update fragment counts kernel matrix
@@ -449,4 +450,4 @@ std::unordered_map<uint8_t, std::vector<KernelMatrix>> compute_kernel_matrices(
 
 } // namespace modalib
 
-#endif // KERNEL_H_
+#endif // MODALIB_KERNEL_H

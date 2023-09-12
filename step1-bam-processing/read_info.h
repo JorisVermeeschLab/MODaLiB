@@ -24,6 +24,7 @@
 #include <cstdlib>
 #include <unordered_set>
 #include <vector>
+
 #include "base.h"
 
 
@@ -91,6 +92,9 @@ public:
     // List of base-level statistics
     std::vector<std::pair<uint16_t, BaseInfo>> bases;
 
+    // Reference sequence
+    std::vector<char> ref_bases;
+
 public:
     ReadInfo() = default;
     ReadInfo(std::string& id, const char* chr_name, uint32_t start, uint16_t length, uint16_t insert_size, int strand, uint16_t sam_flag) :
@@ -118,6 +122,9 @@ public:
     }
     inline void add_base(uint16_t pos, const BaseInfo& base) {
         bases.push_back(std::pair<uint16_t, BaseInfo>(pos, base));
+    }
+    inline void add_ref_base(char base) {
+        ref_bases.push_back(base);
     }
 };
 

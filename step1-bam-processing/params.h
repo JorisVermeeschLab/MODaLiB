@@ -31,7 +31,7 @@
 #include "htslib/sam.h"
 #include "htslib/faidx.h"
 
-#include "utils.h"
+#include "strand.h"
 
 
 struct Parameters {
@@ -60,8 +60,9 @@ struct Parameters {
     char* fasta_filename = nullptr;
 
     // Inclusion bounds for the 4 types of (converted) strands.
-    // The difference between the 4 types of strands are expained is illustrated here:
-    // https://software.broadinstitute.org/software/igv/interpreting_bisulfite_mode
+    // Useful resources:
+    // 1) https://software.broadinstitute.org/software/igv/interpreting_bisulfite_mode
+    // 2) https://www.strand-ngs.com/files/manual/reference/appx_methyl_seq.html#SECTION00530000000000000000
     int ot_bounds[4] = {0};
     int ob_bounds[4] = {0};
     int ctot_bounds[4] = {0};

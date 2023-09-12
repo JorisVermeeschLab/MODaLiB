@@ -17,8 +17,8 @@
 //  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 //  MA 02110-1301, USA.
 
-#ifndef ARRAY_UTILS_H_
-#define ARRAY_UTILS_H_
+#ifndef MODALIB_ARRAY_UTILS_H
+#define MODALIB_ARRAY_UTILS_H
 
 #include <cmath>
 #include <valarray>
@@ -42,4 +42,4 @@ inline int argmin(const std::valarray<long>& coords) noexcept {
 
 } // namespace modalib
 
-#endif // ARRAY_UTILS_H_
+#endif // MODALIB_ARRAY_UTILS_H

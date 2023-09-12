@@ -25,7 +25,7 @@ from modalib.nucleosomes import save_piled_up_fragment_counts, create_reference_
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA_PATH = os.path.join(ROOT, 'step1-bam-processing/out')
-folder = os.path.join(ROOT, 'nucleosomes')
+folder = os.path.join(ROOT, '../../nucleosomes')
 
 
 FILENAMES = [

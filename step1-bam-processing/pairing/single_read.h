@@ -27,7 +27,7 @@
 #include "../fragment.h"
 
 
-void print(const ReadInfo& read_info) {
+void print(const ReadInfo& read_info, const AlignmentRefSequence& ref) {
     std::string s1;
     std::string s1a;
     for (const auto& pair : read_info.bases) {
@@ -41,9 +41,9 @@ void print(const ReadInfo& read_info) {
 }
 
 
-Fragment compute_fragment_statistics(const ReadInfo& read_info, uint8_t min_phred) {
+Fragment compute_fragment_statistics(const ReadInfo& read_info, const AlignmentRefSequence& ref, uint8_t min_phred) {
 
-    print(read_info);
+    print(read_info, ref);
 
     Fragment fragment;
     fragment.single_read = true;

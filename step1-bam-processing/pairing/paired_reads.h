@@ -68,19 +68,36 @@ void print_pair(const ReadInfo& r1, const ReadInfo& r2) {
         if (use2) j++;
     }
 
-    std::cout << s1 << " " << r1.strand << std::endl;
+    std::cout << s1 << " " << r1.sam_flag << " " << r1.strand << std::endl;
     std::cout << s1a << std::endl;
     std::cout << s2a << std::endl;
-    std::cout << s2 << " " << r2.strand << std::endl;
+    std::cout << s2 << " " << r2.sam_flag << " " << r2.strand << std::endl;
     std::cout << std::endl;
     std::cout << std::endl;
     std::cout << std::endl;
 }
 
 
-Fragment compute_fragment_statistics(const ReadInfo& r1, const ReadInfo& r2, uint8_t min_phred) {
+Fragment compute_fragment_statistics(
+        const ReadInfo& read1,
+        const ReadInfo& read2,
+        const AlignmentRefSequence& ref,
+        uint8_t min_phred) {
 
-    print_pair(r1, r2);
+    // Ensure r1 is actually R1, and vice versa
+    ReadInfo r1, r2;
+    if (read1.is_first_in_pair()) {
+        r1 = read1; r2 = read2;
+    } else {
+        r2 = read1; r1 = read2;
+    }
+
+    TandemRepeat tr = find_microsatellite(read1.ref_bases);
+    if (tr.is_valid) {
+        std::cout << "Found repeat motif: " << tr.motif << std::endl;
+        std::cout << "Number of repeats: " << tr.n_repeats << std::endl;
+        print_pair(r1, r2);
+    }
 
     Fragment fragment;
     fragment.single_read = false;
@@ -90,7 +107,13 @@ Fragment compute_fragment_statistics(const ReadInfo& r1, const ReadInfo& r2, uin
     fragment.start_pos = r1.start;
     fragment.end_chr_id = r2.chr_id;
     fragment.end_pos = r2.start + r2.length - 1;
-    fragment.length = r1.insert_size;
+
+    // Determine fragment length
+    if (r1.insert_size == r2.insert_size) {  // Unambiguous case
+        fragment.length = r1.insert_size;
+    } else {  // Ambiguous case (short fragment and overlapping reads)
+        fragment.length = std::min(r1.insert_size, r2.insert_size);
+    }
 
     size_t n = r1.bases.size();
     size_t m = r2.bases.size();

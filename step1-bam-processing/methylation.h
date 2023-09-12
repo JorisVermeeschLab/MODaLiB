@@ -32,7 +32,7 @@
 
 #include "read_info.h"
 #include "reference.h"
-#include "utils.h"
+#include "strand.h"
 
 #include "htslib/sam.h"
 #include "htslib/faidx.h"

@@ -29,7 +29,9 @@ const uint8_t BASE_TYPE_UNMETHYLATED_CPG = 3;
 const uint8_t BASE_TYPE_UNINFORMATIVE = 4;
 const uint8_t BASE_TYPE_INSERTED = 5;
 const uint8_t BASE_TYPE_DELETED = 6;
-uint8_t BASE_TYPE_AS_CHARS[7] = {' ', 'X', 'M', 'U', '0', '/', '\\'};
+const uint8_t BASE_TYPE_SOFT_CLIPPED = 7;
+const uint8_t BASE_TYPE_REF_SKIPPED = 8;
+uint8_t BASE_TYPE_AS_CHARS[9] = {' ', 'X', 'M', 'U', '0', '/', '\\', 'S', 'R'};
 
 struct BaseInfo {
 

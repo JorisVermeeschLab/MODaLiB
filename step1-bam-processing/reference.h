@@ -34,13 +34,13 @@ public:
         this->length = length;
     }
     ~AlignmentRefSequence() = default;  // Don't delete `seq` pointer
-    char get_base(int abs_pos) {
+    char get_base(int abs_pos) const {
         return *(this->seq + abs_pos - this->start_pos);
     }
-    std::string get_substring(int start, int end) {
+    std::string get_substring(int start, int end) const {
         return std::string(seq + start, end - start);
     }
-    int is_cpg(int abs_pos) {
+    int is_cpg(int abs_pos) const {
         int pos = abs_pos - this->start_pos;
         if (pos >= this->length) return 0;
         char base = static_cast<char>(std::toupper(*(this->seq + pos)));
@@ -57,7 +57,7 @@ public:
         }
         return 0;
     }
-    int is_ch(int ref_pos) {
+    int is_ch(int ref_pos) const {
         int pos = ref_pos - this->start_pos;
         if (pos >= this->length) return 0;
         char base = static_cast<char>(std::toupper(*(this->seq + pos)));
@@ -74,7 +74,7 @@ public:
         }
         return 0;
     }
-    int is_chg(int ref_pos) {
+    int is_chg(int ref_pos) const {
         int pos = ref_pos - this->start_pos;
         if (pos >= this->length) return 0;
         char base = static_cast<char>(std::toupper(*(this->seq + pos)));
@@ -91,7 +91,7 @@ public:
         }
         return 0;
     }
-    int is_chh(int ref_pos) {
+    int is_chh(int ref_pos) const {
         int pos = ref_pos - this->start_pos;
         if (pos >= this->length) return 0;
         char base = static_cast<char>(std::toupper(*(this->seq + pos)));
@@ -108,8 +108,8 @@ public:
         }
         return 0;
     }
-    int get_start_pos() { return this->start_pos; }
-    int get_length() { return this->length; }
+    int get_start_pos() const { return this->start_pos; }
+    int get_length() const { return this->length; }
 };
 
 #endif // MODALIB_REFERENCE_H

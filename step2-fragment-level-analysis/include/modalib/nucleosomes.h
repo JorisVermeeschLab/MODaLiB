@@ -21,8 +21,8 @@
 #define MODALIB_NUCLEOSOMES_H
 
 #include "bounds.h"
-#include "utils.h"
 #include "fragment_info.h"
+#include "utils.h"
 
 #include <valarray>
 #include <stdexcept>

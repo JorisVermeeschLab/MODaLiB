@@ -17,8 +17,8 @@
 //  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 //  MA 02110-1301, USA.
 
-#ifndef SITE_H_
-#define SITE_H_
+#ifndef MODALIB_SITE_H
+#define MODALIB_SITE_H
 
 #include <cmath>
 #include <functional>
@@ -64,4 +64,4 @@ struct RegionHashFunction {
 
 } // namespace modalib
 
-#endif // SITE_H_
+#endif // MODALIB_SITE_H

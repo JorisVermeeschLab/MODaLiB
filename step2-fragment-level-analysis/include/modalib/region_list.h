@@ -17,8 +17,8 @@
 //  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 //  MA 02110-1301, USA.
 
-#ifndef REGION_LIST_H_
-#define REGION_LIST_H_
+#ifndef MODALIB_REGION_LIST_H
+#define MODALIB_REGION_LIST_H
 
 #include "fragment_info.h"
 #include "site.h"
@@ -50,4 +50,4 @@ public:
 
 } // namespace modalib
 
-#endif // REGION_LIST_H_
+#endif // MODALIB_REGION_LIST_H

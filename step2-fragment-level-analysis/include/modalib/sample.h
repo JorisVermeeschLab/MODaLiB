@@ -17,12 +17,10 @@
 //  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 //  MA 02110-1301, USA.
 
-#ifndef SAMPLE_H_
-#define SAMPLE_H_
+#ifndef MODALIB_SAMPLE_H
+#define MODALIB_SAMPLE_H
 
 #include "fragment_info.h"
-#include "osc.h"
-#include "utils.h"
 
 #include <fstream>
 #include <iostream>
@@ -77,4 +75,4 @@ public:
 
 } // namespace modalib
 
-#endif // SAMPLE_H_
+#endif  // MODALIB_SAMPLE_H

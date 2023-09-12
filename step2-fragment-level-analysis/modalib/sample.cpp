@@ -18,13 +18,9 @@
 //  MA 02110-1301, USA.
 
 #include "modalib/sample.h"
-#include "modalib/utils.h"
-#include "modalib/deserialization.h"
 
-#include <fstream>
 #include <iostream>
 #include <string>
-#include <sstream>
 
 
 namespace modalib {
@@ -68,7 +64,7 @@ _Sample::~_Sample() {
 	this->is.close();
 }
 
-void _Sample::open(const std::string &filepath) {
+void _Sample::open(const std::string& filepath) {
     if (!this->is.is_open()) {
         this->is.open(filepath, std::ios::in | std::ios::binary);
     }

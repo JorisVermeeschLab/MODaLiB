@@ -18,7 +18,6 @@
 //  MA 02110-1301, USA.
 
 #include "modalib/region_list.h"
-#include "modalib/utils.h"
 
 #include <string>
 
