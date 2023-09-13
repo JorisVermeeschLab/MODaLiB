@@ -19,7 +19,7 @@
 #include "params.h"
 #include "read_info.h"
 #include "fragment.h"
-#include "methylation.h"
+#include "methylation/mm_ml.h"
 #include "reference.h"
 #include "queue_map.h"
 #include "strand.h"
@@ -210,9 +210,15 @@ void process_read(const bam1_t *b, const AlignmentRefSequence& ref, ReadInfo& re
                 base_info.uninformative = 1;
                 consume_query = false;
             } else if ((cigar_op_type == BAM_CSOFT_CLIP) || (cigar_op_type == BAM_CBACK)) {  // S (soft clipping) or B ("backwards" skip operator)
+                // Soft-clipped base: base that is not part of the alignment
                 base_info.uninformative = 1;
+                char base = seq_nt16_str[bam_seqi(read_seq, query_pos)];
+                base_info.c = base;
+                base_info.phred_score = read_qual[query_pos];
                 consume_ref = false;
             } else {  // Ignore H (hard clipping) and P (padding) operations
+                // Hard-clipped base: base that is not part of the alignment and
+                // is not present in the sequence at all.
                 consume_query = false;
                 consume_ref = false;
             }
@@ -327,13 +333,13 @@ void* process_partition(void* config_) {
                 b->core.flag
             );
 
-            // If mapping quality is not sufficient, discard read.
-            if ((!config->single_read) && (blacklisted_pairs.find(read.id) != blacklisted_pairs.end())) {
+            // If secondary alignment, or mapping quality is insufficient, discard read.
+            if ((!config->single_read) or (blacklisted_pairs.find(read.id) != blacklisted_pairs.end())) {
                 // The other read in the pair has been discarded due to low mapping quality
                 // -> Discard the current one as well.
                 blacklisted_pairs.erase(read.id);
                 continue;
-            } else if (b->core.qual < config->min_mapq) {
+            } else if ((b->core.qual < config->min_mapq) or (!read.is_worth_analyzing())) {
                 if (!config->single_read) {
                     // The other read (upcoming) should be discarded as well
                     blacklisted_pairs.insert(read.id);

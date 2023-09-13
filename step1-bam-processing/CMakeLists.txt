@@ -12,7 +12,7 @@ link_directories(
 
 add_executable(BAMConvertor main.cpp
         params.h
-        methylation.h
+        methylation/mm_ml.h
         fragment.h
         read_info.h
         reference.h

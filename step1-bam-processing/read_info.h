@@ -106,19 +106,17 @@ public:
         strand(strand),
         sam_flag(sam_flag) {}
     ReadInfo(const ReadInfo& other) = default;
-    inline bool is_first_in_pair() const { return 0x40 & sam_flag; }
-    inline bool is_reverse_strand() const { return 0x10 & sam_flag; }
-    inline bool mapped_in_proper_pair() const { return 0x3 & sam_flag; }
-    inline bool failed_quality_checks() const { return 0x200 & sam_flag; }
-    inline bool is_duplicate() const { return 0x400 & sam_flag; }
+    inline bool is_first_in_pair() const { return sam_flag & BAM_FREAD1; }
+    inline bool is_reverse_strand() const { return sam_flag & BAM_FREVERSE; }
+    inline bool mapped_in_proper_pair() const { return sam_flag & BAM_FPROPER_PAIR; }
+    inline bool failed_quality_checks() const { return sam_flag & BAM_FQCFAIL; }
+    inline bool is_duplicate() const { return sam_flag & BAM_FDUP; }
+    inline bool is_unmapped() const { return sam_flag & BAM_FUNMAP; }
+    inline bool is_secondary_alignment() const { return sam_flag & BAM_FSECONDARY; }
+    inline bool is_supplementary_alignment() const { return sam_flag & BAM_FSUPPLEMENTARY; }
     inline bool paired_with(const ReadInfo& other) const { return this->id == other.id; }
-    inline bool is_non_overlapping(uint32_t read_position) const {
-        if (!is_first_in_pair()) return true;
-        else {
-            // TODO: We assume that the 2 paired reads have the same length
-            // TODO: this simplifies the computation of the overlap
-            return (int) read_position < (int) insert_size - (int) length;
-        }
+    inline bool is_worth_analyzing() const {
+        return !(sam_flag & (BAM_FSECONDARY | BAM_FSUPPLEMENTARY | BAM_FUNMAP));
     }
     inline void add_base(uint16_t pos, const BaseInfo& base) {
         bases.push_back(std::pair<uint16_t, BaseInfo>(pos, base));
