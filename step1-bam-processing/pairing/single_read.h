@@ -27,12 +27,27 @@
 #include "../fragment.h"
 
 
-void print(const ReadInfo& read_info, const AlignmentRefSequence& ref) {
+void print(const ReadInfo& read_info, const TandemRepeat& tr) {
+
+    uint16_t ms_start = read_info.start + tr.start;
+    uint16_t ms_end = read_info.start + tr.end;
+
     std::string s1;
     std::string s1a;
+    int i = 0;
     for (const auto& pair : read_info.bases) {
+        uint16_t position = pair.first;
         s1.append(1, pair.second.c);
-        s1a.append(1, pair.second.type_as_char());
+        if ((!pair.second.inserted) && (!pair.second.deleted)) {
+            if ((ms_start <= position) && (position <= ms_end)) {
+                s1a.append(1, 'R');
+            } else {
+                s1a.append(1, pair.second.type_as_char());
+            }
+        } else {
+            s1a.append(1, pair.second.type_as_char());
+        }
+        i++;
     }
     std::cout << s1 << " " << read_info.strand << std::endl;
     std::cout << s1a << std::endl;
@@ -41,9 +56,32 @@ void print(const ReadInfo& read_info, const AlignmentRefSequence& ref) {
 }
 
 
+void update_statistics_with_base(const BaseInfo& base, Fragment& fragment) {
+
+    if (!base.uninformative) {
+        fragment.s_count++;
+        if (base.is_cpg_site) {
+            if (base.methylated) fragment.n_methylated++;
+            else fragment.n_unmethylated++;
+        }
+        if (base.putative_snp) fragment.snp_count++;
+
+        // If cytosine or guanine, increase GC content, and vice versa
+        if (base.is_c_or_g()) fragment.gc_count++;
+        else fragment.at_count++;
+    }
+}
+
+
 Fragment compute_fragment_statistics(const ReadInfo& read_info, const AlignmentRefSequence& ref, uint8_t min_phred) {
 
-    print(read_info, ref);
+    TandemRepeat tr = find_microsatellite(read_info.ref_bases);
+    if (tr.is_valid) {
+        std::cout << read_info.id << std::endl;
+        std::cout << "Found repeat motif: " << tr.motif << std::endl;
+        std::cout << "Number of repeats: " << tr.n_repeats << std::endl;
+        print(read_info, tr);
+    }
 
     Fragment fragment;
     fragment.single_read = true;
@@ -56,21 +94,7 @@ Fragment compute_fragment_statistics(const ReadInfo& read_info, const AlignmentR
     fragment.length = read_info.length;
 
     for (const auto& pair : read_info.bases) {
-
-        // uint16_t position = pair.first;
-        const BaseInfo& base = pair.second;
-
-        if ((base.type != BASE_TYPE_DELETED) and (base.phred_score >= min_phred)) {
-            fragment.s_count++;
-
-            if (base.type == BASE_TYPE_METHYLATED_CPG) fragment.n_methylated++;
-            else if (base.type == BASE_TYPE_UNMETHYLATED_CPG) fragment.n_unmethylated++;
-            else if (base.type == BASE_TYPE_PUTATIVE_SNP) fragment.snp_count++;
-
-            // If cytosine or guanine, increase GC content, and vice versa
-            if (base.is_c_or_g()) fragment.gc_count++;
-            else fragment.at_count++;
-        }
+        update_statistics_with_base(pair.second, fragment);
     }
     return fragment;
 }

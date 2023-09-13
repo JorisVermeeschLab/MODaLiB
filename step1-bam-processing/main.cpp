@@ -32,7 +32,7 @@
 #error "HTSlib version should be >= 1.11"
 #endif
 
-// #define NDEBUG
+#define NDEBUG
 static constexpr bool DEBUG_TEXT_OUTPUT = false;
 
 
@@ -100,8 +100,8 @@ void trim_alignment(bam1_t *b, const Parameters& config) {
 
 void process_read(const bam1_t *b, const AlignmentRefSequence& ref, ReadInfo& read_info, uint8_t min_phred, bool with_c_conversion) {
 
-    uint32_t query_pos = 0;
-    uint32_t ref_pos = b->core.pos;
+    uint32_t query_pos = 0;  // 0-based relative coordinate
+    uint32_t ref_pos = b->core.pos;  // 0-based coordinate (relative to some arbitrary start pos)
     uint32_t* CIGAR = bam_get_cigar(b);
     uint8_t* read_seq = bam_get_seq(b);
     uint8_t* read_qual = bam_get_qual(b);
@@ -133,29 +133,37 @@ void process_read(const bam1_t *b, const AlignmentRefSequence& ref, ReadInfo& re
                 if (cigar_op_type == BAM_CEQUAL) assert(base == ref_base);
                 else if (cigar_op_type == BAM_CDIFF) assert(base != ref_base);
 
-                if (with_c_conversion) {  // If unmethylated cytosines have been converted (either chemically or enzymatically)
+                // Check if CpG site
+                int direction = ref.is_cpg(ref_pos, with_c_conversion);
+                if (direction != 0) base_info.is_cpg_site = 1;
 
-                    // Check if CpG site
-                    int direction = ref.is_cpg(ref_pos);
+                if (with_c_conversion) {  // If unmethylated cytosines have been converted (either chemically or enzymatically)
 
                     // Check methylation status if CpG site, and check the presence of a putative mutation otherwise.
                     // Note: it is generally admitted that CpG site are symmetrically (un)methylated on both strands.
                     if ((direction == 1) && (strand & 1) == 1) {  // OT or CTOT case
                         if (base == 'C') {
-                            base_info.type = BASE_TYPE_METHYLATED_CPG;
+                            base_info.methylated = 1;
                         } else if (base == 'T') {
-                            base_info.type = BASE_TYPE_UNMETHYLATED_CPG;
-                            // base_info.c = 'C';  // TODO: keep this?
+                            base_info.methylated = 0;
+                            base_info.c = 'C';
+                            assert(ref_base == 'C');
                         }
                     } else if ((direction == -1) && (strand & 1) == 0) {  // OB or CTOB
                         if (base == 'G') {
-                            base_info.type = BASE_TYPE_METHYLATED_CPG;
+                            base_info.methylated = 1;
                         } else if (base == 'A') {
-                            base_info.type = BASE_TYPE_UNMETHYLATED_CPG;
-                            // base_info.c = 'G';  // TODO: keep this?
+                            base_info.methylated = 0;
+                            base_info.c = 'G';
+                            assert(ref_base == 'G');
                         }
                     } else {  // Not a CpG site
-                        if ((base != ref_base) && (read_qual[query_pos] >= min_phred)) {  // base mismatch
+                        if (base != ref_base) {  // base mismatch
+
+                            // Here, the read is assumed to have been aligned to a 3-letter genome,
+                            // like in bwa-meth, BSmooth, Bison or Bismark.
+                            // If T on OT/CTOT, could be either a C->U->T conversion or a C->T mutation.
+                            // If A on OB/CTOB, could be either a A->U->T->A conversion or a G->A mutation.
 
                             // If bases mismatch, consider this as a putative mutation
                             // unless it's a putative C->T conversion caused by bisulfite
@@ -167,40 +175,49 @@ void process_read(const bam1_t *b, const AlignmentRefSequence& ref, ReadInfo& re
                                 putative_mutation = false;
                             }
                             if (putative_mutation) {  // Not a converted cytosine -> maybe SNP (or sequencing error)
-                                base_info.type = BASE_TYPE_PUTATIVE_SNP;
+                                base_info.putative_snp = 1;
                             } else {  // Ambiguous case: can be either a mutation or a converted cytosine
-                                // Base is uninformative
-                                base_info.phred_score = 0;
-                                base_info.type = BASE_TYPE_UNINFORMATIVE;
+                                // IMPORTANT NOTE: Because cytosines are orders of magnitude more frequent
+                                // than SNPs, we consider all mismatches as being caused by converted cytosines.
+                                // TODO: maybe adjust Phred score to account for the probability of a SNP?
+                                base_info.methylated = 0;
+                                base_info.c = ref_base;  // Convert back the converted cytosine
                             }
                         } else {  // Base match
-                            base_info.type = BASE_TYPE_NORMAL;
+                            // Do nothing
                         }
                     }
                 } else {  // No conversion of unmethylated cytosines
                     // In the absence of bisulfite/enzymatic conversion, any base mismatch
                     // is treated as a putative point mutation (or sequencing error)
-                    if (base != ref_base) base_info.type = BASE_TYPE_PUTATIVE_SNP;
+                    if (base != ref_base) base_info.putative_snp = 1;
                 }
             } else if (cigar_op_type == BAM_CINS) {  // I (insertion to the reference)
                 char base = seq_nt16_str[bam_seqi(read_seq, query_pos)];
                 base_info.c = base;
-                base_info.type = BASE_TYPE_INSERTED;
+                base_info.phred_score = read_qual[query_pos];
+                base_info.inserted = 1;
+                if (with_c_conversion) {
+                    // No reference -> no way to disentangle mutations from converted cytosines
+                    // -> uninformative base
+                    base_info.uninformative = 1;
+                }
                 consume_ref = false;
             } else if (cigar_op_type == BAM_CDEL) {  // D (deletion from the reference)
-                base_info.type = BASE_TYPE_DELETED;
+                base_info.deleted = 1;
                 consume_query = false;
             } else if (cigar_op_type == BAM_CREF_SKIP) {  // N (skipped region from the reference)
-                base_info.type = BASE_TYPE_REF_SKIPPED;
+                base_info.uninformative = 1;
                 consume_query = false;
             } else if ((cigar_op_type == BAM_CSOFT_CLIP) || (cigar_op_type == BAM_CBACK)) {  // S (soft clipping) or B ("backwards" skip operator)
-                base_info.type = BASE_TYPE_SOFT_CLIPPED;
+                base_info.uninformative = 1;
                 consume_ref = false;
             } else {  // Ignore H (hard clipping) and P (padding) operations
                 consume_query = false;
                 consume_ref = false;
             }
 
+            // Go to next base
             if (consume_ref) {
                 ref_pos++;
                 read_info.add_ref_base(ref_base);
@@ -209,8 +226,11 @@ void process_read(const bam1_t *b, const AlignmentRefSequence& ref, ReadInfo& re
                 query_pos++;
             }
 
-            // If base is known, set Phred score to 0
-            if (base_info.c == 'N') base_info.phred_score = 0;
+            // If base is unknown, set Phred score to 0
+            if (base_info.c == 'N') base_info.uninformative = 1;
+
+            // If quality is too low, mark base as uninformative
+            if (base_info.phred_score < min_phred) base_info.uninformative = 1;
 
             read_info.add_base(ref_pos, base_info);
         }
@@ -300,7 +320,8 @@ void* process_partition(void* config_) {
             // Create read
             std::string id = std::string(bam_get_qname(b));
             ReadInfo read(
-                id, hdr->target_name[b->core.tid], b->core.pos,
+                id, hdr->target_name[b->core.tid],
+                b->core.pos + 1,  // Change 0-based to 1-based coordinate
                 abs(b->core.l_qseq), abs(b->core.isize),
                 get_strand(b),
                 b->core.flag

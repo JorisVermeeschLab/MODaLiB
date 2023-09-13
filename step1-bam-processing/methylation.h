@@ -60,7 +60,7 @@ inline char get_base(const uint8_t* seq, int pos, int seq_len) {
 }
 
 inline bool is_cytosine(char base, int strand) {
-    return true;  // TODO
+    return base == 'C';  // TODO
     if (strand & 1) return base == 'C';
     else return base == 'G';
 }
@@ -99,8 +99,6 @@ void methylation_from_aux(bam1_t* b, ReadInfo& read, uint8_t ml_cutoff) {
 
     uint8_t* ml = bam_aux_get(b, "ML");
     char* mm = bam_aux2Z(bam_aux_get(b, "MM"));
-
-    std::cout << mm << std::endl;
 
     uint8_t* seq = bam_get_seq(b);
     int seq_len = b->core.l_qseq;
@@ -164,8 +162,8 @@ void methylation_from_aux(bam1_t* b, ReadInfo& read, uint8_t ml_cutoff) {
         BaseInfo& base = pair.second;
         if (base.c == 'C') {
             int8_t status = meth_statuses.at(i++);
-            if (status == 1) base.type = BASE_TYPE_METHYLATED_CPG;
-            if (status == 0) base.type = BASE_TYPE_UNMETHYLATED_CPG;
+            if (status == 1) base.methylated = 1;
+            if (status == 0) base.methylated = 0;
         }
     }
 

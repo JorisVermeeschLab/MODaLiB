@@ -22,17 +22,6 @@
 
 #include <cstdint>
 
-const uint8_t BASE_TYPE_NORMAL = 0;
-const uint8_t BASE_TYPE_PUTATIVE_SNP = 1;
-const uint8_t BASE_TYPE_METHYLATED_CPG = 2;
-const uint8_t BASE_TYPE_UNMETHYLATED_CPG = 3;
-const uint8_t BASE_TYPE_UNINFORMATIVE = 4;
-const uint8_t BASE_TYPE_INSERTED = 5;
-const uint8_t BASE_TYPE_DELETED = 6;
-const uint8_t BASE_TYPE_SOFT_CLIPPED = 7;
-const uint8_t BASE_TYPE_REF_SKIPPED = 8;
-uint8_t BASE_TYPE_AS_CHARS[9] = {' ', 'X', 'M', 'U', '0', '/', '\\', 'S', 'R'};
-
 struct BaseInfo {
 
     // Char representation
@@ -41,11 +30,52 @@ struct BaseInfo {
     // Phred score
     uint8_t phred_score = 0;
 
-    // Base type (normal, mutated, etc.)
-    uint8_t type = BASE_TYPE_NORMAL;
+    // Whether base corresponds to the C of a CpG site
+    uint8_t is_cpg_site : 1;
+
+    // Whether base is methylated
+    uint8_t methylated : 1;
+
+    // Whether base has been inserted
+    uint8_t inserted : 1;
+
+    // Whether base has been deleted
+    uint8_t deleted : 1;
+
+    // Whether base is a putative SNP
+    uint8_t putative_snp : 1;
+
+    // Whether base is uninformative (e.g., base is unknown, or Phred score is too low).
+    // For example, whether it cannot be used to estimate the GC-content
+    // of the read/fragment.
+    uint8_t uninformative : 1;
+
+    BaseInfo() {
+        is_cpg_site = 0;
+        methylated = 0;
+        inserted = 0;
+        deleted = 0;
+        putative_snp = 0;
+        uninformative = 0;
+    }
 
     inline bool is_c_or_g() const { return (c == 'C') or (c == 'G'); }
-    inline char type_as_char() const { return BASE_TYPE_AS_CHARS[type]; }
+    inline char type_as_char() const {
+        if (inserted) {
+            return '/';
+        } else if (deleted) {
+            return '\\';
+        } else if (is_cpg_site) {
+            if (methylated) return 'M';
+            else return 'U';
+        } else if (putative_snp) {
+            return 'X';
+        } else if (uninformative) {
+            return '0';
+        } else {
+            return ' ';
+        }
+    }
 };
 
 #endif //MODALIB_BASE_H

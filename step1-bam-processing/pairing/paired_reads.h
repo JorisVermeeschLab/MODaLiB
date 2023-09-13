@@ -26,6 +26,7 @@
 #include "../read_info.h"
 #include "../base.h"
 #include "../fragment.h"
+#include "single_read.h"
 
 
 void print_pair(const ReadInfo& r1, const ReadInfo& r2) {
@@ -94,6 +95,7 @@ Fragment compute_fragment_statistics(
 
     TandemRepeat tr = find_microsatellite(read1.ref_bases);
     if (tr.is_valid) {
+        std::cout << read1.id << std::endl;
         std::cout << "Found repeat motif: " << tr.motif << std::endl;
         std::cout << "Number of repeats: " << tr.n_repeats << std::endl;
         print_pair(r1, r2);
@@ -143,17 +145,7 @@ Fragment compute_fragment_statistics(
             }
         }
 
-        if ((base.type != BASE_TYPE_DELETED) and (base.phred_score >= min_phred)) {
-            fragment.s_count++;
-
-            if (base.type == BASE_TYPE_METHYLATED_CPG) fragment.n_methylated++;
-            else if (base.type == BASE_TYPE_UNMETHYLATED_CPG) fragment.n_unmethylated++;
-            else if (base.type == BASE_TYPE_PUTATIVE_SNP) fragment.snp_count++;
-
-            // If cytosine or guanine, increase GC content, and vice versa
-            if (base.is_c_or_g()) fragment.gc_count++;
-            else fragment.at_count++;
-        }
+        update_statistics_with_base(base, fragment);
 
         if (use1) i++;
         if (use2) j++;
