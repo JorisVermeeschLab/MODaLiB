@@ -69,6 +69,7 @@ void print_pair(const ReadInfo& r1, const ReadInfo& r2) {
         if (use2) j++;
     }
 
+    std::cout << r1.id << std::endl;
     std::cout << s1 << " " << r1.sam_flag << " " << r1.strand << std::endl;
     std::cout << s1a << std::endl;
     std::cout << s2a << std::endl;
@@ -79,11 +80,7 @@ void print_pair(const ReadInfo& r1, const ReadInfo& r2) {
 }
 
 
-Fragment compute_fragment_statistics(
-        const ReadInfo& read1,
-        const ReadInfo& read2,
-        const AlignmentRefSequence& ref,
-        uint8_t min_phred) {
+Fragment compute_fragment_statistics(const ReadInfo& read1, const ReadInfo& read2) {
 
     // Ensure r1 is actually R1, and vice versa
     ReadInfo r1, r2;
@@ -92,14 +89,18 @@ Fragment compute_fragment_statistics(
     } else {
         r2 = read1; r1 = read2;
     }
+    assert(r1.is_first_in_pair());
+    assert(!r2.is_first_in_pair());
 
+    /*
     TandemRepeat tr = find_microsatellite(read1.ref_bases);
     if (tr.is_valid) {
         std::cout << read1.id << std::endl;
         std::cout << "Found repeat motif: " << tr.motif << std::endl;
         std::cout << "Number of repeats: " << tr.n_repeats << std::endl;
-        print_pair(r1, r2);
     }
+    print_pair(r1, r2);
+     */
 
     Fragment fragment;
     fragment.single_read = false;
@@ -108,21 +109,15 @@ Fragment compute_fragment_statistics(
     fragment.start_chr_id = r1.chr_id;
     fragment.start_pos = r1.start;
     fragment.end_chr_id = r2.chr_id;
-    fragment.end_pos = r2.start + r2.length - 1;
-
-    // Determine fragment length
-    // TODO: account for soft-clipping?
-    if (r1.insert_size == r2.insert_size) {  // Unambiguous case
-        fragment.length = r1.insert_size;
-    } else {  // Ambiguous case (short fragment and overlapping reads)
-        fragment.length = std::min(r1.insert_size, r2.insert_size);
-    }
+    fragment.end_pos = r2.end;
 
     size_t n = r1.bases.size();
     size_t m = r2.bases.size();
 
     size_t i = 0;
     size_t j = 0;
+
+    uint16_t fragment_length = 0;
 
     while ((i < n) or (j < m)) {
 
@@ -146,14 +141,23 @@ Fragment compute_fragment_statistics(
             }
         }
 
+        // Update fragment length
+        if (base.is_match || base.inserted) {
+            fragment_length++;
+        }
+
         update_statistics_with_base(base, fragment);
+        // assert(!base.soft_clipped);
 
         if (use1) i++;
         if (use2) j++;
     }
 
-    std::cout << "LENGTH: " << fragment.length << " (" << fragment.start_pos << " - ";
-    std::cout << fragment.end_pos << "), " << r1.id << std::endl;
+    // Set fragment length
+    fragment.length = fragment_length;
+
+    //std::cout << "LENGTH: " << fragment.length << " (" << fragment.start_pos << " - ";
+    //std::cout << fragment.end_pos << "), " << r1.id << std::endl;
 
     return fragment;
 }

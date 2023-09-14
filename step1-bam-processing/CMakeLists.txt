@@ -23,6 +23,7 @@ add_executable(BAMConvertor main.cpp
         pairing/single_read.h
         pairing/paired_reads.h
         strand.h
+        utils.h
 )
 
 target_link_libraries(BAMConvertor hts)

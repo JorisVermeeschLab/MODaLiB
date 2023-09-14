@@ -39,6 +39,9 @@ struct BaseInfo {
     // Whether base is methylated
     uint8_t methylated : 1;
 
+    // Whether base is a match (equal or different)
+    uint8_t is_match : 1;
+
     // Whether base has been inserted
     uint8_t inserted : 1;
 
@@ -57,6 +60,7 @@ struct BaseInfo {
     uint8_t soft_clipped : 1;
 
     BaseInfo() {
+        is_match = 0;
         is_cpg_site = 0;
         methylated = 0;
         inserted = 0;
@@ -68,7 +72,9 @@ struct BaseInfo {
 
     inline bool is_c_or_g() const { return (c == 'C') or (c == 'G'); }
     inline char type_as_char() const {
-        if (inserted) {
+        if (soft_clipped) {
+            return 'S';
+        } else if (inserted) {
             return '/';
         } else if (deleted) {
             return '\\';

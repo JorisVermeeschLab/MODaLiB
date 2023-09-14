@@ -48,7 +48,7 @@ public:
     uint32_t end_pos;
 
     // Fragment length
-    uint16_t length;
+    uint16_t length = 0;
 
     // Number of methylated CpG sites
     uint16_t n_methylated = 0;

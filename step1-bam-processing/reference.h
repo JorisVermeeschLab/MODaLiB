@@ -40,19 +40,25 @@ public:
     std::string get_substring(int start, int end) const {
         return std::string(seq + start, end - start);
     }
-    int is_cpg(int abs_pos, int c_conversion) const {
+    int is_cpg(int abs_pos, int strand, int c_conversion) const {
         int pos = abs_pos - this->start_pos;
         if (pos >= this->length) return 0;
         char base = static_cast<char>(std::toupper(*(this->seq + pos)));
         if (base == 'C') {
             if (pos + 1 == this->length) return 0;
             char next_base = static_cast<char>(std::toupper(*(this->seq + pos + 1)));
-            if (next_base == 'G') return 1;
+            if (next_base == 'G') {
+                if ((strand & 1) == 1) return 1;
+                else return 0;
+            }
             return 0;
         } else if (c_conversion && (base == 'G')) {
             if (pos == 0) return 0;
             char previous_base = static_cast<char>(std::toupper(*(this->seq + pos - 1)));
-            if (previous_base == 'C') return -1;
+            if (previous_base == 'C') {
+                if ((strand & 1) == 0) return -1;
+                else return 0;
+            }
             return 0;
         }
         return 0;

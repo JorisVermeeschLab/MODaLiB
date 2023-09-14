@@ -9,9 +9,7 @@ def find_microsatellite(seq, min_motif_length=2, max_motif_length=5):
     for i in range(n):
         for k in range(max_motif_length - min_motif_length + 1):
             motif_length = k + min_motif_length
-            if seq[i] == seq[i - 1]:
-                counts[k] = 1
-            elif seq[i] == seq[i - motif_length]:
+            if seq[i] == seq[i - motif_length]:
                 counts[k] += 1
             else:
                 counts[k] = motif_length

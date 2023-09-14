@@ -23,6 +23,7 @@
 #include <cstdint>
 #include <string>
 #include "reference.h"
+#include "utils.h"
 
 // Minimum length of a microsatellite motif (e.g., "AT")
 const int MIN_MOTIF_LENGTH = 2;
@@ -42,6 +43,7 @@ struct TandemRepeat {
     inline bool spans(uint16_t pos) const { return (start <= pos) && (pos <= end); }
 };
 
+
 TandemRepeat find_microsatellite(std::vector<char> seq) {
 
     TandemRepeat tr;
@@ -58,9 +60,7 @@ TandemRepeat find_microsatellite(std::vector<char> seq) {
         for (int k = 0; k < MAX_MOTIF_LENGTH - MIN_MOTIF_LENGTH + 1; k++) {
             int motif_length = k + MIN_MOTIF_LENGTH;
             if (i - motif_length >= 0) {
-                if (seq.at(i) == seq.at(i - 1)) {
-                    counts[k] = 1;  // Disregard homopolymeric sequences
-                } else if (seq.at(i) == seq.at(i - motif_length)) {
+                if (seq.at(i) == seq.at(i - motif_length)) {
                     counts[k]++;
                 } else {
                     counts[k] = motif_length;
@@ -81,6 +81,12 @@ TandemRepeat find_microsatellite(std::vector<char> seq) {
         tr.start = best_i + 1 - best_motif_length * best_n_repeats;
         tr.end = best_i;
         tr.motif = std::string(&seq[tr.end + 1 - best_motif_length], best_motif_length);
+
+        // Handle homopolymeric sequences
+        if (all_chars_the_same(tr.motif)) {
+            tr.motif = tr.motif[0];
+            tr.n_repeats = tr.end - tr.start + 1;
+        }
     }
     return tr;
 }

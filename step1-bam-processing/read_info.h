@@ -74,11 +74,14 @@ public:
     // Chromosome id
     uint8_t chr_id;
 
-    // Left-most coordinate on chromosome
+    // Left-most and right-most coordinates on chromosome (reference genome).
+    // Flanking soft-clipped parts have been disregarded.
     uint32_t start;
+    uint32_t end;
 
-    // Length of the query sequence (read)
-    uint16_t length;
+    // Adjusted length of the query sequence (read),
+    // after discarding the soft-clipped part
+    uint16_t adjusted_length;
 
     // Insert size
     uint16_t insert_size;
@@ -97,11 +100,12 @@ public:
 
 public:
     ReadInfo() = default;
-    ReadInfo(std::string& id, const char* chr_name, uint32_t start, uint16_t length, uint16_t insert_size, int strand, uint16_t sam_flag) :
+    ReadInfo(std::string& id, const char* chr_name, uint32_t start, uint16_t adjusted_length, uint16_t insert_size, int strand, uint16_t sam_flag) :
         id(id),
         chr_id(parse_chr_name(chr_name)),
         start(start),
-        length(length),
+        end(start + adjusted_length - 1),
+        adjusted_length(adjusted_length),
         insert_size(insert_size),
         strand(strand),
         sam_flag(sam_flag) {}

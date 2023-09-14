@@ -23,7 +23,6 @@
 #include "reference.h"
 #include "queue_map.h"
 #include "strand.h"
-#include "vntr.h"
 #include "base.h"
 #include "pairing/paired_reads.h"
 #include "pairing/single_read.h"
@@ -32,7 +31,7 @@
 #error "HTSlib version should be >= 1.11"
 #endif
 
-#define NDEBUG
+// #define NDEBUG
 static constexpr bool DEBUG_TEXT_OUTPUT = false;
 
 
@@ -107,6 +106,10 @@ void process_read(const bam1_t *b, const AlignmentRefSequence& ref, ReadInfo& re
     uint8_t* read_qual = bam_get_qual(b);
     int strand = get_strand(b);
 
+    int adjusted_read_length = 0;
+    int adjusted_ref_start = -1;
+    int adjusted_ref_end = -1;
+
     for (int cigar_pos = 0; cigar_pos < b->core.n_cigar; cigar_pos++) {
 
         int cigar_op_type = bam_cigar_op(CIGAR[cigar_pos]);
@@ -115,6 +118,7 @@ void process_read(const bam1_t *b, const AlignmentRefSequence& ref, ReadInfo& re
 
             bool consume_query = true;
             bool consume_ref = true;
+            bool valid_base = true;
 
             BaseInfo base_info;
 
@@ -134,7 +138,7 @@ void process_read(const bam1_t *b, const AlignmentRefSequence& ref, ReadInfo& re
                 else if (cigar_op_type == BAM_CDIFF) assert(base != ref_base);
 
                 // Check if CpG site
-                int direction = ref.is_cpg(ref_pos, with_c_conversion);
+                int direction = ref.is_cpg(ref_pos, strand, with_c_conversion);
                 if (direction != 0) base_info.is_cpg_site = 1;
 
                 if (with_c_conversion) {  // If unmethylated cytosines have been converted (either chemically or enzymatically)
@@ -192,6 +196,7 @@ void process_read(const bam1_t *b, const AlignmentRefSequence& ref, ReadInfo& re
                     // is treated as a putative point mutation (or sequencing error)
                     if (base != ref_base) base_info.putative_snp = 1;
                 }
+                base_info.is_match = 1;
             } else if (cigar_op_type == BAM_CINS) {  // I (insertion to the reference)
                 char base = seq_nt16_str[bam_seqi(read_seq, query_pos)];
                 base_info.c = base;
@@ -204,11 +209,14 @@ void process_read(const bam1_t *b, const AlignmentRefSequence& ref, ReadInfo& re
                 }
                 consume_ref = false;
             } else if (cigar_op_type == BAM_CDEL) {  // D (deletion from the reference)
+                base_info.uninformative = 1;
                 base_info.deleted = 1;
                 consume_query = false;
+                valid_base = false;
             } else if (cigar_op_type == BAM_CREF_SKIP) {  // N (skipped region from the reference)
                 base_info.uninformative = 1;
                 consume_query = false;
+                valid_base = false;
             } else if ((cigar_op_type == BAM_CSOFT_CLIP) || (cigar_op_type == BAM_CBACK)) {  // S (soft clipping) or B ("backwards" skip operator)
                 // Soft-clipped base: base that is not part of the alignment
                 base_info.uninformative = 1;
@@ -217,20 +225,13 @@ void process_read(const bam1_t *b, const AlignmentRefSequence& ref, ReadInfo& re
                 base_info.c = base;
                 base_info.phred_score = read_qual[query_pos];
                 consume_ref = false;
+                valid_base = false;
             } else {  // Ignore H (hard clipping) and P (padding) operations
                 // Hard-clipped base: base that is not part of the alignment and
                 // is not present in the sequence at all.
                 consume_query = false;
                 consume_ref = false;
-            }
-
-            // Go to next base
-            if (consume_ref) {
-                ref_pos++;
-                read_info.add_ref_base(ref_base);
-            }
-            if (consume_query) {
-                query_pos++;
+                valid_base = false;
             }
 
             // If base is unknown, set Phred score to 0
@@ -239,9 +240,29 @@ void process_read(const bam1_t *b, const AlignmentRefSequence& ref, ReadInfo& re
             // If quality is too low, mark base as uninformative
             if (base_info.phred_score < min_phred) base_info.uninformative = 1;
 
+            // Update estimates for the start and end positions (soft-clipped parts excluded)
+            if (valid_base) {
+                if (adjusted_ref_start < 0) adjusted_ref_start = ref_pos;
+                adjusted_ref_end = ref_pos;
+                adjusted_read_length++;
+            }
+
+            // Go to next base
             read_info.add_base(ref_pos, base_info);
+            if (consume_ref) {
+                read_info.add_ref_base(ref_base);
+                ref_pos++;
+            }
+            if (consume_query) {
+                query_pos++;
+            }
         }
     }
+
+    // Update read's positional information
+    read_info.adjusted_length = adjusted_read_length;
+    read_info.start = adjusted_ref_start + 1;
+    read_info.end = adjusted_ref_end + 1;
 
     assert(query_pos == b->core.l_qseq);
 }
@@ -335,7 +356,7 @@ void* process_partition(void* config_) {
             );
 
             // If secondary alignment, or mapping quality is insufficient, discard read.
-            if ((!config->single_read) or (blacklisted_pairs.find(read.id) != blacklisted_pairs.end())) {
+            if ((!config->single_read) and (blacklisted_pairs.find(read.id) != blacklisted_pairs.end())) {
                 // The other read in the pair has been discarded due to low mapping quality
                 // -> Discard the current one as well.
                 blacklisted_pairs.erase(read.id);
@@ -371,8 +392,7 @@ void* process_partition(void* config_) {
                 if (paired_reads.contains(read.id)) {
                     ReadInfo& other_read = paired_reads.get(read.id);
                     if (read.paired_with(other_read)) {
-                        Fragment fragment = compute_fragment_statistics(
-                                read, other_read, ref, config->min_phred);
+                        Fragment fragment = compute_fragment_statistics(read, other_read);
                         if (fragment.is_valid()) write_fragment(os, fragment);
                         found_pair = true;
                         paired_reads.remove(read.id);

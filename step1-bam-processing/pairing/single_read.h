@@ -73,57 +73,35 @@ void update_statistics_with_base(const BaseInfo& base, Fragment& fragment) {
 }
 
 
-std::pair<uint32_t, uint32_t> compute_positional_information(const ReadInfo& read) {
-    uint32_t start = read.start;
-    uint32_t end = read.start + read.length - 1;
-
-    // Adjust for left soft-clipping
-    int i = 0;
-    while ((i < read.bases.size()) && read.bases.at(i).second.soft_clipped) {
-        start++;
-        i++;
-    }
-
-    // Adjust for right soft-clipping
-    i = read.bases.size() - 1;
-    while ((i >= 0) && read.bases.at(i).second.soft_clipped) {
-        end--;
-        i--;
-    }
-
-    return {start, end};
-}
-
-
 Fragment compute_fragment_statistics(const ReadInfo& read_info) {
 
+    /*
     TandemRepeat tr = find_microsatellite(read_info.ref_bases);
     if (tr.is_valid) {
         std::cout << read_info.id << std::endl;
         std::cout << "Found repeat motif: " << tr.motif << std::endl;
         std::cout << "Number of repeats: " << tr.n_repeats << std::endl;
-        std::cout << "Fragment length: " << read_info.length << std::endl;
+        std::cout << "Fragment length: " << read_info.adjusted_length << std::endl;
         print(read_info, tr);
     }
-
-    auto pos_info = compute_positional_information(read_info);
+     */
 
     Fragment fragment;
     fragment.single_read = true;
     fragment.r1 = read_info;
     fragment.r2 = read_info;  // Single-read
     fragment.start_chr_id = read_info.chr_id;
-    fragment.start_pos = pos_info.first;
+    fragment.start_pos = read_info.start;
     fragment.end_chr_id = read_info.chr_id;
-    fragment.end_pos = pos_info.second;
-    fragment.length = pos_info.second - pos_info.first + 1;
+    fragment.end_pos = read_info.end;
+    fragment.length = read_info.adjusted_length;
 
     for (const auto& pair : read_info.bases) {
         update_statistics_with_base(pair.second, fragment);
     }
 
-    std::cout << "LENGTH: " << fragment.length << " (" << fragment.start_pos << " - ";
-    std::cout << fragment.end_pos << "), " << read_info.id << std::endl;
+    //std::cout << "LENGTH: " << fragment.length << " (" << fragment.start_pos << " - ";
+    //std::cout << fragment.end_pos << "), " << read_info.id << std::endl;
 
     return fragment;
 }
