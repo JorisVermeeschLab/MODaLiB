@@ -111,6 +111,7 @@ Fragment compute_fragment_statistics(
     fragment.end_pos = r2.start + r2.length - 1;
 
     // Determine fragment length
+    // TODO: account for soft-clipping?
     if (r1.insert_size == r2.insert_size) {  // Unambiguous case
         fragment.length = r1.insert_size;
     } else {  // Ambiguous case (short fragment and overlapping reads)
@@ -150,6 +151,9 @@ Fragment compute_fragment_statistics(
         if (use1) i++;
         if (use2) j++;
     }
+
+    std::cout << "LENGTH: " << fragment.length << " (" << fragment.start_pos << " - ";
+    std::cout << fragment.end_pos << "), " << r1.id << std::endl;
 
     return fragment;
 }

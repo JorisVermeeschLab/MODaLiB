@@ -16,6 +16,7 @@ module --force purge
 module use /apps/leuven/skylake/2018a/modules/all
 module load foss/2018a
 module load Python/3.6.4-foss-2018a
+module load SAMtools/1.9-foss-2018a
 
 cd /lustre1/project/stg_00019/research/Antoine/MODaLiB/step1-bam-processing/dependencies/htslib-1.18/
 make clean

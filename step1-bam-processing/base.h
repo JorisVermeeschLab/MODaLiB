@@ -53,6 +53,9 @@ struct BaseInfo {
     // of the read/fragment.
     uint8_t uninformative : 1;
 
+    // Whether base is soft-clipped
+    uint8_t soft_clipped : 1;
+
     BaseInfo() {
         is_cpg_site = 0;
         methylated = 0;
@@ -60,6 +63,7 @@ struct BaseInfo {
         deleted = 0;
         putative_snp = 0;
         uninformative = 0;
+        soft_clipped = 0;
     }
 
     inline bool is_c_or_g() const { return (c == 'C') or (c == 'G'); }

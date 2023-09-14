@@ -212,6 +212,7 @@ void process_read(const bam1_t *b, const AlignmentRefSequence& ref, ReadInfo& re
             } else if ((cigar_op_type == BAM_CSOFT_CLIP) || (cigar_op_type == BAM_CBACK)) {  // S (soft clipping) or B ("backwards" skip operator)
                 // Soft-clipped base: base that is not part of the alignment
                 base_info.uninformative = 1;
+                base_info.soft_clipped = 1;
                 char base = seq_nt16_str[bam_seqi(read_seq, query_pos)];
                 base_info.c = base;
                 base_info.phred_score = read_qual[query_pos];
@@ -363,7 +364,7 @@ void* process_partition(void* config_) {
 
             // Combine read pairs into fragments
             if (config->single_read) {  // Single-read
-                Fragment fragment = compute_fragment_statistics(read, ref, config->min_phred);
+                Fragment fragment = compute_fragment_statistics(read);
                 if (fragment.is_valid()) write_fragment(os, fragment);
             } else {  // Paired-end
                 bool found_pair = false;
