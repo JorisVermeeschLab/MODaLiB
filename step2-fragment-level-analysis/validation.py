@@ -1,9 +1,11 @@
 import collections
 from abc import ABCMeta, abstractmethod
 from typing import Optional, List, Tuple
+import tqdm
 
 import matplotlib.pyplot as plt
 import numpy as np
+from statsmodels.nonparametric.smoothers_lowess import lowess
 import pandas as pd
 import seaborn
 import tqdm
@@ -11,11 +13,12 @@ from sklearn.decomposition import KernelPCA
 from sklearn.manifold import TSNE
 from sklearn.metrics import matthews_corrcoef, roc_auc_score, roc_curve, confusion_matrix
 from sklearn.metrics.pairwise import pairwise_kernels
-from sklearn.model_selection import LeaveOneOut
-from sklearn.preprocessing import StandardScaler, KernelCenterer
+from sklearn.model_selection import LeaveOneOut, PredefinedSplit
+from sklearn.preprocessing import StandardScaler, LabelEncoder, KernelCenterer
 from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier
 
-BINARY = False
+BINARY = True
 
 labels = ['Healthy', 'Breast', 'Cervical', 'Colorectal', 'Ovarian', 'Hematological', 'Solid (misc)', 'Skin']
 N_CLASSES = len(labels)
@@ -51,14 +54,19 @@ class KernelDataset(Dataset):
                         if key not in self.tmp:
                             K = Ks[j * self.n_kernel_types + k, :, :]
                             try:
-                                X.append(KernelPCA(n_components=20, kernel='precomputed').fit_transform(K))
+                                X.append(KernelPCA(n_components=50, kernel='precomputed').fit_transform(K))
+                                X[-1] -= np.mean(X[-1], axis=0)[np.newaxis, :]
+                                variance = np.std(X[-1][:, 0])
+                                if variance > 0:
+                                    X[-1] /= variance
                                 self.tmp[key] = X[-1]
+
                             except ValueError:
                                 pass
                         else:
                             X.append(self.tmp[key])
             X = np.concatenate(X, axis=1)
-            X = StandardScaler().fit_transform(X)
+            # X = StandardScaler().fit_transform(X)
             return pairwise_kernels(X, metric='rbf')
         else:
             X = []
@@ -75,6 +83,7 @@ class KernelDataset(Dataset):
                             #V = np.eye(n) - (1. / n)
                             #K = V @ K @ V
                             K = KernelCenterer().fit_transform(K)
+
                             # TODO: manage complex eigenvalues
                             variance = np.sum(np.abs(np.clip(np.linalg.eigvals(K), 0, None)))
                             if variance > 0:
@@ -86,7 +95,7 @@ class KernelDataset(Dataset):
             K = np.sum(X, axis=0)
             D = np.diagonal(K)[:, np.newaxis] + np.diagonal(K)[np.newaxis, :] - 2 * K
             np.fill_diagonal(D, 0)
-            gamma = 1. / 50
+            gamma = 1. / 2000
             return np.exp(-gamma * (D ** 2))
             return K
 
@@ -95,6 +104,40 @@ class KernelDataset(Dataset):
         data = np.load(self.filepaths[-1], allow_pickle=True)
         return data['sample_names']
 
+
+class ChromosomeBounds:
+
+    @staticmethod
+    def get_10kb():
+        return np.asarray([
+            0,        # chr1 (24896)
+            24896,    # chr2 (24220)
+            49116,    # chr3 (19830)
+            68946,    # chr4 (19022)
+            87968,    # chr5 (18154)
+            106122,   # chr6 (17081)
+            123203,   # chr7 (15935)
+            139138,   # chr8 (14514)
+            153652,   # chr9 (13840)
+            167492,   # chr10 (13380)
+            180872,   # chr11 (13509)
+            194381,   # chr12 (13328)
+            207709,   # chr13 (11437)
+            219146,   # chr14 (10705)
+            229851,   # chr15 (10200)
+            240052,   # chr16 (9034)
+            249085,   # chr17 (8326)
+            257411,   # chr18 (8038)
+            265449,   # chr19 (5862)
+            271311,   # chr20 (6445)
+            277756,   # chr21 (4671)
+            282427,   # chr22 (5082)
+            287509])  # end
+
+
+# Load GC-content of reference genome
+gc_content = np.load('gc-content.npy')
+mappability = np.load('mappability.npy')
 
 df = pd.read_csv('../samples-details.tsv', delimiter='\t')
 categories = df['category'].to_numpy()
@@ -111,6 +154,31 @@ for gc_code, category in zip(gc_codes, categories):
 data = np.load('X.npz', allow_pickle=True)
 sample_names = data['sample_names']
 X = data['X'].item()
+
+"""
+gc_content = np.load('mappability-old.npy')
+print(gc_content.shape)
+new_gc_content = []
+bounds = ChromosomeBounds.get_10kb()
+for i in range(len(bounds) - 1):
+    start = bounds[i]
+    end = bounds[i + 1]
+    gc = gc_content[start:end]
+    new_gc = []
+    tmp = []
+    for j in range(len(gc)):
+        tmp.append(gc[j])
+        if len(tmp) == 5:
+            new_gc.append(np.mean(tmp))
+            tmp = []
+    if len(tmp) > 0:
+        new_gc.append(np.mean(tmp))
+    target_length = X[i + 1][0].shape[1]
+    while len(new_gc) < target_length:
+        new_gc.append(new_gc[-1])
+    new_gc_content += new_gc[:target_length]
+new_gc_content = np.asarray(new_gc_content)
+"""
 
 # Load kernel data
 dataset2 = KernelDataset([f'../kernels/K-{k}.npz' for k in range(1, 26)])
@@ -134,7 +202,10 @@ for c in range(1, 23):
         X_new[c][s] = np.asarray(X_new[c][s])
 X = X_new
 
+sequencing_run = []
+sequencing_depth = []
 age = []
+sex = []
 y = []
 is_grp = []
 cfdna_mask = []
@@ -146,10 +217,36 @@ for sample_name in sample_names:
     if isinstance(row['AGE'], str):
         if '-' in row['AGE']:
             age.append(0.5 * float(row['AGE'].split('-')[0]) + 0.5 * float(row['AGE'].split('-')[1]))
+        elif np.isnan(float(row['AGE'])):
+            age.append(0)
         else:
             age.append(float(row['AGE']))
+    elif np.isnan(float(row['AGE'])):
+        age.append(0)
     else:
         age.append(float(row['AGE']))
+
+    # Sex
+    if row['sex'] == 'M':
+        sex.append(0)
+    elif row['sex'] in {'V', 'F'}:
+        sex.append(1)
+    else:
+        sex.append(2)
+
+    # Run
+    if isinstance(row['Run'], float) and np.isnan(row['Run']):
+        sequencing_run.append(-1)
+    else:
+        sequencing_run.append(row['Run'])
+
+    # Sequencing depth
+    if row['Depth required'] == '10X':
+        sequencing_depth.append(0)
+    elif row['Depth required'] == '30X':
+        sequencing_depth.append(1)
+    else:
+        sequencing_depth.append(2)
 
     if sample_name not in cat:
         categories.append('healthy')
@@ -197,7 +294,16 @@ for sample_name in sample_names:
         y.append(6)
     else:
         raise NotImplementedError(row['Cancer Type'])
+
+sequencing_depth = np.asarray(sequencing_depth, dtype=float)
+sequencing_run = LabelEncoder().fit_transform(sequencing_run)
+sex = np.asarray(sex, dtype=int)
 age = np.asarray(age, dtype=float)
+confounders = np.asarray([
+    sequencing_depth,
+    # sequencing_run,
+    sex, age
+]).T
 categories = np.asarray(categories, dtype=object)
 cfdna_mask = np.asarray(cfdna_mask, dtype=bool)
 is_grp = np.asarray(is_grp, dtype=bool)
@@ -207,13 +313,40 @@ if BINARY:
     y = (y > 0).astype(int)
 
 
+def lowess_correction(X: np.ndarray, exog: np.ndarray, desc: str, frac: float) -> np.ndarray:
+    exog = np.round(exog * 1000).astype(int) // 10
+    X_adapted = np.copy(X)
+    for j in range(X.shape[1]):
+        for i in tqdm.tqdm(range(len(X)), desc=desc):
+            endog = X[i, j, :]
+
+            y_pred = lowess(endog, exog, frac=frac, return_sorted=False)
+            mask = (y_pred > 0)
+            X_adapted[i, j, mask] = X[i, j, mask] / y_pred[mask]
+            mask = (exog == 0)
+            X_adapted[i, j, mask] = X[i, j, mask]
+
+    return X_adapted
+
+
+def gc_correction(X: np.ndarray, mappability: np.ndarray) -> np.ndarray:
+    return lowess_correction(X, mappability, 'GC correction', 0.3)
+
+
 def evaluate(kernel_idx):
 
     X_ = np.concatenate([[X[chr_id][i] for i in kernel_idx] for chr_id in range(1, 23)], axis=2)  # TODO
 
     X_ = np.transpose(X_, (1, 0, 2))
 
+    print(X_.shape)
+
+    # X_ = gc_correction(X_, gc_content)
+    # X_ = gc_correction(X_, mappability)
+
     X_ = X_.reshape(len(X_), -1)
+
+
     X_ = StandardScaler().fit_transform(X_)
     K_f = pairwise_kernels(X_, metric='rbf')
 
@@ -227,20 +360,25 @@ def evaluate(kernel_idx):
     # Cross-validation
     y_target, y_pred1, y_pred2 = [], [], []
 
-    # cv = PredefinedSplit(is_grp.astype(int))
-    cv = LeaveOneOut()
+    cv = PredefinedSplit(sequencing_run)
+    # cv = LeaveOneOut()
     #cv = KFold(n_splits=5)
     for i, (train_index, test_index) in tqdm.tqdm(enumerate(cv.split(X_))):
+        X_train = X_[train_index, :]
+        X_test = X_[test_index, :]
         K_train = K_agg[train_index, :][:, train_index]
         K_test = K_agg[test_index, :][:, train_index]
         Kf_train = K_f[train_index, :][:, train_index]
         y_train = y[train_index]
         Kf_test = K_f[test_index, :][:, train_index]
         y_test = y[test_index]
+
         model = SVC(kernel='precomputed', probability=True, C=1000, class_weight='balanced')
+
         model.fit(Kf_train, y_train)
         y_pred1.append(model.predict_proba(Kf_test))
         y_pred1[-1] = np.concatenate((y_pred1[-1], np.zeros((y_pred1[-1].shape[0], N_CLASSES - y_pred1[-1].shape[1]))), axis=1)
+
         model.fit(K_train, y_train)  # TODO
         y_pred2.append(model.predict_proba(K_test))
         y_pred2[-1] = np.concatenate((y_pred2[-1], np.zeros((y_pred2[-1].shape[0], N_CLASSES - y_pred2[-1].shape[1]))), axis=1)
@@ -248,7 +386,6 @@ def evaluate(kernel_idx):
     y_target = np.squeeze(np.concatenate(y_target, axis=0))
     y_pred1 = np.squeeze(np.concatenate(y_pred1, axis=0))
     y_pred2 = np.squeeze(np.concatenate(y_pred2, axis=0))
-
     print(f'MCC 1: {matthews_corrcoef(y_target, np.argmax(y_pred1, axis=1))}')
     print(f'MCC 2: {matthews_corrcoef(y_target, np.argmax(y_pred2, axis=1))}')
     if BINARY:

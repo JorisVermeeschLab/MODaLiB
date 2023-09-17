@@ -25,7 +25,7 @@
 struct BaseInfo {
 
     // Char representation of the base.
-    // If cytosine conversion has occured (in the context of methylation sequencing),
+    // If cytosine conversion has occurred (in the context of methylation sequencing),
     // then the base has been reverted back to the correct base (in order to match
     // the reference genome).
     char c = 'N';

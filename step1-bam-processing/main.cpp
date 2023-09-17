@@ -128,17 +128,26 @@ void process_read(const bam1_t *b, const AlignmentRefSequence& ref, ReadInfo& re
             if ((cigar_op_type == BAM_CMATCH) || (cigar_op_type == BAM_CEQUAL) ||
                 (cigar_op_type == BAM_CDIFF)) {  // M, = or X (alignment match, but can be sequence match or mismatch)
 
-                // Get base from query sequence
+                // Get bases from query sequence
                 char base = seq_nt16_str[bam_seqi(read_seq, query_pos)];
                 base_info.c = base;
                 base_info.phred_score = read_qual[query_pos];
+                char previous_base;
+                if (query_pos >= 1) previous_base = seq_nt16_str[bam_seqi(read_seq, query_pos - 1)];
+                else previous_base = 'N';
+                char next_base;
+                if (query_pos + 1 < b->core.l_qseq) next_base = seq_nt16_str[bam_seqi(read_seq, query_pos + 1)];
+                else next_base = 'N';
 
                 // Check that bases indeed match or mismatch
+                base_info.is_match = 1;
                 if (cigar_op_type == BAM_CEQUAL) assert(base == ref_base);
                 else if (cigar_op_type == BAM_CDIFF) assert(base != ref_base);
 
                 // Check if CpG site
-                int direction = ref.is_cpg(ref_pos, strand, with_c_conversion);
+                int direction = ref.is_cpg(ref_pos, strand);
+                int query_direction = ref.is_cpg(previous_base, base, next_base, strand, with_c_conversion);
+                if (direction != query_direction) direction = 0;
                 if (direction != 0) base_info.is_cpg_site = 1;
 
                 if (with_c_conversion) {  // If unmethylated cytosines have been converted (either chemically or enzymatically)
@@ -150,6 +159,7 @@ void process_read(const bam1_t *b, const AlignmentRefSequence& ref, ReadInfo& re
                             base_info.methylated = 1;
                         } else if (base == 'T') {
                             base_info.methylated = 0;
+                            // Revert back converted cytosine
                             base_info.c = 'C';
                             assert(ref_base == 'C');
                         }
@@ -158,6 +168,7 @@ void process_read(const bam1_t *b, const AlignmentRefSequence& ref, ReadInfo& re
                             base_info.methylated = 1;
                         } else if (base == 'A') {
                             base_info.methylated = 0;
+                            // Revert back converted cytosine
                             base_info.c = 'G';
                             assert(ref_base == 'G');
                         }
@@ -188,7 +199,7 @@ void process_read(const bam1_t *b, const AlignmentRefSequence& ref, ReadInfo& re
                                 base_info.c = ref_base;  // Convert back the converted cytosine
                             }
                         } else {  // Base match
-                            // Do nothing
+                            base_info.uninformative = 0;
                         }
                     }
                 } else {  // No conversion of unmethylated cytosines
@@ -196,7 +207,6 @@ void process_read(const bam1_t *b, const AlignmentRefSequence& ref, ReadInfo& re
                     // is treated as a putative point mutation (or sequencing error)
                     if (base != ref_base) base_info.putative_snp = 1;
                 }
-                base_info.is_match = 1;
             } else if (cigar_op_type == BAM_CINS) {  // I (insertion to the reference)
                 char base = seq_nt16_str[bam_seqi(read_seq, query_pos)];
                 base_info.c = base;
@@ -249,6 +259,7 @@ void process_read(const bam1_t *b, const AlignmentRefSequence& ref, ReadInfo& re
 
             // Go to next base
             read_info.add_base(ref_pos, base_info);
+
             if (consume_ref) {
                 read_info.add_ref_base(ref_base);
                 ref_pos++;

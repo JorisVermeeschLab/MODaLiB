@@ -59,9 +59,6 @@ public:
     // Number of single nucleotide polymorphisms
     uint16_t snp_count = 0;
 
-    // Number of adenines and thymines
-    uint16_t at_count = 0;
-
     // Number of cytosines and guanines
     uint16_t gc_count = 0;
 

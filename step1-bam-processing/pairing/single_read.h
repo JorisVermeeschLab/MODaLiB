@@ -25,6 +25,7 @@
 #include "../read_info.h"
 #include "../base.h"
 #include "../fragment.h"
+#include "../vntr.h"
 
 
 void print(const ReadInfo& read_info, const TandemRepeat& tr) {
@@ -56,23 +57,6 @@ void print(const ReadInfo& read_info, const TandemRepeat& tr) {
 }
 
 
-void update_statistics_with_base(const BaseInfo& base, Fragment& fragment) {
-
-    if (!base.uninformative) {
-        fragment.s_count++;
-        if (base.is_cpg_site) {
-            if (base.methylated) fragment.n_methylated++;
-            else fragment.n_unmethylated++;
-        }
-        if (base.putative_snp) fragment.snp_count++;
-
-        // If cytosine or guanine, increase GC content, and vice versa
-        if (base.is_c_or_g()) fragment.gc_count++;
-        else fragment.at_count++;
-    }
-}
-
-
 Fragment compute_fragment_statistics(const ReadInfo& read_info) {
 
     /*
@@ -97,7 +81,18 @@ Fragment compute_fragment_statistics(const ReadInfo& read_info) {
     fragment.length = read_info.adjusted_length;
 
     for (const auto& pair : read_info.bases) {
-        update_statistics_with_base(pair.second, fragment);
+        const BaseInfo& base = pair.second;
+        if (!base.uninformative) {
+            fragment.s_count++;
+            if (base.is_cpg_site) {
+                if (base.methylated) fragment.n_methylated++;
+                else fragment.n_unmethylated++;
+            }
+            if (base.putative_snp) fragment.snp_count++;
+
+            // If cytosine or guanine, increase GC content, and vice versa
+            if (base.is_c_or_g()) fragment.gc_count++;
+        }
     }
 
     //std::cout << "LENGTH: " << fragment.length << " (" << fragment.start_pos << " - ";

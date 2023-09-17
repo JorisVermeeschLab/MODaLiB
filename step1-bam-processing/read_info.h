@@ -120,7 +120,7 @@ public:
     inline bool is_supplementary_alignment() const { return sam_flag & BAM_FSUPPLEMENTARY; }
     inline bool paired_with(const ReadInfo& other) const { return this->id == other.id; }
     inline bool is_worth_analyzing() const {
-        return !(sam_flag & (BAM_FSECONDARY | BAM_FSUPPLEMENTARY | BAM_FUNMAP));
+        return !(sam_flag & (BAM_FSECONDARY | BAM_FSUPPLEMENTARY | BAM_FUNMAP | BAM_FQCFAIL | BAM_FDUP));
     }
     inline void add_base(uint16_t pos, const BaseInfo& base) {
         bases.push_back(std::pair<uint16_t, BaseInfo>(pos, base));

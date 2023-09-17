@@ -362,9 +362,9 @@ void compute_kernel_matrices_for_one_chromosome(
                 // In other words, k(x_i, x_j) = 1 when x_i and x_j are either both
                 // "long" or both "short" fragments.
                 // Weighting function is the default one.
-                float max_score = std::fmax(l_i, frags[j].size);
-                float score = (max_score - std::fabs(l_i - frags[j].size)) / max_score;
-                // float score = ((l_i <= 167) == (frags[j].size <= 167));
+                // float max_score = std::fmax(l_i, frags[j].size);
+                // float score = (max_score - std::fabs(l_i - frags[j].size)) / max_score;
+                float score = ((l_i <= 177) == (frags[j].size <= 177));  // TODO
                 matrices.at(NUM_KERNELS * kernel_bin_id + 1).add_sym(score, i, j, w[j]);
 
                 // Update methylation kernel matrix.

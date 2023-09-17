@@ -25,11 +25,11 @@
 #include "reference.h"
 #include "utils.h"
 
-// Minimum length of a microsatellite motif (e.g., "AT")
-const int MIN_MOTIF_LENGTH = 2;
+// Minimum length of a microsatellite motif (e.g., "A")
+const int MIN_MOTIF_LENGTH = 1;
 
-// Maximum length of a microsatellite motif (e.g., "ATCCA")
-const int MAX_MOTIF_LENGTH = 5;
+// Maximum length of a microsatellite motif (e.g., "ATCCAG")
+const int MAX_MOTIF_LENGTH = 6;
 
 // Minimum number of repeats to be considered a microsatellite
 const int MIN_NUM_REPEATS = 5;
