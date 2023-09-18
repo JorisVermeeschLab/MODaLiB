@@ -30,7 +30,7 @@
 
 
 // Number of bytes used to represent a fragment in the output binary format
-static constexpr size_t FRAGMENT_SIZE_IN_BYTES = 22;
+static constexpr size_t FRAGMENT_SIZE_IN_BYTES = 26;
 
 
 struct Fragment {
@@ -64,6 +64,12 @@ public:
 
     // Number of informative bases = gc_count + at_count
     uint16_t s_count = 0;
+
+    // Number of inserted bases
+    uint16_t n_inserted = 0;
+
+    // Number of deleted bases
+    uint16_t n_deleted = 0;
 
     // Reads
     ReadInfo r1;
@@ -114,7 +120,9 @@ public:
         offset += Serializer::serialize(buffer + offset, (uint16_t) this->n_unmethylated);
         offset += Serializer::serialize(buffer + offset, (uint16_t) this->snp_count);
         offset += Serializer::serialize(buffer + offset, (uint16_t) this->gc_count);
-        Serializer::serialize(buffer + offset, (uint16_t) this->s_count);
+        offset += Serializer::serialize(buffer + offset, (uint16_t) this->s_count);
+        offset += Serializer::serialize(buffer + offset, (uint16_t) this->n_inserted);
+        Serializer::serialize(buffer + offset, (uint16_t) this->n_deleted);
     }
 };
 

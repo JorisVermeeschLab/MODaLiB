@@ -30,14 +30,14 @@
 
 void print(const ReadInfo& read_info, const TandemRepeat& tr) {
 
-    uint16_t ms_start = read_info.start + tr.start;
-    uint16_t ms_end = read_info.start + tr.end;
+    uint32_t ms_start = read_info.start + tr.start;
+    uint32_t ms_end = read_info.start + tr.end;
 
     std::string s1;
     std::string s1a;
     int i = 0;
     for (const auto& pair : read_info.bases) {
-        uint16_t position = pair.first;
+        uint32_t position = pair.first;
         s1.append(1, pair.second.c);
         if ((!pair.second.inserted) && (!pair.second.deleted)) {
             if ((ms_start <= position) && (position <= ms_end)) {
@@ -93,6 +93,9 @@ Fragment compute_fragment_statistics(const ReadInfo& read_info) {
             // If cytosine or guanine, increase GC content, and vice versa
             if (base.is_c_or_g()) fragment.gc_count++;
         }
+
+        if (base.inserted) fragment.n_inserted++;
+        if (base.deleted) fragment.n_deleted++;
     }
 
     //std::cout << "LENGTH: " << fragment.length << " (" << fragment.start_pos << " - ";

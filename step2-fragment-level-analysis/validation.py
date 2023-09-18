@@ -54,7 +54,7 @@ class KernelDataset(Dataset):
                         if key not in self.tmp:
                             K = Ks[j * self.n_kernel_types + k, :, :]
                             try:
-                                X.append(KernelPCA(n_components=50, kernel='precomputed').fit_transform(K))
+                                X.append(KernelPCA(n_components=100, kernel='precomputed').fit_transform(K))
                                 X[-1] -= np.mean(X[-1], axis=0)[np.newaxis, :]
                                 variance = np.std(X[-1][:, 0])
                                 if variance > 0:
@@ -105,36 +105,6 @@ class KernelDataset(Dataset):
         return data['sample_names']
 
 
-class ChromosomeBounds:
-
-    @staticmethod
-    def get_10kb():
-        return np.asarray([
-            0,        # chr1 (24896)
-            24896,    # chr2 (24220)
-            49116,    # chr3 (19830)
-            68946,    # chr4 (19022)
-            87968,    # chr5 (18154)
-            106122,   # chr6 (17081)
-            123203,   # chr7 (15935)
-            139138,   # chr8 (14514)
-            153652,   # chr9 (13840)
-            167492,   # chr10 (13380)
-            180872,   # chr11 (13509)
-            194381,   # chr12 (13328)
-            207709,   # chr13 (11437)
-            219146,   # chr14 (10705)
-            229851,   # chr15 (10200)
-            240052,   # chr16 (9034)
-            249085,   # chr17 (8326)
-            257411,   # chr18 (8038)
-            265449,   # chr19 (5862)
-            271311,   # chr20 (6445)
-            277756,   # chr21 (4671)
-            282427,   # chr22 (5082)
-            287509])  # end
-
-
 # Load GC-content of reference genome
 gc_content = np.load('gc-content.npy')
 mappability = np.load('mappability.npy')
@@ -155,33 +125,8 @@ data = np.load('X.npz', allow_pickle=True)
 sample_names = data['sample_names']
 X = data['X'].item()
 
-"""
-gc_content = np.load('mappability-old.npy')
-print(gc_content.shape)
-new_gc_content = []
-bounds = ChromosomeBounds.get_10kb()
-for i in range(len(bounds) - 1):
-    start = bounds[i]
-    end = bounds[i + 1]
-    gc = gc_content[start:end]
-    new_gc = []
-    tmp = []
-    for j in range(len(gc)):
-        tmp.append(gc[j])
-        if len(tmp) == 5:
-            new_gc.append(np.mean(tmp))
-            tmp = []
-    if len(tmp) > 0:
-        new_gc.append(np.mean(tmp))
-    target_length = X[i + 1][0].shape[1]
-    while len(new_gc) < target_length:
-        new_gc.append(new_gc[-1])
-    new_gc_content += new_gc[:target_length]
-new_gc_content = np.asarray(new_gc_content)
-"""
-
 # Load kernel data
-dataset2 = KernelDataset([f'../kernels/K-{k}.npz' for k in range(1, 26)])
+dataset2 = KernelDataset([f'../kernels/K-{k}.npz' for k in range(1, 23)])  # 26
 sample_names2 = dataset2.get_sample_names()
 
 # Make sure the samples in K and X actually match
@@ -202,6 +147,7 @@ for c in range(1, 23):
         X_new[c][s] = np.asarray(X_new[c][s])
 X = X_new
 
+ichor = []
 sequencing_run = []
 sequencing_depth = []
 age = []
@@ -247,6 +193,9 @@ for sample_name in sample_names:
         sequencing_depth.append(1)
     else:
         sequencing_depth.append(2)
+
+    # IchorCNA tumour fraction estimation
+    ichor.append(float(row['Ichore - methbased']))
 
     if sample_name not in cat:
         categories.append('healthy')
@@ -295,6 +244,8 @@ for sample_name in sample_names:
     else:
         raise NotImplementedError(row['Cancer Type'])
 
+ichor = np.asarray(ichor)
+ichor[np.isnan(ichor)] = np.nanmedian(ichor)
 sequencing_depth = np.asarray(sequencing_depth, dtype=float)
 sequencing_run = LabelEncoder().fit_transform(sequencing_run)
 sex = np.asarray(sex, dtype=int)
@@ -364,8 +315,6 @@ def evaluate(kernel_idx):
     # cv = LeaveOneOut()
     #cv = KFold(n_splits=5)
     for i, (train_index, test_index) in tqdm.tqdm(enumerate(cv.split(X_))):
-        X_train = X_[train_index, :]
-        X_test = X_[test_index, :]
         K_train = K_agg[train_index, :][:, train_index]
         K_test = K_agg[test_index, :][:, train_index]
         Kf_train = K_f[train_index, :][:, train_index]
@@ -373,7 +322,7 @@ def evaluate(kernel_idx):
         Kf_test = K_f[test_index, :][:, train_index]
         y_test = y[test_index]
 
-        model = SVC(kernel='precomputed', probability=True, C=1000, class_weight='balanced')
+        model = SVC(kernel='precomputed', probability=True, C=10, class_weight='balanced')
 
         model.fit(Kf_train, y_train)
         y_pred1.append(model.predict_proba(Kf_test))
@@ -390,12 +339,14 @@ def evaluate(kernel_idx):
     print(f'MCC 2: {matthews_corrcoef(y_target, np.argmax(y_pred2, axis=1))}')
     if BINARY:
         auc = roc_auc_score(y_target, y_pred1[:, 1])
+        auc2 = roc_auc_score(y_target, y_pred2[:, 1])
         roc = roc_curve(y_target, y_pred1[:, 1])
         roc2 = roc_curve(y_target, y_pred2[:, 1])
         print(f'AUC 1: {auc}')
         print(f'AUC 2: {roc_auc_score(y_target, y_pred2[:, 1])}')
     else:
         auc = roc_auc_score(y_target, y_pred1, multi_class='ovr')
+        auc2 = roc_auc_score(y_target, y_pred2, multi_class='ovr')
         roc = roc_curve(y_target > 0, 1 - y_pred1[:, 0])
         roc2 = roc_curve(y_target > 0, 1 - y_pred2[:, 0])
         print(f'AUC 1: {auc}')
@@ -416,19 +367,19 @@ def evaluate(kernel_idx):
         plt.cla()
         plt.close()
 
-    return auc, roc, roc2
+    return auc, auc2, roc, roc2
 
 
 settings = [
-    ([0], 'Nucleosomes', 'purple', '-'),
+    #([0], 'Nucleosomes', 'purple', '-'),
     #([1, 2, 3, 4], None, 'purple', '--'),
-    ([1], 'Fragment lengths', 'royalblue', '-'),
+    #([1], 'Fragment lengths', 'royalblue', '-'),
     #([0, 2, 3, 4], None, 'royalblue', '--'),
-    ([2], 'Methylation', 'gold', '-'),
+    #([2], 'Methylation', 'gold', '-'),
     #([0, 1, 3, 4], None, 'gold', '--'),
-    ([3], 'Read counts', 'forestgreen', '-'),
+    #([3], 'Read counts', 'forestgreen', '-'),
     #([0, 1, 2, 4], None, 'forestgreen', '--'),
-    ([4], 'Mutations', 'crimson', '-'),
+    #([4], 'Mutations', 'crimson', '-'),
     #([0, 1, 2, 3], None, 'crimson', '--'),
     ([0, 1, 2, 3, 4], 'All', 'black', '-'),
 ]
@@ -436,12 +387,13 @@ settings = [
 
 fig, ax = plt.subplots(1, 2, figsize=(16, 8))
 for kernel_idx, label, color, linestyle in settings:
-    auc, roc, roc2 = evaluate(kernel_idx)
+    auc, auc2, roc, roc2 = evaluate(kernel_idx)
     if linestyle == '-':
-        ax[0].plot(roc[0], roc[1], alpha=0.6, label=label, color=color, linestyle=linestyle)
-        ax[1].plot(roc2[0], roc2[1], alpha=0.6, label=label, color=color, linestyle=linestyle)
+        ax[0].plot(roc[0], roc[1], alpha=0.6, label=f'{label} ({auc:.3f})', color=color, linestyle=linestyle)
+        ax[1].plot(roc2[0], roc2[1], alpha=0.6, label=f'{label} ({auc2:.3f})', color=color, linestyle=linestyle)
 # plt.tight_layout()
-plt.legend()
+ax[0].legend()
+ax[1].legend()
 ax[0].set_xlabel('False positive rate')
 ax[0].set_ylabel('True positive rate')
 ax[1].set_xlabel('False positive rate')

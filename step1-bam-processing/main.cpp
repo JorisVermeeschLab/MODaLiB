@@ -259,7 +259,6 @@ void process_read(const bam1_t *b, const AlignmentRefSequence& ref, ReadInfo& re
 
             // Go to next base
             read_info.add_base(ref_pos, base_info);
-
             if (consume_ref) {
                 read_info.add_ref_base(ref_base);
                 ref_pos++;

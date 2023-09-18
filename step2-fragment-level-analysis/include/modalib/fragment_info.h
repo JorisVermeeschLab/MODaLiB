@@ -61,6 +61,12 @@ struct FragmentInfo {
     // Number of informative bases
     uint16_t s_count = 0;
 
+    // Number of inserted bases
+    uint16_t n_inserted = 0;
+
+    // Number of deleted bases
+    uint16_t n_deleted = 0;
+
     // Constructor
     FragmentInfo() = default;
     FragmentInfo(const FragmentInfo&) = default;
@@ -113,6 +119,8 @@ struct FragmentInfo {
         offset += Deserializer::deserialize(buffer + offset, this->snp_count);
         offset += Deserializer::deserialize(buffer + offset, this->gc_count);
         offset += Deserializer::deserialize(buffer + offset, this->s_count);
+        offset += Deserializer::deserialize(buffer + offset, this->n_inserted);
+        Deserializer::deserialize(buffer + offset, this->n_deleted);
 
         // Post-processing
         if ((start_chr_id == end_chr_id) && (start_pos > end_pos)) {

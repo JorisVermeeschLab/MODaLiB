@@ -1,6 +1,6 @@
 #!/bin/bash -l
 #SBATCH --cluster=wice
-#SBATCH --time=150:00:00
+#SBATCH --time=72:00:00
 #SBATCH --nodes=
 #SBATCH --ntasks-per-node=1
 #SBATCH -A lp_joris_vermeesch

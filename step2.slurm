@@ -21,8 +21,6 @@ module use /apps/leuven/skylake/2018a/modules/all
 module load Python/3.6.4-foss-2018a
 module load matplotlib/2.1.2-foss-2018a-Python-3.6.4
 module load GDB/8.1-foss-2018a
-module load SAMtools/1.9-foss-2018a
-module load BEDTools/2.27.1-intel-2018a
 
 # Compilation
 cd /lustre1/project/stg_00019/research/Antoine/MODaLiB/step2-fragment-level-analysis

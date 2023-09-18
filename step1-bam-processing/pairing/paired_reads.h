@@ -44,11 +44,14 @@ void print_pair(const ReadInfo& r1, const ReadInfo& r2) {
 
     while ((i < n) or (j < m)) {
 
-        uint16_t min1 = (i < n) ? r1.bases[i].first : std::numeric_limits<uint16_t>::max();
-        uint16_t min2 = (j < m) ? r2.bases[j].first : std::numeric_limits<uint16_t>::max();
-        uint16_t k = std::min(min1, min2);
+        uint32_t min1 = (i < n) ? r1.bases[i].first : std::numeric_limits<uint32_t>::max();
+        uint32_t min2 = (j < m) ? r2.bases[j].first : std::numeric_limits<uint32_t>::max();
+        uint32_t k = std::min(min1, min2);
         bool use1 = (k == min1);
         bool use2 = (k == min2);
+
+        if ((use1) && (r1.bases[i].second.soft_clipped)) use2 = false;
+        else if ((use2) && (r2.bases[j].second.soft_clipped)) use1 = false;
 
         if (use1) {
             s1.append(1, r1.bases[i].second.c);
@@ -119,11 +122,14 @@ Fragment compute_fragment_statistics(const ReadInfo& read1, const ReadInfo& read
 
     while ((i < n) or (j < m)) {
 
-        uint16_t min1 = (i < n) ? r1.bases[i].first : std::numeric_limits<uint16_t>::max();
-        uint16_t min2 = (j < m) ? r2.bases[j].first : std::numeric_limits<uint16_t>::max();
-        uint16_t k = std::min(min1, min2);  // Position on chromosome
+        uint32_t min1 = (i < n) ? r1.bases[i].first : std::numeric_limits<uint32_t>::max();
+        uint32_t min2 = (j < m) ? r2.bases[j].first : std::numeric_limits<uint32_t>::max();
+        uint32_t k = std::min(min1, min2);  // Position on chromosome
         bool use1 = (k == min1);
         bool use2 = (k == min2);
+
+        if ((use1) && (r1.bases[i].second.soft_clipped)) use2 = false;
+        else if ((use2) && (r2.bases[j].second.soft_clipped)) use1 = false;
 
         BaseInfo b;
         if (use1 ^ use2) {  // The base is known on one strand only
@@ -151,8 +157,14 @@ Fragment compute_fragment_statistics(const ReadInfo& read1, const ReadInfo& read
                 }
             } else if (b1.putative_snp || b2.putative_snp) {  // SNP or sequencing error
                 if (b1.putative_snp && b2.putative_snp) {  // SNP
-                    if (b1.phred_score >= b2.phred_score) b = b1;
-                    else b = b2;
+                    if (b1.c != b2.c) {  // Sequencing error on both R1 and R2
+                        b = b1;
+                        b.uninformative = 1;
+                    } else if (b1.phred_score >= b2.phred_score) {
+                        b = b1;
+                    } else {
+                        b = b2;
+                    }
                     if (!b.uninformative) fragment.snp_count++;
                 } else if (!b1.putative_snp) {  // Sequencing error on R2
                     b = b1;
@@ -188,36 +200,34 @@ Fragment compute_fragment_statistics(const ReadInfo& read1, const ReadInfo& read
         // of the fragment length cannot be based on the reference coordinates.
         fragment.length = fragment_length;
     } else {
-        if (r1.start < r2.start) {
-            if (r2.end + 1 + n_inserted >= r1.start + n_deleted + n_soft_clipped) {
-                fragment.length = r2.end - r1.start + 1 + n_inserted - n_deleted - n_soft_clipped;
-            } else {
-                fragment.length = std::min(r1.insert_size, r2.insert_size);
-            }
-        } else {
-            if (r1.end + 1 + n_inserted >= r2.start + n_deleted + n_soft_clipped) {
-                fragment.length = r1.end - r2.start + 1 + n_inserted - n_deleted - n_soft_clipped;
-            } else {
-                fragment.length = std::min(r1.insert_size, r2.insert_size);
-            }
+        fragment.length = r2.end - r1.start + 1;
+        if (fragment.length + n_inserted >= n_deleted) {
+            fragment.length += n_inserted - n_deleted;
         }
     }
 
+    fragment.n_inserted = n_inserted;
+    fragment.n_deleted = n_deleted;
+
     // Show results
-    std::cout << r1.id << std::endl;
-    print_pair(r1, r2);
-    std::cout << "Fragment coordinates: " << fragment.start_chr_id << " " << fragment.start_pos << " ";
-    std::cout << fragment.end_chr_id << " " << fragment.end_pos << std::endl;
-    std::cout << "Fragment length: " << fragment.length << std::endl;
-    std::cout << "Number of methylated CpG sites: " << fragment.n_methylated << std::endl;
-    std::cout << "Number of unmethylated CpG sites: " << fragment.n_unmethylated << std::endl;
-    std::cout << "Number of SNPs: " << fragment.snp_count << std::endl;
-    std::cout << "Number of informative bases: " << fragment.s_count << std::endl;
-    std::cout << "Number of insertions: " << n_inserted << std::endl;
-    std::cout << "Number of deletions: " << n_deleted << std::endl;
-    std::cout << std::endl;
-    std::cout << std::endl;
-    std::cout << std::endl;
+    /*
+    if (n_deleted or n_inserted or n_soft_clipped) {
+        std::cout << r1.id << std::endl;
+        print_pair(r1, r2);
+        std::cout << "Fragment coordinates: " << fragment.start_chr_id << " " << fragment.start_pos << " ";
+        std::cout << fragment.end_chr_id << " " << fragment.end_pos << std::endl;
+        std::cout << "Fragment length: " << fragment.length << std::endl;
+        std::cout << "Number of methylated CpG sites: " << fragment.n_methylated << std::endl;
+        std::cout << "Number of unmethylated CpG sites: " << fragment.n_unmethylated << std::endl;
+        std::cout << "Number of SNPs: " << fragment.snp_count << std::endl;
+        std::cout << "Number of informative bases: " << fragment.s_count << std::endl;
+        std::cout << "Number of insertions: " << n_inserted << std::endl;
+        std::cout << "Number of deletions: " << n_deleted << std::endl;
+        std::cout << std::endl;
+        std::cout << std::endl;
+        std::cout << std::endl;
+    }
+     */
 
     return fragment;
 }

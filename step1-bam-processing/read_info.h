@@ -93,7 +93,7 @@ public:
     int strand;
 
     // List of base-level statistics
-    std::vector<std::pair<uint16_t, BaseInfo>> bases;
+    std::vector<std::pair<uint32_t, BaseInfo>> bases;
 
     // Reference sequence
     std::vector<char> ref_bases;

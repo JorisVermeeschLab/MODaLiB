@@ -44,6 +44,8 @@ The file can be decomposed in chunks of 22 bytes. Each chunk follows the followi
 #. Number of point differences with the reference genome (uint16_t, 2 bytes)
 #. Number of cytosines + guanines (uint16_t, 2 bytes)
 #. Number of informative bases (uint16_t, 2 bytes)
+#. Number of inserted bases (uint16_t, 2 bytes)
+#. Number of deleted bases (uint16_t, 2 bytes)
 
 Convention: filenames extensions should be `.modalib`.
 

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # step1.py
 # author: Antoine Passemiers
-
+import argparse
 import os
 import logging
 
@@ -33,7 +33,7 @@ def process_bam_file(gc_code: str, filepath: str, override: bool = False) -> boo
         ot, ob = bounds[gc_code]
         print(f'Processing {gc_code}')
         cmd = f'{EXE_PATH} {REF_GENOME_PATH} {filepath} ' \
-              f'-o {OUT_DIR}/{gc_code}.txt --OT {ot} --OB {ob}'
+              f'-o {OUT_DIR}/{gc_code}.modalib --OT {ot} --OB {ob}'
         try:
             os.system(cmd)
         except KeyboardInterrupt:
@@ -46,8 +46,7 @@ def process_bam_file(gc_code: str, filepath: str, override: bool = False) -> boo
     return True
 
 
-"""
-GC_CODES = {
+GC_CODES = [
     'GC1002311', 'GC1002312', 'GC1002976', 'GC1002977', 'GC1002978', 'GC1002980', 'GC1002981', 'GC1002982',
     'GC1002983', 'GC1002984', 'GC1003959', 'GC1003960', 'GC1003961', 'GC1003967', 'GC1003968', 'GC1003969',
     'GC1003970', 'GC1003971', 'GC1003972', 'GC1003973', 'GC1003974', 'GC1003975', 'GC1003976', 'GC1003977',
@@ -92,10 +91,27 @@ GC_CODES = {
     'GC131898', 'GC131899', 'GC131900', 'GC131901', 'GC131902', 'GC131903', 'GC131904', 'GC131905', 'GC131906',
     'GC131907', 'GC131908', 'GC131909', 'GC131910', 'GC131911', 'GC131912', 'GC131913', 'GC131914', 'GC131915',
     'GC131916', 'GC131917', 'GC131918'
-}
-"""
+]
 
-GC_CODES = {"GC116736"}
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    '-lb',
+    type=int,
+    default=None,
+    help='Index of the first filename to process in the list'
+)
+parser.add_argument(
+    '-ub',
+    type=int,
+    default=None,
+    help='Index of the last (excluded) filename to process in the list'
+)
+args = parser.parse_args()
+
+GC_CODES = GC_CODES[args.lb:args.ub]
+print(f'Total number of files to process: {len(GC_CODES)}')
+
+# GC_CODES = ["GC116736"]
 OVERRIDE = True
 
 n_failures = 0
