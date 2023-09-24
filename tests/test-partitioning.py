@@ -28,4 +28,3 @@ def test_compute_partition_id():
     assert coords_to_partition_(1, 1938402488, 3) == 0
     assert coords_to_partition_(12, 893443, 3) == 1
     assert coords_to_partition_(22, 930274, 3) == 2
-

@@ -23,7 +23,6 @@
 #include "counter.h"
 #include "fragment_info.h"
 #include "sample.h"
-#include "osc.h"
 #include "array_utils.h"
 #include "bounds.h"
 #include "features.h"
@@ -260,7 +259,7 @@ void compute_kernel_matrices_for_one_chromosome(
     std::valarray<uint8_t> chr_ids(n);
 	std::valarray<long> coords(n);
     std::valarray<uint16_t> lengths(n);
-	std::valarray<long> combined_coords(n);
+	std::valarray<genome_size_t> combined_coords(n);
 	std::valarray<float> gc_ratios(n);
 	for (size_t i = 0; i < n; ++i) {
 	    _Sample& sample = samples.at(i);

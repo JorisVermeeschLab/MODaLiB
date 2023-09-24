@@ -23,6 +23,8 @@
 #include <cmath>
 #include <valarray>
 
+#include "utils.h"
+
 namespace modalib {
 
 /**
@@ -31,7 +33,7 @@ namespace modalib {
  * @param coords Input array.
  * @return Index of the smallest element.
  */
-inline int argmin(const std::valarray<long>& coords) noexcept {
+inline int argmin(const std::valarray<genome_size_t>& coords) noexcept {
     const int n = coords.size();
     int k = 0;
     for (int i = 0; i < n; i++) {

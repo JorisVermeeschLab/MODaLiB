@@ -95,7 +95,7 @@ std::unordered_map<uint8_t, std::vector<FeatureMatrix>> extract_all_features(
 
         _Sample& sample = samples.at(i);
 
-        long current_combined_coord = 0;
+        genome_size_t current_combined_coord = 0;
 
     	while (!sample.eof()) {    		
 
@@ -105,7 +105,7 @@ std::unordered_map<uint8_t, std::vector<FeatureMatrix>> extract_all_features(
 
             // Get statistics about current frag
             const long coord_i = frag_i.start_pos;
-            const long combined_coord_i = combine_coords(chr_id, coord_i);
+            const genome_size_t combined_coord_i = combine_coords(chr_id, coord_i);
             const long l_i = frag_i.size;
             const auto depth_i = static_cast<float>(frag_i.n_sites());
             const float m_i = frag_i.get_meth_ratio();

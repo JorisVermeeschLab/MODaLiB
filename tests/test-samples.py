@@ -45,6 +45,8 @@ def create_sample(fragments: List[Fragment]) -> Sample:
             f.write(frag.snp_count.to_bytes(2, byteorder))
             f.write(frag.gc_count.to_bytes(2, byteorder))
             f.write(frag.s_count.to_bytes(2, byteorder))
+            f.write(frag.n_inserted.to_bytes(2, byteorder))
+            f.write(frag.n_deleted.to_bytes(2, byteorder))
         os.fsync(f)
     return Sample(f.name)
 
@@ -61,6 +63,7 @@ def test_iterator():
     sample = create_sample(fragments)
 
     for i, frag in enumerate(sample):
+        print(frag, fragments[i])
         assert frag == fragments[i]
 
     # Delete temporary files
@@ -81,3 +84,7 @@ def test_kernels():
     filepaths = [sample1.get_name(), sample2.get_name()]
     matrices = pairwise_kernels(filepaths, NUC_FILEPATH)
     assert np.any(matrices[1][0] != 0) and np.any(matrices[1][0] != 1)
+
+
+test_kernels()
+print('Finished')

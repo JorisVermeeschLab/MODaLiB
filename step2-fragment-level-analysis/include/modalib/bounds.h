@@ -24,6 +24,8 @@
 #include <string>
 #include <iostream>
 #include <vector>
+#include <limits>
+#include "utils.h"
 
 namespace modalib {
 
@@ -31,13 +33,13 @@ namespace modalib {
 // Number of 50 kb bins in the human reference genome.
 // This should be equal to the sum of the values present in `CHROMOSOME_BOUNDS`.
 // TODO: add assertion
-static const long NUM_50KB_BINS = 61625L;
+static const long NUM_50KB_BINS = 61625;
 
 // Size of a 50 kb bin (you guessed it, it's 50000)
-static const long BIN_SIZE = 50000L;
+static const long BIN_SIZE = 50000;
 
 // Size of the bin used to compute each kernel (1 Mb)
-static const long KERNEL_BIN_SIZE = 1000000L;
+static const long KERNEL_BIN_SIZE = 1000000;
 
 // Number of partitions is the number of threads used in the CPU-intensive
 // part of the code. Partitions are roughly-equal portions of the genome
@@ -162,9 +164,10 @@ inline unsigned long clamp(unsigned long value, unsigned long lb, unsigned long 
  */
 inline int coords_to_partition(uint8_t chr_id, long pos, size_t n_partitions) {
     const std::pair<long, long>& coords = CHROMOSOME_BOUNDS_CUMULATIVE.at(chr_id);
-    const unsigned long combined_coords = coords.first * BIN_SIZE + clamp(pos, 0L, coords.second * BIN_SIZE - 1L);
-    size_t partition_id = static_cast<unsigned long>(combined_coords * n_partitions) / static_cast<unsigned long>(BIN_SIZE * NUM_50KB_BINS);
-    return clamp(partition_id, 0, n_partitions - 1);
+    const unsigned long combined_coords = static_cast<genome_size_t >(coords.first) * BIN_SIZE + clamp(pos, 0L, coords.second * BIN_SIZE - 1L);
+    size_t partition_id = (combined_coords * static_cast<genome_size_t>(n_partitions)) / (static_cast<genome_size_t>(BIN_SIZE) * NUM_50KB_BINS);
+    int res = clamp(partition_id, 0, n_partitions - 1);
+    return res;
 }
 
 } // namespace modalib

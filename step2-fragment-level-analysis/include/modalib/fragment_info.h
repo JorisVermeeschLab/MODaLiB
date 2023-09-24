@@ -31,7 +31,7 @@
 namespace modalib {
 
 // Number of bytes used to represent each fragment in the input binary file
-static constexpr size_t FRAGMENT_SIZE_IN_BYTES = 22;
+static constexpr size_t FRAGMENT_SIZE_IN_BYTES = 26;
 
 struct FragmentInfo {
 

@@ -28,7 +28,7 @@ if not os.path.isdir(OUT_DIR):
 sample_names_ = []
 filepaths = []
 for sample_name in sample_names:
-    filepath = f'step1-bam-processing/out/{sample_name}'
+    filepath = f'step1-bam-processing/out/{sample_name}.modalib'
     if os.path.exists(filepath):
         filepaths.append(filepath)
         sample_names_.append(sample_name)

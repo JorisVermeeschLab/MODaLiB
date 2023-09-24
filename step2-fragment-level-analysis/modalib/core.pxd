@@ -58,6 +58,8 @@ cdef extern from "modalib/fragment_info.h" namespace "modalib":
         cnp.uint16_t snp_count
         cnp.uint16_t gc_count
         cnp.uint16_t s_count
+        cnp.uint16_t n_inserted
+        cnp.uint16_t n_deleted
 
 
 cdef extern from "modalib/sample.h" namespace "modalib":

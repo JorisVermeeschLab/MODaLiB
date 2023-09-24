@@ -54,7 +54,7 @@ public:
     RefNucMap() = default;
     RefNucMap(const std::string& filepath) {
 
-        long last_combined_coords = 0;
+        genome_size_t last_combined_coords = 0;
 
         // Parse input bed file
         std::ifstream file(filepath);
@@ -79,7 +79,10 @@ public:
                 uint32_t center = (start + end) / 2;
 
                 // Make sure bed file is properly sorted
-                long combined_coords = combine_coords(chr_id, center);
+                genome_size_t combined_coords = combine_coords(chr_id, center);
+
+                std::cout << combined_coords << ", " << last_combined_coords << std::endl;
+
                 if (combined_coords < last_combined_coords) {
                     throw std::domain_error(
                             "Error while parsing reference nucleosome map. "
@@ -128,6 +131,8 @@ public:
     }
 
     inline float angle(uint8_t chr_id, unsigned long genomic_coord) const {
+        // TODO: weighting
+        if (this->chr_angles.find(chr_id) == this->chr_angles.end()) return 0.0f;
         const std::vector<float>& ca = this->chr_angles.at(chr_id);
         return (genomic_coord >= ca.size()) ? 0.0f : ca[genomic_coord];
     }
@@ -138,6 +143,7 @@ public:
 
         std::valarray<float> pss(0.0f, idx.size());
 
+        // TODO: weighting
         if (this->chr_angles.find(chr_id) == this->chr_angles.end()) return pss;
         const std::vector<float>& ca = this->chr_angles.at(chr_id);
         if (frag_i.end_pos >= ca.size()) return pss;

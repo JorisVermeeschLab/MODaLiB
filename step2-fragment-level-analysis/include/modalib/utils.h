@@ -28,8 +28,14 @@
 
 namespace modalib {
 
+#if LONG_MAX > 4000000000
+    typedef long genome_size_t;
+#else
+    typedef long long genome_size_t;
+#endif
+
 // Constant indicating that EOF has been reached
-    const long END_OF_SAMPLE = std::numeric_limits<long>::max();
+const long END_OF_SAMPLE = std::numeric_limits<long>::max();
 
 
 /**
@@ -39,9 +45,9 @@ namespace modalib {
  * @param pos Position on chromosome (in bp).
  * @return Combined genomic coordinates.
  */
-    inline long combine_coords(uint8_t chr_id, long pos) {
+    inline genome_size_t combine_coords(uint8_t chr_id, long pos) {
         if (pos == END_OF_SAMPLE) return END_OF_SAMPLE;
-        else return static_cast<long>(chr_id) * 1e+9 + pos;
+        else return static_cast<genome_size_t>(chr_id) * 1e+9 + pos;
     }
 
 /**

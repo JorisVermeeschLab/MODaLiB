@@ -25,7 +25,7 @@ for line in lines:
 
 
 def process_bam_file(gc_code: str, filepath: str, override: bool = False) -> bool:
-    out_filepath = os.path.join(OUT_DIR, gc_code)
+    out_filepath = os.path.join(OUT_DIR, f'{gc_code}.modalib')
     if override or (not os.path.exists(out_filepath)):
         if gc_code not in bounds:
             print(f'Unknown inclusion bounds for {gc_code}')
@@ -33,7 +33,7 @@ def process_bam_file(gc_code: str, filepath: str, override: bool = False) -> boo
         ot, ob = bounds[gc_code]
         print(f'Processing {gc_code}')
         cmd = f'{EXE_PATH} {REF_GENOME_PATH} {filepath} ' \
-              f'-o {OUT_DIR}/{gc_code}.modalib --OT {ot} --OB {ob}'
+              f'-o {out_filepath} --OT {ot} --OB {ob}'
         try:
             os.system(cmd)
         except KeyboardInterrupt:
@@ -112,7 +112,7 @@ GC_CODES = GC_CODES[args.lb:args.ub]
 print(f'Total number of files to process: {len(GC_CODES)}')
 
 # GC_CODES = ["GC116736"]
-OVERRIDE = True
+OVERRIDE = False
 
 n_failures = 0
 for filename in os.listdir(os.path.join(BAM_DIR, 'all_inhouse_samples')):

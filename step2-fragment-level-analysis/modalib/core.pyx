@@ -28,6 +28,7 @@ from core cimport *
 import os
 import collections
 from typing import Dict, List, Optional, Set
+from dataclasses import dataclass
 
 from libcpp.string cimport string
 from cython.operator cimport dereference, preincrement
@@ -51,22 +52,20 @@ def coords_to_partition_(chr_id: int, pos: int, n_partitions: int) -> int:
 # ---------------------------------------------------------------------------------------
 # ---------------------------------------------------------------------------------------
 
-
-Fragment = collections.namedtuple(
-    'Fragment',
-    [
-        'start_chr_id',
-        'start_pos',
-        'end_chr_id',
-        'end_pos',
-        'size',
-        'n_methylated',
-        'n_unmethylated',
-        'snp_count',
-        'gc_count',
-        's_count'
-    ]
-)
+@dataclass
+class Fragment:
+    start_chr_id: int
+    start_pos: int
+    end_chr_id: int
+    end_pos: int
+    size: int
+    n_methylated: int = 0
+    n_unmethylated: int = 0
+    snp_count: int = 0
+    gc_count: int = 0
+    s_count: int = 0
+    n_inserted: int = 0
+    n_deleted: int = 0
 
 
 cdef class Sample:
@@ -119,6 +118,8 @@ cdef cnp.ndarray to_array(KernelMatrix &km):
 cdef vector[_Sample] samples_from_filepaths(filepaths: List[str]):
     cdef vector[_Sample] samples
     for filepath in filepaths:
+        if not os.path.exists(filepath):
+            raise FileNotFoundError(f'Could not locate {filepath}')
         samples.push_back(_Sample(filepath.encode('utf-8')))
     return samples
 
@@ -154,8 +155,13 @@ def pairwise_kernels(
     if n <= 1:
         raise ValueError(f'Number of samples should be at least 2. Got {n}.')
 
+
     # Load reference nucleosome map
+    print('A')
+    if not os.path.exists(nuc_filepath):
+        raise FileNotFoundError(f'Could not locate {nuc_filepath}')
     cdef RefNucMap nuc_map = RefNucMap(nuc_filepath.encode('utf-8'))
+    print('B')
 
     # Compute kernel matrices
     cdef vector[_Sample] samples = samples_from_filepaths(filepaths)
