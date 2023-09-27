@@ -28,7 +28,6 @@ from core cimport *
 import os
 import collections
 from typing import Dict, List, Optional, Set
-from dataclasses import dataclass
 
 from libcpp.string cimport string
 from cython.operator cimport dereference, preincrement
@@ -52,21 +51,6 @@ def coords_to_partition_(chr_id: int, pos: int, n_partitions: int) -> int:
 # ---------------------------------------------------------------------------------------
 # ---------------------------------------------------------------------------------------
 
-@dataclass
-class Fragment:
-    start_chr_id: int
-    start_pos: int
-    end_chr_id: int
-    end_pos: int
-    size: int
-    n_methylated: int = 0
-    n_unmethylated: int = 0
-    snp_count: int = 0
-    gc_count: int = 0
-    s_count: int = 0
-    n_inserted: int = 0
-    n_deleted: int = 0
-
 
 cdef class Sample:
 
@@ -83,19 +67,22 @@ cdef class Sample:
         return self.sample_
 
     def __iter__(self):
+        cdef FragmentInfo frag_
         while not self.sample_.eof():
-            frag = self.sample_.get()
-            yield Fragment(
-                start_chr_id=frag.start_chr_id,
-                start_pos=frag.start_pos,
-                end_chr_id=frag.end_chr_id,
-                end_pos=frag.end_pos,
-                size=frag.size,
-                n_methylated=frag.n_methylated,
-                n_unmethylated=frag.n_unmethylated,
-                snp_count=frag.snp_count,
-                gc_count=frag.gc_count,
-                s_count=frag.s_count
+            frag_ = self.sample_.get()
+            yield dict(
+                start_chr_id=frag_.start_chr_id,
+                start_pos=frag_.start_pos,
+                end_chr_id=frag_.end_chr_id,
+                end_pos=frag_.end_pos,
+                size=frag_.size,
+                n_methylated=frag_.n_methylated,
+                n_unmethylated=frag_.n_unmethylated,
+                snp_count=frag_.snp_count,
+                gc_count=frag_.gc_count,
+                s_count=frag_.s_count,
+                n_inserted=frag_.n_inserted,
+                n_deleted=frag_.n_deleted
             )
             self.sample_.next()
 
@@ -157,11 +144,9 @@ def pairwise_kernels(
 
 
     # Load reference nucleosome map
-    print('A')
     if not os.path.exists(nuc_filepath):
         raise FileNotFoundError(f'Could not locate {nuc_filepath}')
     cdef RefNucMap nuc_map = RefNucMap(nuc_filepath.encode('utf-8'))
-    print('B')
 
     # Compute kernel matrices
     cdef vector[_Sample] samples = samples_from_filepaths(filepaths)

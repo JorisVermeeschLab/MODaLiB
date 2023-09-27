@@ -25,10 +25,6 @@
 
 namespace modalib {
 
-_Sample::_Sample() {
-	// Nothing to do, as the location of the input file is unknown
-}
-
 _Sample::_Sample(const _Sample& other) : 
         cursor(other.cursor - 1),
         lb(other.lb),
@@ -51,13 +47,14 @@ _Sample::_Sample(const std::string &filepath) :
     this->go_to_fragment(0);
 }
 
-void _Sample::operator=(const _Sample& other) {
+_Sample& _Sample::operator=(const _Sample& other) {
     this->cursor = other.cursor - 1;
     this->lb = other.lb;
     this->ub = other.ub;
     this->filepath = other.filepath;
     this->open(other.filepath);
     this->go_to_fragment(other.cursor - 1);
+    return *this;
 }
 
 _Sample::~_Sample() {

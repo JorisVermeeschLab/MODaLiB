@@ -31,10 +31,10 @@ private:
     std::unordered_map<K, V> values;
 public:
     QueueMap() = delete;
-    QueueMap(size_t max_size) : max_size(max_size), keys(), values() {}
+    explicit QueueMap(size_t max_size) : max_size(max_size), keys(), values() {}
     ~QueueMap() = default;
     void add(const K& key, const V& value) {
-        if (this->keys.size() - 1 >= this->max_size) this->pop();
+        if (this->values.size() - 1 >= this->max_size) this->pop();
         this->keys.push(key);
         this->values[key] = value;
     }

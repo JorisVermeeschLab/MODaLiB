@@ -1,7 +1,9 @@
 import collections
 from abc import ABCMeta, abstractmethod
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict
 import tqdm
+import random
+import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -27,7 +29,7 @@ N_CLASSES = len(labels)
 class Dataset(metaclass=ABCMeta):
 
     @abstractmethod
-    def to_kernel_matrix(self, kernel_idx: np.ndarray) -> np.ndarray:
+    def to_kernel_matrices(self, kernel_idx: np.ndarray) -> np.ndarray:
         pass
 
 
@@ -36,69 +38,75 @@ class KernelDataset(Dataset):
     def __init__(self, filepaths: List[str]):
         self.filepaths: List[str] = filepaths
         self.n_kernel_types: int = 5  # TODO
-        self.pca: bool = True
+        self.pca: bool = False
 
         self.tmp = {}
 
-    def to_kernel_matrix(self, kernel_idx: np.ndarray) -> np.ndarray:
+    def to_kernel_matrices(self, kernel_idx: np.ndarray) -> Dict[int, np.ndarray]:
 
         if self.pca:
-            X = []
+            X = {k: [] for k in kernel_idx}
             for filepath in self.filepaths:
                 data = np.load(filepath, allow_pickle=True)
                 Ks = data['K']
                 n_bins = len(data['K']) // self.n_kernel_types
                 for k in kernel_idx:
                     for j in range(n_bins):
+                        if mappability[j] < 0.8:
+                            continue
                         key = (filepath, k, j)
                         if key not in self.tmp:
                             K = Ks[j * self.n_kernel_types + k, :, :]
                             try:
-                                X.append(KernelPCA(n_components=100, kernel='precomputed').fit_transform(K))
-                                X[-1] -= np.mean(X[-1], axis=0)[np.newaxis, :]
-                                variance = np.std(X[-1][:, 0])
+                                X[k].append(KernelPCA(n_components=20, kernel='precomputed').fit_transform(K))
+                                X[k][-1] -= np.mean(X[k][-1], axis=0)[np.newaxis, :]
+                                variance = np.std(X[k][-1][:, 0])
                                 if variance > 0:
-                                    X[-1] /= variance
-                                self.tmp[key] = X[-1]
+                                    X[k][-1] /= variance
+                                self.tmp[key] = X[k][-1]
 
                             except ValueError:
                                 pass
                         else:
-                            X.append(self.tmp[key])
-            X = np.concatenate(X, axis=1)
-            # X = StandardScaler().fit_transform(X)
-            return pairwise_kernels(X, metric='rbf')
+                            X[k].append(self.tmp[key])
+                        assert not np.any(np.isnan(X[k][-1]))
+            for k in kernel_idx:
+                X[k] = np.concatenate(X[k], axis=1)
+                # X[k] = StandardScaler().fit_transform(X[k])
+                X[k] = pairwise_kernels(X[k], metric='rbf')
+            return X
         else:
-            X = []
+            X = {k: [] for k in kernel_idx}
             for filepath in self.filepaths:
                 data = np.load(filepath, allow_pickle=True)
                 Ks = data['K']
                 n_bins = len(data['K']) // self.n_kernel_types
                 for k in kernel_idx:
                     for j in range(n_bins):
+                        if mappability[j] < 0.8:
+                            continue
                         key = (filepath, k, j)
                         if key not in self.tmp:
                             K = Ks[j * self.n_kernel_types + k, :, :]
                             n = len(K)
-                            #V = np.eye(n) - (1. / n)
-                            #K = V @ K @ V
-                            K = KernelCenterer().fit_transform(K)
 
-                            # TODO: manage complex eigenvalues
+                            #K = KernelCenterer().fit_transform(K)
+
+                            # TODO: handle complex eigenvalues
                             variance = np.sum(np.abs(np.clip(np.linalg.eigvals(K), 0, None)))
                             if variance > 0:
                                 K /= variance
-                            X.append(K)
-                            self.tmp[key] = X[-1]
+                            X[k].append(K)
+                            self.tmp[key] = X[k][-1]
                         else:
-                            X.append(self.tmp[key])
-            K = np.sum(X, axis=0)
-            D = np.diagonal(K)[:, np.newaxis] + np.diagonal(K)[np.newaxis, :] - 2 * K
-            np.fill_diagonal(D, 0)
-            gamma = 1. / 2000
-            return np.exp(-gamma * (D ** 2))
-            return K
+                            X[k].append(self.tmp[key])
+                        assert not np.any(np.isnan(X[k][-1]))
 
+            # D = np.diagonal(K)[:, np.newaxis] + np.diagonal(K)[np.newaxis, :] - 2 * K
+            #np.fill_diagonal(D, 0)
+            #gamma = 1. / 2000
+            # return np.exp(-gamma * (D ** 2))
+            return X
 
     def get_sample_names(self) -> np.ndarray:
         data = np.load(self.filepaths[-1], allow_pickle=True)
@@ -302,7 +310,8 @@ def evaluate(kernel_idx):
     K_f = pairwise_kernels(X_, metric='rbf')
 
 
-    K_agg = dataset2.to_kernel_matrix(kernel_idx)
+    K_agg = dataset2.to_kernel_matrices(kernel_idx)
+    K_agg = [K_agg[k] for k in kernel_idx]
 
 
     #alpha = 0.2
@@ -315,35 +324,53 @@ def evaluate(kernel_idx):
     # cv = LeaveOneOut()
     #cv = KFold(n_splits=5)
     for i, (train_index, test_index) in tqdm.tqdm(enumerate(cv.split(X_))):
-        K_train = K_agg[train_index, :][:, train_index]
-        K_test = K_agg[test_index, :][:, train_index]
+
+        # Feature-based approach
         Kf_train = K_f[train_index, :][:, train_index]
         y_train = y[train_index]
         Kf_test = K_f[test_index, :][:, train_index]
         y_test = y[test_index]
-
         model = SVC(kernel='precomputed', probability=True, C=10, class_weight='balanced')
-
         model.fit(Kf_train, y_train)
         y_pred1.append(model.predict_proba(Kf_test))
         y_pred1[-1] = np.concatenate((y_pred1[-1], np.zeros((y_pred1[-1].shape[0], N_CLASSES - y_pred1[-1].shape[1]))), axis=1)
 
-        model.fit(K_train, y_train)  # TODO
-        y_pred2.append(model.predict_proba(K_test))
-        y_pred2[-1] = np.concatenate((y_pred2[-1], np.zeros((y_pred2[-1].shape[0], N_CLASSES - y_pred2[-1].shape[1]))), axis=1)
+        # Fragment-level approach
+        from MKLpy.utils.misc import identity_kernel
+        from MKLpy.algorithms import GRAM, FHeuristic
+        from MKLpy.scheduler import ReduceOnWorsening
+        import torch
+        K_train = [identity_kernel(len(train_index))]
+        for k in range(len(K_agg)):
+            K_train += [torch.tensor(mat[train_index, :][:, train_index]) for mat in K_agg[k]]
+        K_test = [torch.zeros((len(test_index), len(train_index)))]
+        for k in range(len(K_agg)):
+            K_test += [torch.tensor(mat[test_index, :][:, train_index]) for mat in K_agg[k]]
+        # model = GRAM(max_iter=100, learning_rate=.1, scheduler=ReduceOnWorsening())
+        model = FHeuristic()
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            model.fit(K_train, y_train)
+        y_pred2.append(model.decision_function(K_test))
+
         y_target.append(y_test)
     y_target = np.squeeze(np.concatenate(y_target, axis=0))
     y_pred1 = np.squeeze(np.concatenate(y_pred1, axis=0))
     y_pred2 = np.squeeze(np.concatenate(y_pred2, axis=0))
     print(f'MCC 1: {matthews_corrcoef(y_target, np.argmax(y_pred1, axis=1))}')
-    print(f'MCC 2: {matthews_corrcoef(y_target, np.argmax(y_pred2, axis=1))}')
+    if len(K_agg) > 1:
+        print(f'MCC 2: {matthews_corrcoef(y_target, y_pred2 > 0)}')
+    else:
+        print(f'MCC 2: {matthews_corrcoef(y_target, np.argmax(y_pred2, axis=1))}')
     if BINARY:
         auc = roc_auc_score(y_target, y_pred1[:, 1])
-        auc2 = roc_auc_score(y_target, y_pred2[:, 1])
+        if len(y_pred2.shape) == 2:
+            y_pred2 = y_pred2[:, 1]
+        auc2 = roc_auc_score(y_target, y_pred2)
         roc = roc_curve(y_target, y_pred1[:, 1])
-        roc2 = roc_curve(y_target, y_pred2[:, 1])
+        roc2 = roc_curve(y_target, y_pred2)
         print(f'AUC 1: {auc}')
-        print(f'AUC 2: {roc_auc_score(y_target, y_pred2[:, 1])}')
+        print(f'AUC 2: {roc_auc_score(y_target, y_pred2)}')
     else:
         auc = roc_auc_score(y_target, y_pred1, multi_class='ovr')
         auc2 = roc_auc_score(y_target, y_pred2, multi_class='ovr')
@@ -371,15 +398,15 @@ def evaluate(kernel_idx):
 
 
 settings = [
-    #([0], 'Nucleosomes', 'purple', '-'),
+    ([0], 'Nucleosomes', 'purple', '-'),
     #([1, 2, 3, 4], None, 'purple', '--'),
-    #([1], 'Fragment lengths', 'royalblue', '-'),
+    ([1], 'Fragment lengths', 'royalblue', '-'),
     #([0, 2, 3, 4], None, 'royalblue', '--'),
-    #([2], 'Methylation', 'gold', '-'),
+    ([2], 'Methylation', 'gold', '-'),
     #([0, 1, 3, 4], None, 'gold', '--'),
-    #([3], 'Read counts', 'forestgreen', '-'),
+    ([3], 'Read counts', 'forestgreen', '-'),
     #([0, 1, 2, 4], None, 'forestgreen', '--'),
-    #([4], 'Mutations', 'crimson', '-'),
+    ([4], 'Mutations', 'crimson', '-'),
     #([0, 1, 2, 3], None, 'crimson', '--'),
     ([0, 1, 2, 3, 4], 'All', 'black', '-'),
 ]

@@ -74,14 +74,12 @@ public:
                 if (chr_id == 0) continue;
 
                 // Get nucleosome center position
-                uint32_t start = std::stoi(line_elements.at(1));
-                uint32_t end = std::stoi(line_elements.at(2));
-                uint32_t center = (start + end) / 2;
+                long start = std::stoi(line_elements.at(1));
+                long end = std::stoi(line_elements.at(2));
+                long center = (start + end) / 2;
 
                 // Make sure bed file is properly sorted
                 genome_size_t combined_coords = combine_coords(chr_id, center);
-
-                std::cout << combined_coords << ", " << last_combined_coords << std::endl;
 
                 if (combined_coords < last_combined_coords) {
                     throw std::domain_error(
@@ -99,7 +97,7 @@ public:
                 // Allocate memory for nucleosome scores
                 if (chr_angles.find(chr_id) == chr_angles.end()) {
                     if (chr_id < CHROMOSOME_BOUNDS.size()) {
-                        long chr_size = CHROMOSOME_BOUNDS.at(chr_id).second * BIN_SIZE;
+                        unsigned long chr_size = CHROMOSOME_BOUNDS.at(chr_id).second * BIN_SIZE;
                         chr_angles[chr_id] = std::vector<float>(chr_size, 0.0f);
                     }
                 }
@@ -116,13 +114,14 @@ public:
             for (int i = 1; i < n; i++) {
                 const long x1 = pos[i - 1];
                 const long x2 = pos[i];
+                if (x1 > x2) throw std::runtime_error("Nucleosome reference map file is not sorted!");
                 if (x2 >= ca.size()) continue;
-                if ((x2 - x1 > 500) || (x2 - x1 < 100)) {
-                    for (long j = 0; j < x2 - x1; j++) {
+                if (x2 - x1 > 500) {
+                    for (long j = 0; j < x2 - x1 + 1; j++) {
                         ca[x1 + j] = 0.0f;
                     }
                 }
-                for (long j = 0; j < x2 - x1; j++) {
+                for (long j = 0; j < x2 - x1 + 1; j++) {
                     ca[x1 + j] = 2.0f * static_cast<float>(j) / static_cast<float>(x2 - x1);
                 }
             }
@@ -131,10 +130,24 @@ public:
     }
 
     inline float angle(uint8_t chr_id, unsigned long genomic_coord) const {
-        // TODO: weighting
-        if (this->chr_angles.find(chr_id) == this->chr_angles.end()) return 0.0f;
-        const std::vector<float>& ca = this->chr_angles.at(chr_id);
-        return (genomic_coord >= ca.size()) ? 0.0f : ca[genomic_coord];
+        if (this->chr_angles.find(chr_id) == this->chr_angles.end()) {
+            return RefNucMap::default_angle(genomic_coord);
+        } else {
+            const std::vector<float>& ca = this->chr_angles.at(chr_id);
+            return RefNucMap::angle(ca, genomic_coord);
+        }
+    }
+
+    inline static float angle(const std::vector<float>& ca, unsigned long genomic_coord) {
+        if (genomic_coord >= ca.size()) {
+            return RefNucMap::default_angle(genomic_coord);
+        } else {
+            return ca[genomic_coord];
+        }
+    }
+
+    inline static float default_angle(unsigned long genomic_coord) {
+        return 2.0f * static_cast<float>(genomic_coord % 167) / 167.0f;
     }
 
     std::valarray<float> phase_shift_scores(
@@ -143,30 +156,28 @@ public:
 
         std::valarray<float> pss(0.0f, idx.size());
 
-        // TODO: weighting
+        // Ensure contig is available in reference map
         if (this->chr_angles.find(chr_id) == this->chr_angles.end()) return pss;
         const std::vector<float>& ca = this->chr_angles.at(chr_id);
-        if (frag_i.end_pos >= ca.size()) return pss;
 
-        const float phi2 = ca.at(frag_i.start_pos);
-        const float psi2 = ca.at(frag_i.end_pos);
+        // Ensure positions are available in reference map
+        const float phi2 = RefNucMap::angle(ca, frag_i.start_pos);
+        const float psi2 = RefNucMap::angle(ca, frag_i.end_pos);
 
         for (size_t k = 0; k < idx.size(); k++) {
 
             const int j = idx[k];
 
-            if (frags[j].end_pos >= ca.size()) continue; // TODO: set weight to 0 (add weights as function arg)
-
             // Compute score for start positions
-            float phi = std::fabs(ca.at(frags[j].start_pos) - phi2);
+            float phi = std::fabs(RefNucMap::angle(ca, frags[j].start_pos) - phi2);
             phi = 1.0f - std::fmin(phi, 2.0f - phi);
 
             // Compute score for end positions
-            float psi = std::fabs(ca.at(frags[j].end_pos) - psi2);
+            float psi = std::fabs(RefNucMap::angle(ca, frags[j].end_pos) - psi2);
             psi = 1.0f - std::fmin(psi, 2.0f - psi);
 
             // Compute total score
-            pss[k] = 0.5 * phi + 0.5 * psi;
+            pss[k] = 0.5f * phi + 0.5f * psi;
         }
         return pss;
     }

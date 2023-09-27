@@ -34,7 +34,7 @@ namespace modalib {
  * @return Index of the smallest element.
  */
 inline int argmin(const std::valarray<genome_size_t>& coords) noexcept {
-    const int n = coords.size();
+    const size_t n = coords.size();
     int k = 0;
     for (int i = 0; i < n; i++) {
         if (coords[i] < coords[k]) k = i;

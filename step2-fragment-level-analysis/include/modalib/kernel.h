@@ -294,7 +294,12 @@ void compute_kernel_matrices_for_one_chromosome(
         float bin_weight = 0.0f;
         const int bin_id = coord_i / BIN_SIZE;
         if ((bin_id < counts.at(chr_id).n_cols()) && (counts.at(chr_id)(0, bin_id)) > 0) {
-            bin_weight = 1.0f / counts.at(chr_id)(0, bin_id);
+            bin_weight = 1.0 / counts.at(chr_id)(0, bin_id);
+        }
+
+        // Count chromosome mismatches (proxy for translocations)
+        if (frag_i.start_chr_id != frag_i.end_chr_id) {
+            // TODO
         }
 
         // Get kernel matrices for current chromosome
@@ -331,8 +336,7 @@ void compute_kernel_matrices_for_one_chromosome(
                 // w[j] *= bin_weight;
 
                 // Give more importance to fragment pairs with high overlap
-                float overlap = frag_i.overlap(frags[j]);
-                w[j] = 1.0f + 2.0f * overlap;
+                w[j] *= 1.0f + 2.0f * frag_i.overlap(frags[j]);
 
                 // If the two fragments are comparable, then add sample j to the list
                 // of valid indices
@@ -363,7 +367,7 @@ void compute_kernel_matrices_for_one_chromosome(
                 // Weighting function is the default one.
                 // float max_score = std::fmax(l_i, frags[j].size);
                 // float score = (max_score - std::fabs(l_i - frags[j].size)) / max_score;
-                float score = ((l_i <= 177) == (frags[j].size <= 177));  // TODO
+                float score = ((l_i <= 167) == (frags[j].size <= 167));  // TODO
                 matrices.at(NUM_KERNELS * kernel_bin_id + 1).add_sym(score, i, j, w[j]);
 
                 // Update methylation kernel matrix.

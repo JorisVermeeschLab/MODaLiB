@@ -52,10 +52,10 @@ private:
 	FragmentInfo previous_frag;
 
 public:
-	_Sample();
+	_Sample() = default;
 	_Sample(const _Sample&);
 	explicit _Sample(const std::string &filepath);
-	void operator=(const _Sample&);
+	_Sample& operator=(const _Sample&);
     ~_Sample();
     void open(const std::string &filepath);
     void go_to_fragment(long i);
@@ -69,7 +69,7 @@ public:
     // Getters and setters
     inline const FragmentInfo& get() { return frag; }
     inline const FragmentInfo& get_previous() { return previous_frag; }
-    inline long get_cursor() { return cursor; }
+    inline long get_cursor() const { return cursor; }
 
 };
 
