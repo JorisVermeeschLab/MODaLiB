@@ -48,8 +48,8 @@ public:
 	FeatureMatrix() : n(0), m(0), normalize(false), data(0), counts(0) {}
 	FeatureMatrix(size_t n, size_t m, bool normalize): n(n), m(m), normalize(normalize), data(0.0, n * m), counts(0.0, n * m) {}
 	FeatureMatrix(size_t n, size_t m): FeatureMatrix(n, m, true) {}
-	FeatureMatrix(const FeatureMatrix& other): n(other.n), m(other.m), normalize(other.normalize), data(other.data), counts(other.counts) {}
-	double operator()(int i, int j) const {
+	FeatureMatrix(const FeatureMatrix& other) = default;
+	double operator()(size_t i, size_t j) const {
 		long double count = this->counts[i * this->m + j];
 		if (normalize) {
             if (count == 0) return 0.0;
@@ -58,16 +58,16 @@ public:
             return count;
         }
 	}
-	inline void add(float value, int i, int j, float weight) {
+	inline void add(float value, size_t i, size_t j, float weight) {
 	    this->counts[i * this->m + j] += weight;
 	    this->data[i * this->m + j] += value * weight;
 	}
-	inline void add_unweighted(float value, int i, int j, float weight) {
+	inline void add_unweighted(float value, size_t i, size_t j, float weight) {
 	    this->counts[i * this->m + j] += weight;
 	    this->data[i * this->m + j] += value;
 	}
-	size_t n_rows() const { return this->n; }
-	size_t n_cols() const { return this->m; }
+	[[nodiscard]] size_t n_rows() const { return this->n; }
+	[[nodiscard]] size_t n_cols() const { return this->m; }
 };
 
 std::unordered_map<uint8_t, std::vector<FeatureMatrix>> extract_all_features(
@@ -104,7 +104,7 @@ std::unordered_map<uint8_t, std::vector<FeatureMatrix>> extract_all_features(
     		const uint8_t chr_id = frag_i.start_chr_id;
 
             // Get statistics about current frag
-            const long coord_i = frag_i.start_pos;
+            const uint32_t coord_i = frag_i.start_pos;
             const genome_size_t combined_coord_i = combine_coords(chr_id, coord_i);
             const long l_i = frag_i.size;
             const auto depth_i = static_cast<float>(frag_i.n_sites());

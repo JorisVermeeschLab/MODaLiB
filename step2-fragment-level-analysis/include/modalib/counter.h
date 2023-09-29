@@ -47,14 +47,14 @@ private:
         return std::max(0, std::min(gc, 100));
     }
     bool contains(const FragmentInfo& frag) {
-        if (window.size() == 0) return true;
+        if (window.empty()) return true;
         const FragmentInfo& newest = window.back();
         if (newest.start_chr_id != frag.start_chr_id) return false;
         if (std::labs(newest.start_pos - frag.start_pos) >= WINDOW_SIZE) return false;
         return true;
     }
     void update() {
-        while ((window.size() > 0) && (!contains(window.front()))) {
+        while ((!window.empty()) && (!contains(window.front()))) {
             const int gc = gc_index(window.front());
             counts[gc]--;
             window.pop_front();
@@ -62,7 +62,7 @@ private:
     }
 public:
     Counter() : total(0), bounds(), counts(101, 0), total_counts(101, 0), window() {}
-    Counter(const Counter& other) : total(other.total), bounds(other.bounds), counts(other.counts), total_counts(other.total_counts), window(other.window) {}
+    Counter(const Counter& other) = default;
     void add(const FragmentInfo& frag) {
         const int gc = gc_index(frag);
         counts[gc]++;
@@ -94,9 +94,10 @@ public:
         if (it != bounds.end()) {
             return it->second;
         } else {
-            return std::pair<long, long>(0, 0);
+            return {0, 0};
         }
     }
+    long get_total_counts() const { return total; }
 };
 
 } // namespace modalib

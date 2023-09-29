@@ -151,7 +151,7 @@ public:
     }
 
     std::valarray<float> phase_shift_scores(
-            uint8_t chr_id, const std::valarray<FragmentInfo>& frags, const std::vector<int>& idx, const FragmentInfo& frag_i
+            uint8_t chr_id, const std::valarray<FragmentInfo>& frags, const std::vector<size_t>& idx, const FragmentInfo& frag_i
     ) const {
 
         std::valarray<float> pss(0.0f, idx.size());
@@ -166,7 +166,7 @@ public:
 
         for (size_t k = 0; k < idx.size(); k++) {
 
-            const int j = idx[k];
+            const size_t j = idx[k];
 
             // Compute score for start positions
             float phi = std::fabs(RefNucMap::angle(ca, frags[j].start_pos) - phi2);

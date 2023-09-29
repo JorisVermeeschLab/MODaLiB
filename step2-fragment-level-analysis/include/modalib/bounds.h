@@ -33,18 +33,18 @@ namespace modalib {
 // Number of 50 kb bins in the human reference genome.
 // This should be equal to the sum of the values present in `CHROMOSOME_BOUNDS`.
 // TODO: add assertion
-static const long NUM_50KB_BINS = 61625;
+static const uint32_t NUM_50KB_BINS = 61625;
 
 // Size of a 50 kb bin (you guessed it, it's 50000)
-static const long BIN_SIZE = 50000;
+static const uint32_t BIN_SIZE = 50000;
 
 // Size of the bin used to compute each kernel (1 Mb)
-static const long KERNEL_BIN_SIZE = 1000000;
+static const uint32_t KERNEL_BIN_SIZE = 1000000;
 
 // Number of partitions is the number of threads used in the CPU-intensive
 // part of the code. Partitions are roughly-equal portions of the genome
 // being processed in parallel.
-static const long NUM_PARTITIONS = 30;
+static const uint32_t NUM_PARTITIONS = 30;
 
 // Number of 50 kb bins per chromosome.
 // Please note that some of the "chomosomes" are not actual ones (e.g., mitochondrial DNA).

@@ -62,6 +62,7 @@ _Sample::~_Sample() {
 }
 
 void _Sample::open(const std::string& filepath) {
+    this->filepath = filepath;
     if (!this->is.is_open()) {
         this->is.open(filepath, std::ios::in | std::ios::binary);
     }
@@ -93,7 +94,7 @@ void _Sample::go_to_fragment(long i) {
         this->next();
     } else {
         this->cursor = i - 1;
-        this->is.seekg((i - 1) * FRAGMENT_SIZE_IN_BYTES, std::iostream::beg);
+        this->is.seekg((i - 1) * static_cast<long>(FRAGMENT_SIZE_IN_BYTES), std::iostream::beg);
         this->next();
         this->next();
     }

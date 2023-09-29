@@ -92,6 +92,7 @@ GC_CODES = [
     'GC131907', 'GC131908', 'GC131909', 'GC131910', 'GC131911', 'GC131912', 'GC131913', 'GC131914', 'GC131915',
     'GC131916', 'GC131917', 'GC131918'
 ]
+GC_CODES = {'GC110685'}
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -111,7 +112,6 @@ args = parser.parse_args()
 GC_CODES = GC_CODES[args.lb:args.ub]
 print(f'Total number of files to process: {len(GC_CODES)}')
 
-# GC_CODES = ["GC116736"]
 OVERRIDE = False
 
 n_failures = 0

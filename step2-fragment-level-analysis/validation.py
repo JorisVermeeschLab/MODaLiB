@@ -102,6 +102,12 @@ class KernelDataset(Dataset):
                             X[k].append(self.tmp[key])
                         assert not np.any(np.isnan(X[k][-1]))
 
+                        if random.random() < 0.1:
+                            print(j, n_bins)
+                            plt.imshow(X[k][-1])
+                            plt.colorbar()
+                            plt.show()
+
             # D = np.diagonal(K)[:, np.newaxis] + np.diagonal(K)[np.newaxis, :] - 2 * K
             #np.fill_diagonal(D, 0)
             #gamma = 1. / 2000
@@ -336,36 +342,34 @@ def evaluate(kernel_idx):
         y_pred1[-1] = np.concatenate((y_pred1[-1], np.zeros((y_pred1[-1].shape[0], N_CLASSES - y_pred1[-1].shape[1]))), axis=1)
 
         # Fragment-level approach
-        from MKLpy.utils.misc import identity_kernel
-        from MKLpy.algorithms import GRAM, FHeuristic
-        from MKLpy.scheduler import ReduceOnWorsening
-        import torch
-        K_train = [identity_kernel(len(train_index))]
+        K_train = [np.eye(len(train_index))]
         for k in range(len(K_agg)):
-            K_train += [torch.tensor(mat[train_index, :][:, train_index]) for mat in K_agg[k]]
-        K_test = [torch.zeros((len(test_index), len(train_index)))]
+            K_train += [mat[train_index, :][:, train_index] for mat in K_agg[k]]
+        K_train = np.asarray(K_train)
+        yy = y_train[:, np.newaxis] == y_train[np.newaxis, :]
+        weights = np.asarray([np.nan_to_num(np.corrcoef(yy.flatten(), mat.flatten())[0, 1]) for mat in K_train])
+        weights = np.clip(weights, 0, None)
+        weights /= np.sum(weights)
+
+        K_train = np.sum(weights[:, np.newaxis, np.newaxis] * K_train, axis=0)
+        K_test = [np.zeros((len(test_index), len(train_index)))]
         for k in range(len(K_agg)):
-            K_test += [torch.tensor(mat[test_index, :][:, train_index]) for mat in K_agg[k]]
-        # model = GRAM(max_iter=100, learning_rate=.1, scheduler=ReduceOnWorsening())
-        model = FHeuristic()
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore')
-            model.fit(K_train, y_train)
-        y_pred2.append(model.decision_function(K_test))
+            K_test += [mat[test_index, :][:, train_index] for mat in K_agg[k]]
+        K_test = np.asarray(K_test)
+        K_test = np.sum(weights[:, np.newaxis, np.newaxis] * K_test, axis=0)
+        model.fit(K_train, y_train)
+        y_pred2.append(model.predict_proba(K_test))
+        y_pred2[-1] = np.concatenate((y_pred2[-1], np.zeros((y_pred2[-1].shape[0], N_CLASSES - y_pred2[-1].shape[1]))), axis=1)
 
         y_target.append(y_test)
     y_target = np.squeeze(np.concatenate(y_target, axis=0))
     y_pred1 = np.squeeze(np.concatenate(y_pred1, axis=0))
     y_pred2 = np.squeeze(np.concatenate(y_pred2, axis=0))
     print(f'MCC 1: {matthews_corrcoef(y_target, np.argmax(y_pred1, axis=1))}')
-    if len(K_agg) > 1:
-        print(f'MCC 2: {matthews_corrcoef(y_target, y_pred2 > 0)}')
-    else:
-        print(f'MCC 2: {matthews_corrcoef(y_target, np.argmax(y_pred2, axis=1))}')
+    print(f'MCC 2: {matthews_corrcoef(y_target, np.argmax(y_pred2, axis=1))}')
     if BINARY:
         auc = roc_auc_score(y_target, y_pred1[:, 1])
-        if len(y_pred2.shape) == 2:
-            y_pred2 = y_pred2[:, 1]
+        y_pred2 = y_pred2[:, 1]
         auc2 = roc_auc_score(y_target, y_pred2)
         roc = roc_curve(y_target, y_pred1[:, 1])
         roc2 = roc_curve(y_target, y_pred2)
@@ -398,13 +402,13 @@ def evaluate(kernel_idx):
 
 
 settings = [
-    ([0], 'Nucleosomes', 'purple', '-'),
+    #([0], 'Nucleosomes', 'purple', '-'),
     #([1, 2, 3, 4], None, 'purple', '--'),
     ([1], 'Fragment lengths', 'royalblue', '-'),
     #([0, 2, 3, 4], None, 'royalblue', '--'),
-    ([2], 'Methylation', 'gold', '-'),
+    #([2], 'Methylation', 'gold', '-'),
     #([0, 1, 3, 4], None, 'gold', '--'),
-    ([3], 'Read counts', 'forestgreen', '-'),
+    #([3], 'Read counts', 'forestgreen', '-'),
     #([0, 1, 2, 4], None, 'forestgreen', '--'),
     ([4], 'Mutations', 'crimson', '-'),
     #([0, 1, 2, 3], None, 'crimson', '--'),
