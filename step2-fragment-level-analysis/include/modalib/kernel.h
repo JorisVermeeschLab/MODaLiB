@@ -23,6 +23,7 @@
 #include "counter.h"
 #include "fragment_info.h"
 #include "sample.h"
+#include "incremental.h"
 #include "array_utils.h"
 #include "bounds.h"
 #include "nucleosomes.h"
@@ -118,7 +119,7 @@ public:
         const size_t k = this->convert_index(i, j);
 		const long double weight = this->weights[k];
 		if (weight == 0.0) return 0.0;
-		return static_cast<double>(this->data[k]) / weight;
+		return static_cast<double>(this->data[k] / weight);
 	}
 
     /**
@@ -207,7 +208,7 @@ std::vector<Counter> init_counters(std::vector<_Sample>& samples) {
  * @param all_matrices Kernel matrices to be computed.
  * TODO
  */
-void compute_kernel_matrices_for_one_chromosome(
+void compute_kernel_matrices_for_one_partition(
         int partition_id,
         const std::vector<_Sample>& _samples,
         std::unordered_map<uint8_t, std::vector<KernelMatrix>>& all_matrices,
@@ -267,6 +268,12 @@ void compute_kernel_matrices_for_one_chromosome(
         gc_ratios[i] = frag_i.get_gc_ratio();
 	}
 
+    // Initialize incremental statistics
+    std::vector<IncrementalMean> meth_means;
+    for (int i = 0; i < n; i++) {
+        meth_means.emplace_back(200);
+    }
+
     unsigned int n_processed = 0;
 	while (true) {
 
@@ -284,6 +291,9 @@ void compute_kernel_matrices_for_one_chromosome(
 
         // Increment fragment counts for current sample i
         counters.at(i).add(frag_i);
+
+        // Update incremental statistics
+        meth_means[i].add(frag_i, frag_i.get_meth_ratio(), static_cast<float>(frag_i.n_sites()));
 
         // Count chromosome mismatches (proxy for translocations)
         if (frag_i.start_chr_id != frag_i.end_chr_id) {
@@ -319,9 +329,6 @@ void compute_kernel_matrices_for_one_chromosome(
                 // The two fragments being compared should be sufficiently close
                 w[j] *= static_cast<float>(chr_id == chr_ids[j]);
                 w[j] *= static_cast<float>(std::labs(static_cast<int32_t>(coord_i) - static_cast<int32_t>(coords[j])) <= MAX_FRAGMENT_DISTANCE);
-
-                // Account for the coverage -> downweight high-coverage bins and vice versa
-                // w[j] *= bin_weight;
 
                 // Give more importance to fragment pairs with high overlap
                 w[j] *= 1.0f + 2.0f * frag_i.overlap(frags[j]);
@@ -359,8 +366,11 @@ void compute_kernel_matrices_for_one_chromosome(
                 matrices.at(NUM_KERNELS * kernel_bin_id + 1).add_sym(score, i, j, w[j]);
 
                 // Update methylation kernel matrix.
-                score = 1.0f - std::fabs(m_i - frags[j].get_meth_ratio());
-                matrices.at(NUM_KERNELS * kernel_bin_id + 2).add_sym(score, i, j, w[j] * std::sqrt(depth_i * static_cast<float>(frags[j].n_sites())));
+                float weight = std::sqrt(meth_means[i].get_weight() * meth_means[j].get_weight());
+                score = 1.0f - std::fabs(meth_means[i].as_float() - meth_means[j].as_float());
+                //score = 1.0f - std::fabs(m_i - frags[j].get_meth_ratio());
+                //float weight = w[j] * std::sqrt(depth_i * static_cast<float>(frags[j].n_sites()));
+                matrices.at(NUM_KERNELS * kernel_bin_id + 2).add_sym(score, i, j, weight);
 
                 // Update fragment counts kernel matrix
                 const float density_j = counters.at(j).get_density(frag_i);
@@ -372,7 +382,7 @@ void compute_kernel_matrices_for_one_chromosome(
 
                 // Update "mutational" burden kernel matrix
                 score = 1.0f - std::fabs(mb_i - frags[j].get_mutation_burden());
-                float weight = w[j] * static_cast<float>(std::sqrt(frag_i.s_count * frags[j].s_count));
+                weight = w[j] * static_cast<float>(std::sqrt(frag_i.s_count * frags[j].s_count));
                 matrices.at(NUM_KERNELS * kernel_bin_id + 4).add_sym(score, i, j, weight);
             }
         }
@@ -421,12 +431,12 @@ std::unordered_map<uint8_t, std::vector<KernelMatrix>> compute_kernel_matrices(
     std::vector<std::thread> threads;
 	for (size_t partition_id = 0; partition_id < NUM_PARTITIONS; ++partition_id) {
         threads.push_back(std::thread(
-            compute_kernel_matrices_for_one_chromosome,
-            partition_id,
-            std::ref(samples),
-            std::ref(matrices),
-            std::ref(nuc_map),
-            std::ref(counters)
+                compute_kernel_matrices_for_one_partition,
+                partition_id,
+                std::ref(samples),
+                std::ref(matrices),
+                std::ref(nuc_map),
+                std::ref(counters)
         ));
 	}
 	for (std::thread& t : threads) t.join();

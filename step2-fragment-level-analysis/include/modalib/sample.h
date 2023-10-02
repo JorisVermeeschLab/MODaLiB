@@ -71,6 +71,8 @@ public:
     inline const FragmentInfo& get_previous() { return previous_frag; }
     inline long get_cursor() const { return cursor; }
 
+    long get_length();
+
 };
 
 } // namespace modalib

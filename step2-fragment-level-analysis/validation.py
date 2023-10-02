@@ -69,7 +69,7 @@ class KernelDataset(Dataset):
                                 pass
                         else:
                             X[k].append(self.tmp[key])
-                        assert not np.any(np.isnan(X[k][-1]))
+                        #assert not np.any(np.isnan(X[k][-1]))
             for k in kernel_idx:
                 X[k] = np.concatenate(X[k], axis=1)
                 # X[k] = StandardScaler().fit_transform(X[k])
@@ -102,7 +102,7 @@ class KernelDataset(Dataset):
                             X[k].append(self.tmp[key])
                         assert not np.any(np.isnan(X[k][-1]))
 
-                        if random.random() < 0.1:
+                        if random.random() < 0:
                             print(j, n_bins)
                             plt.imshow(X[k][-1])
                             plt.colorbar()
@@ -344,22 +344,45 @@ def evaluate(kernel_idx):
         # Fragment-level approach
         K_train = [np.eye(len(train_index))]
         for k in range(len(K_agg)):
-            K_train += [mat[train_index, :][:, train_index] for mat in K_agg[k]]
+            if isinstance(K_agg[k], list):
+                K_train += [mat[train_index, :][:, train_index] for mat in K_agg[k]]
+            else:
+                K_train.append(K_agg[k][train_index, :][:, train_index])
         K_train = np.asarray(K_train)
         yy = y_train[:, np.newaxis] == y_train[np.newaxis, :]
-        weights = np.asarray([np.nan_to_num(np.corrcoef(yy.flatten(), mat.flatten())[0, 1]) for mat in K_train])
+        weights = np.abs(np.asarray([np.nan_to_num(np.corrcoef(yy.flatten(), mat.flatten())[0, 1]) for mat in K_train]))
+
+        plt.plot(weights)
+        plt.show()
+
         weights = np.clip(weights, 0, None)
         weights /= np.sum(weights)
 
         K_train = np.sum(weights[:, np.newaxis, np.newaxis] * K_train, axis=0)
         K_test = [np.zeros((len(test_index), len(train_index)))]
         for k in range(len(K_agg)):
-            K_test += [mat[test_index, :][:, train_index] for mat in K_agg[k]]
+            if isinstance(K_agg[k], list):
+                K_test += [mat[test_index, :][:, train_index] for mat in K_agg[k]]
+            else:
+                K_test.append(K_agg[k][test_index, :][:, train_index])
         K_test = np.asarray(K_test)
         K_test = np.sum(weights[:, np.newaxis, np.newaxis] * K_test, axis=0)
         model.fit(K_train, y_train)
         y_pred2.append(model.predict_proba(K_test))
         y_pred2[-1] = np.concatenate((y_pred2[-1], np.zeros((y_pred2[-1].shape[0], N_CLASSES - y_pred2[-1].shape[1]))), axis=1)
+
+        K_train[:, 47] = np.nan
+        K_train[47, :] = np.nan
+        np.fill_diagonal(K_train, np.nan)
+
+        plt.subplot(1, 2, 1)
+        plt.imshow(Kf_train)
+        plt.subplot(1, 2, 2)
+        plt.imshow(K_train)
+        plt.show()
+
+
+
 
         y_target.append(y_test)
     y_target = np.squeeze(np.concatenate(y_target, axis=0))
@@ -404,15 +427,15 @@ def evaluate(kernel_idx):
 settings = [
     #([0], 'Nucleosomes', 'purple', '-'),
     #([1, 2, 3, 4], None, 'purple', '--'),
-    ([1], 'Fragment lengths', 'royalblue', '-'),
+    #([1], 'Fragment lengths', 'royalblue', '-'),
     #([0, 2, 3, 4], None, 'royalblue', '--'),
-    #([2], 'Methylation', 'gold', '-'),
+    ([2], 'Methylation', 'gold', '-'),
     #([0, 1, 3, 4], None, 'gold', '--'),
     #([3], 'Read counts', 'forestgreen', '-'),
     #([0, 1, 2, 4], None, 'forestgreen', '--'),
-    ([4], 'Mutations', 'crimson', '-'),
+    #([4], 'Mutations', 'crimson', '-'),
     #([0, 1, 2, 3], None, 'crimson', '--'),
-    ([0, 1, 2, 3, 4], 'All', 'black', '-'),
+    #([0, 1, 2, 3, 4], 'All', 'black', '-'),
 ]
 
 

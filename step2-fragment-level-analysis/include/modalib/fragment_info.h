@@ -77,7 +77,6 @@ struct FragmentInfo {
     	else if (start_chr_id > other.start_chr_id) return false;
     	else return (start_pos < other.start_pos);
     }
-    inline int end() const { return start_pos + size - 1; }
     inline int n_sites() const { return n_methylated + n_unmethylated; }
     inline float get_gc_ratio() const {
         if (s_count == 0) return 0.0f;
@@ -99,11 +98,11 @@ struct FragmentInfo {
         }
         // TODO: what about this->start_chr_id != other.end_chr_id (e.g., translocations)?
         float min1 = this->start_pos;
-        float max1 = this->start_pos + this->size + 1;
+        float max1 = this->start_pos + this->size - 1;
         float min2 = other.start_pos;
-        float max2 = other.start_pos + other.size + 1;
-        float numerator = std::fmax(0.0f, std::fmin(max1, max2) - std::fmax(min1, min2));
-        float denominator = std::fmax(max1 - min1, max2 - min2);
+        float max2 = other.start_pos + other.size - 1;
+        float numerator = std::fmax(0.0f, std::fmin(max1, max2) - std::fmax(min1, min2) + 1);
+        float denominator = std::fmax(max1 - min1 + 1, max2 - min2 + 1);
         if (denominator == 0.0f) return 0.0f;
         return numerator / denominator;
     }

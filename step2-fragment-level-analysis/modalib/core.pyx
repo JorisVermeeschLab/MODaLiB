@@ -66,28 +66,39 @@ cdef class Sample:
     cdef _Sample get(self):
         return self.sample_
 
+    @staticmethod
+    def frag_to_dict(FragmentInfo& frag_) -> dict:
+        return dict(
+            start_chr_id=frag_.start_chr_id,
+            start_pos=frag_.start_pos,
+            end_chr_id=frag_.end_chr_id,
+            end_pos=frag_.end_pos,
+            size=frag_.size,
+            n_methylated=frag_.n_methylated,
+            n_unmethylated=frag_.n_unmethylated,
+            snp_count=frag_.snp_count,
+            gc_count=frag_.gc_count,
+            s_count=frag_.s_count,
+            n_inserted=frag_.n_inserted,
+            n_deleted=frag_.n_deleted
+        )
+
     def __iter__(self):
         cdef FragmentInfo frag_
         while not self.sample_.eof():
             frag_ = self.sample_.get()
-            yield dict(
-                start_chr_id=frag_.start_chr_id,
-                start_pos=frag_.start_pos,
-                end_chr_id=frag_.end_chr_id,
-                end_pos=frag_.end_pos,
-                size=frag_.size,
-                n_methylated=frag_.n_methylated,
-                n_unmethylated=frag_.n_unmethylated,
-                snp_count=frag_.snp_count,
-                gc_count=frag_.gc_count,
-                s_count=frag_.s_count,
-                n_inserted=frag_.n_inserted,
-                n_deleted=frag_.n_deleted
-            )
+            yield Sample.frag_to_dict(frag_)
             self.sample_.next()
+
+    def __getitem__(self, i: int):
+        self.sample_.go_to_fragment(i)
+        return Sample.frag_to_dict(self.sample_.get())
 
     def get_name(self) -> str:
         return bytes(self.filepath.c_str()).decode('utf-8')
+
+    def __len__(self) -> int:
+        return self.sample_.get_length()
 
 
 cdef cnp.ndarray to_array(KernelMatrix &km):

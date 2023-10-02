@@ -19,6 +19,7 @@
 
 #include "modalib/sample.h"
 
+#include <fstream>
 #include <iostream>
 #include <string>
 
@@ -111,6 +112,13 @@ void _Sample::set_lower_bound(long n) {
 
 void _Sample::set_upper_bound(long n) {
     this->ub = n;
+}
+
+long _Sample::get_length() {
+    this->is.seekg(0, std::iostream::end);
+    long size = this->is.tellg() / static_cast<long>(FRAGMENT_SIZE_IN_BYTES);
+    this->is.seekg(0, std::iostream::beg);
+    return size;
 }
 
 } // namespace modalib

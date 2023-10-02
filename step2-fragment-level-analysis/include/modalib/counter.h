@@ -36,6 +36,7 @@ const long WINDOW_SIZE = 50000;
 
 class Counter {
 private:
+    long count = 0;
     long total = 0;
     std::unordered_map<int, std::pair<long, long>> bounds;
 
@@ -50,11 +51,13 @@ private:
         if (window.empty()) return true;
         const FragmentInfo& newest = window.back();
         if (newest.start_chr_id != frag.start_chr_id) return false;
-        if (std::labs(newest.start_pos - frag.start_pos) >= WINDOW_SIZE) return false;
+        long diff = static_cast<long>(newest.start_pos) - static_cast<long>(frag.start_pos);
+        if (std::labs(diff) >= WINDOW_SIZE) return false;
         return true;
     }
     void update() {
-        while ((!window.empty()) && (!contains(window.front()))) {
+        while (!contains(window.front())) {
+            count--;
             const int gc = gc_index(window.front());
             counts[gc]--;
             window.pop_front();
@@ -64,6 +67,7 @@ public:
     Counter() : total(0), bounds(), counts(101, 0), total_counts(101, 0), window() {}
     Counter(const Counter& other) = default;
     void add(const FragmentInfo& frag) {
+        count++;
         const int gc = gc_index(frag);
         counts[gc]++;
         window.push_back(frag);
@@ -72,7 +76,10 @@ public:
         const int gc = gc_index(frag);
         total_counts[gc]++;
 
-        const int partition_id = coords_to_partition(frag.start_chr_id, frag.start_pos, NUM_PARTITIONS);
+        const int partition_id = coords_to_partition(
+                frag.start_chr_id,
+                static_cast<long>(frag.start_pos),
+                NUM_PARTITIONS);
         auto it = bounds.find(partition_id);
         if (it != bounds.end()) {
             it->second.second = total + 1;
@@ -83,11 +90,15 @@ public:
         total++;
     }
     float get_density(const FragmentInfo& frag) noexcept {
+        /*
         const int gc = gc_index(frag);
         if (total_counts[gc] == 0) return 0.0;
         update();
-        // std::cout << counts[gc] << ", " << total_counts[gc] << ", ";
         return static_cast<float>(counts[gc]) / static_cast<float>(total_counts[gc]);
+         */
+        if (total == 0) return 0.0f;
+        update();
+        return static_cast<float>(count) / static_cast<float>(total);
     }
     std::pair<long, long> get_bounds(int partition_id) {
         auto it = bounds.find(partition_id);

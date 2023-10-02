@@ -12,4 +12,5 @@ add_library(modalib_obj OBJECT sample.cpp site.cpp region_list.cpp
         ../include/modalib/region_list.h
         ../include/modalib/counter.h
         ../include/modalib/deserialization.h
-        ../include/modalib/site.h)
+        ../include/modalib/site.h
+        ../include/modalib/incremental.h)

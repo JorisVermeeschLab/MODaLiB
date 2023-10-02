@@ -53,9 +53,9 @@ public:
 		long double count = this->counts[i * this->m + j];
 		if (normalize) {
             if (count == 0) return 0.0;
-            return this->data[i * this->m + j] / count;
+            return static_cast<double>(this->data[i * this->m + j] / count);
         } else {
-            return count;
+            return static_cast<double>(count);
         }
 	}
 	inline void add(float value, size_t i, size_t j, float weight) {
@@ -122,7 +122,7 @@ std::unordered_map<uint8_t, std::vector<FeatureMatrix>> extract_all_features(
             // Update nucleosome features
 		    if (j < matrices.at(chr_id).at(0).n_cols()) {
                 float score = nuc_map.phase_shift_score_wrt_reference(chr_id, static_cast<unsigned long>(coord_i));
-                score += nuc_map.phase_shift_score_wrt_reference(chr_id, static_cast<unsigned long>(coord_i + l_i));
+                score += nuc_map.phase_shift_score_wrt_reference(chr_id, static_cast<unsigned long>(frag_i.end_pos));
                 matrices.at(chr_id).at(0).add(0.5f * score, i, j, 1.0f);
             }
 

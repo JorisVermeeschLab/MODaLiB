@@ -69,8 +69,10 @@ cdef extern from "modalib/sample.h" namespace "modalib":
         _Sample(string filepath) nogil
         void operator=(const _Sample&) nogil
         FragmentInfo& get() nogil
+        void go_to_fragment(long i) nogil
         void next() nogil
         bool eof() nogil
+        long get_length() nogil
 
 
 cdef extern from "modalib/nucleosomes.h" namespace "modalib":

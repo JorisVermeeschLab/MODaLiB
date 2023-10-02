@@ -3,6 +3,7 @@
 #SBATCH --time=72:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
+#SBATCH --mem=8G
 #SBATCH -A lp_joris_vermeesch
 #SBATCH -J extr
 #SBATCH -o extr.out
