@@ -22,8 +22,10 @@
 
 #include "fragment_info.h"
 #include "site.h"
+#include "overlap.h"
 
 #include <fstream>
+#include <unordered_map>
 #include <iostream>
 #include <memory>
 #include <sstream>
@@ -34,18 +36,18 @@ namespace modalib {
 class _RegionList {
 private:
     std::vector<Region> regions;
-    std::size_t cursor;
+    std::unordered_map<uint8_t, std::vector<int>> region_ids_by_chr;
+    std::unordered_map<uint8_t, int> cursors;
 public:
-    _RegionList(): regions(), cursor(0) {}
+    _RegionList(): regions(), region_ids_by_chr(), cursors() {}
+    _RegionList(const _RegionList& other) = default;
     void load(const std::string &filepath);
     void add_region(uint8_t chr_id, uint32_t start, uint32_t end);
-    bool contains(const FragmentInfo&);
-    std::size_t get_region_id() { return cursor; }
-    Region& get_region(std::size_t i) { return regions[i]; }
-    Region& get_current_region();
-    void reset() { cursor = 0; }
-    std::size_t get_num_regions() { return regions.size(); }
-    bool end_reached() { return (cursor >= regions.size()); }
+    Overlap search_overlap(const FragmentInfo&);
+    Overlap overlap(const FragmentInfo&, int region_id);
+    void reset();
+    inline const Region& at(size_t region_id) const { return regions.at(region_id); }
+    inline std::size_t get_num_regions() const { return regions.size(); }
 };
 
 } // namespace modalib

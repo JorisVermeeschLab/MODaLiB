@@ -1,12 +1,24 @@
-tqdm
+# Scientific computing
 numpy
 scipy
 pandas
+
+# Data visualization
 matplotlib
 seaborn
-Cython
+
+# Machine Learning
 scikit-learn
+torch
+
+# Jupyter notebooks
+jupyterlab
+notebook
 
 # Documentation
 sphinx
 sphinx-rtd-theme
+
+# Misc
+Cython
+tqdm

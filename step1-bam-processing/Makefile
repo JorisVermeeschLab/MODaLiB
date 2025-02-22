@@ -13,8 +13,8 @@ CPPFLAGS += $(INCLUDES)
 
 all: BAMConvertor
 
-BAMConvertor: methylation.h MethylDackel.h read_info.h serialization.h utils.h
-	$(CC) $(CPPFLAGS) $(LIBS) -o BAMConvertor  main.cpp -lm -lz -lpthread -lhts
+BAMConvertor: read_info.h serialization.h *.cpp methylation/*.cpp msi/*.cpp
+	$(CC) $(CPPFLAGS) $(LIBS) -o BAMConvertor  *.cpp msi/*.cpp methylation/*.cpp -lm -lz -lpthread -lhts
 
 clean:
 	rm -f *.o BAMConvertor

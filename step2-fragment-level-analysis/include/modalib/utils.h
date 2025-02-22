@@ -24,7 +24,10 @@
 #include <cstring>
 #include <iostream>
 #include <limits>
+#include <utility>
+#include <climits>
 #include <vector>
+#include <string>
 
 namespace modalib {
 
@@ -34,7 +37,7 @@ namespace modalib {
     typedef long long genome_size_t;
 #endif
 
-    static_assert(LONG_MAX > 300000000);
+    static_assert(LONG_MAX > 300000000, "");
 
 // Constant indicating that EOF has been reached
 const uint32_t END_OF_SAMPLE = std::numeric_limits<uint32_t>::max();
@@ -50,6 +53,11 @@ const uint32_t END_OF_SAMPLE = std::numeric_limits<uint32_t>::max();
 inline genome_size_t combine_coords(uint8_t chr_id, uint32_t pos) {
     if (pos == END_OF_SAMPLE) return std::numeric_limits<genome_size_t>::max();
     else return static_cast<genome_size_t>(chr_id) * 1000000000L + static_cast<genome_size_t>(pos);
+}
+
+inline bool endswith(std::string const& s, std::string const& suffix) {
+    if (suffix.size() > s.size()) return false;
+    return std::equal(suffix.rbegin(), suffix.rend(), s.rbegin());
 }
 
 /**

@@ -1,8 +1,6 @@
-[![Build status](https://github.com/AntoinePassemiers/MODaLiB/actions/workflows/build.yml/badge.svg)](https://github.com/AntoinePassemiers/MODaLiB/actions?query=build)
-
 MODaLiB
 =======
 
-Multi-omic Data Fusion for Liquid Biospies.
+Multimodal analysis framework for cancer detection in cell-free DNA (cfDNA) samples.
 
-<img align="left" src="docs/source/_static/MKL-summary.png" />
+

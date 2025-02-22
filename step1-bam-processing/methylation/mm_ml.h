@@ -39,6 +39,11 @@
 #include "htslib/faidx.h"
 
 
+// Some docs:
+// https://www.bioinformatics.babraham.ac.uk/projects/bismark/Bismark_User_Guide.pdf
+// https://thegenomefactory.blogspot.com/2013/08/paired-end-read-confusion-library.html
+
+
 // End of sequence
 static constexpr int END_OF_SEQUENCE = -2;
 
@@ -80,7 +85,7 @@ void methylation_from_aux(bam1_t* b, ReadInfo& read, uint8_t ml_cutoff) {
 
     // TODO: account for hard clipping (H):
     // https://github.com/samtools/hts-specs/issues/646
-    // This can be done by identifying the CpG sites and using the C-CpG pattern
+    // This can be done by identifying the CpG_CONTEXT sites and using the C-CpG_CONTEXT pattern
     // identify the Cs that are not in the clipped part of the sequence.
 
     int strand = get_strand(b);
@@ -149,7 +154,7 @@ void methylation_from_aux(bam1_t* b, ReadInfo& read, uint8_t ml_cutoff) {
 
     // Update read statistics
     int n_cytosines = 0;
-    int i = 0;
+    size_t i = 0;
     for (auto& pair : read.bases) {
         BaseInfo& base = pair.second;
         if (is_cytosine(base.c, (strand & 1) == 0)) {

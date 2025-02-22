@@ -6,6 +6,9 @@
 #include <string>
 
 
+static_assert(sizeof(float) == 4);
+
+
 class Serializer {
 public:
     inline static int serialize(char* buffer, uint8_t value) {
@@ -16,6 +19,10 @@ public:
     }
     inline static int serialize(char* buffer, uint32_t value) {
         return Serializer::serialize_int(buffer, value);
+    }
+    inline static int serialize(char* buffer, float value) {
+        uint32_t ivalue = *((uint32_t*) &value);
+        return Serializer::serialize_int(buffer, ivalue);
     }
 private:
     template <typename Int>

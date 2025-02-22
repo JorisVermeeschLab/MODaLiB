@@ -21,6 +21,7 @@
 #define MODALIB_SAMPLE_H
 
 #include "fragment_info.h"
+#include "methylation.h"
 
 #include <fstream>
 #include <iostream>
@@ -45,11 +46,20 @@ private:
     // Input stream
 	std::ifstream is;
 
+	// Whether input file contains fragments or cytosine contexts
+	bool contains_fragments = true;
+
     // Last fragment parsed
 	FragmentInfo frag;
 
     // Second-last fragment parsed
 	FragmentInfo previous_frag;
+
+	// Last cytosine context parsed
+	CytosineContext c;
+
+    // Second-last cytosine context parsed
+    CytosineContext previous_c;
 
 public:
 	_Sample() = default;
@@ -58,21 +68,36 @@ public:
 	_Sample& operator=(const _Sample&);
     ~_Sample();
     void open(const std::string &filepath);
-    void go_to_fragment(long i);
+    void go_to_chunk(long i);
 	void next();
-	bool eof();
+	bool eof() const;
 
     // Setters
     void set_lower_bound(long n);
     void set_upper_bound(long n);
 
     // Getters and setters
-    inline const FragmentInfo& get() { return frag; }
-    inline const FragmentInfo& get_previous() { return previous_frag; }
+    inline const FragmentInfo& get() const {
+        if (!contains_fragments) throw std::runtime_error("Method unavailable for .cytosines.modalib files");
+        return frag;
+    }
+    inline const FragmentInfo& get_previous() const {
+        if (!contains_fragments) throw std::runtime_error("Method unavailable for .cytosines.modalib files");
+        return previous_frag;
+    }
+    inline const CytosineContext& get_c() const {
+        if (contains_fragments) throw std::runtime_error("Method unavailable for .modalib files");
+        return c;
+    }
+    inline const CytosineContext& get_previous_c() const {
+        if (contains_fragments) throw std::runtime_error("Method unavailable for .modalib files");
+        return previous_c;
+    }
     inline long get_cursor() const { return cursor; }
 
     long get_length();
-
+private:
+    size_t get_chunk_size() const { return (contains_fragments) ? FRAGMENT_SIZE_IN_BYTES : CYTOSINE_CONTEXT_SIZE_IN_BYTES; }
 };
 
 } // namespace modalib

@@ -26,6 +26,7 @@
 #include <zlib.h>
 #include <iostream>
 #include <string>
+#include <regex>
 #include <stdexcept>
 
 #include "htslib/sam.h"
@@ -45,19 +46,33 @@ struct Parameters {
     // Whether BAM file contains single-read data (instead of paired-end)
     int single_read = 0;
 
+    // Whether to call methylation from converted cytosines.
+    int c_conversion = 0;
+
     // Whether to call methylation from the MM and ML auxiliary fields.
-    // Otherwise, methylation is called from the converted cytosines.
     int use_mm_ml = 0;
 
     // If `use_mm_ml` is true, this threshold defines the minimum values in
     // the ML auxiliary field for a base to be considered as modified (i.e., methylated).
     uint8_t ml_cutoff = 168;  // 0.66 * 255
 
-    FILE** output_fp = nullptr;
+    // Maximum fragment size
+    int max_fragment_size = 1000;
+
+    // Read group filter
+    bool use_read_group = false;
+    std::regex read_group;
+
+    // Input files
     char* bam_filename = nullptr;
     htsFile* fp = nullptr;
     hts_idx_t* bai = nullptr;
     char* fasta_filename = nullptr;
+
+    // Output files
+    FILE** output_fp = nullptr;
+    FILE** c_output_fp = nullptr;
+    bool write_cytosines = false;
 
     // Inclusion bounds for the 4 types of (converted) strands.
     // Useful resources:
@@ -67,6 +82,10 @@ struct Parameters {
     int ob_bounds[4] = {0};
     int ctot_bounds[4] = {0};
     int ctob_bounds[4] = {0};
+
+    // Parameters for the algorithmic trimming of the reads
+    size_t trim_lookahead = 2;
+    size_t trim_max_n_bases = 12;
 
     int n_threads = 1;
     unsigned long partition_size = 1000000;
@@ -93,8 +112,8 @@ struct Parameters {
     }
     void parse_ot_bounds(const char* arg) { parse_bounds(arg, ot_bounds); }
     void parse_ob_bounds(const char* arg) { parse_bounds(arg, ob_bounds); }
-    void parse_ctot_bounds(const char* arg) { parse_bounds(arg, ctob_bounds); }
-    void parse_ctob_bounds(const char* arg) { parse_bounds(arg, ctot_bounds); }
+    void parse_ctot_bounds(const char* arg) { parse_bounds(arg, ctot_bounds); }
+    void parse_ctob_bounds(const char* arg) { parse_bounds(arg, ctob_bounds); }
     static void parse_bounds(const char* arg, int* bounds) {
         size_t i = 0;
         std::string s(arg);

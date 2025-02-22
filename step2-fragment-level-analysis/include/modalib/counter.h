@@ -50,7 +50,7 @@ private:
     bool contains(const FragmentInfo& frag) {
         if (window.empty()) return true;
         const FragmentInfo& newest = window.back();
-        if (newest.start_chr_id != frag.start_chr_id) return false;
+        if (newest.chr_id != frag.chr_id) return false;
         long diff = static_cast<long>(newest.start_pos) - static_cast<long>(frag.start_pos);
         if (std::labs(diff) >= WINDOW_SIZE) return false;
         return true;
@@ -77,7 +77,7 @@ public:
         total_counts[gc]++;
 
         const int partition_id = coords_to_partition(
-                frag.start_chr_id,
+                frag.chr_id,
                 static_cast<long>(frag.start_pos),
                 NUM_PARTITIONS);
         auto it = bounds.find(partition_id);
@@ -90,15 +90,10 @@ public:
         total++;
     }
     float get_density(const FragmentInfo& frag) noexcept {
-        /*
         const int gc = gc_index(frag);
         if (total_counts[gc] == 0) return 0.0;
         update();
         return static_cast<float>(counts[gc]) / static_cast<float>(total_counts[gc]);
-         */
-        if (total == 0) return 0.0f;
-        update();
-        return static_cast<float>(count) / static_cast<float>(total);
     }
     std::pair<long, long> get_bounds(int partition_id) {
         auto it = bounds.find(partition_id);

@@ -22,44 +22,26 @@
 
 #include <cmath>
 #include <functional>
-#include <stdint.h>
+#include <cstdint>
 
 #include "fragment_info.h"
+#include "overlap.h"
 
 namespace modalib {
 
-struct Site {
-    uint8_t chr;
-    uint32_t pos;
-};
-
 class Region {
+private:
+    int region_id;
+    uint8_t chr_id;
+    uint32_t start;
+    uint32_t end;
 public:
-    Site start;
-    Site end;
-    Region(uint8_t chr, uint32_t start, uint32_t end);
-    int cmp(const FragmentInfo&);
-    bool operator==(const Region &other) const {
-        bool v = (start.chr == other.start.chr);
-        v &= (start.pos == other.start.pos);
-        v &= (end.chr == other.end.chr);
-        v &= (end.pos == other.end.pos);
-        return v;
+    Region(int region_id, uint8_t chr_id, uint32_t start, uint32_t end) : region_id(region_id), chr_id(chr_id), start(start), end(end) {}
+    inline Overlap compute_overlap(const FragmentInfo& f) const {
+        return Overlap(region_id, chr_id, start, end, f.chr_id, f.start_pos, f.end_pos);
     }
-};
-
-struct RegionHashFunction {
-    std::hash<uint8_t> hash_func8;
-    std::hash<uint32_t> hash_func32;
-    // TODO: optimize hash function: CRC32 hash algorithm?
-    std::size_t operator()(const Region &r) const {
-        std::size_t h = 157;  // TODO
-        h = h ^ hash_func8(r.start.chr);
-        h = h ^ hash_func32(r.start.pos);
-        h = h ^ hash_func8(r.end.chr);
-        h = h ^ hash_func32(r.end.pos);
-        return h;
-    }
+    inline uint32_t get_start() const { return start; }
+    inline uint32_t get_end() const { return end; }
 };
 
 } // namespace modalib

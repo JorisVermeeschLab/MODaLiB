@@ -5,23 +5,6 @@
 # cython: boundscheck=False
 # cython: wraparound=False
 # cython: initializedcheck=True
-#
-#  Copyright 2022 Antoine Passemiers <antoine.passemiers@gmail.com>
-#
-#  This program is free software; you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation; either version 2 of the License, or
-#  (at your option) any later version.
-#
-#  This program is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#
-#  You should have received a copy of the GNU General Public License
-#  along with this program; if not, write to the Free Software
-#  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
-#  MA 02110-1301, USA.
 
 from core cimport *
 
@@ -51,6 +34,45 @@ def coords_to_partition_(chr_id: int, pos: int, n_partitions: int) -> int:
 # ---------------------------------------------------------------------------------------
 # ---------------------------------------------------------------------------------------
 
+def uint8_motif_to_str(motif: int) -> str:
+    BASES = ['A', 'T', 'C', 'G']
+    s = BASES[(motif & 0xC0) >> 6]
+    s += BASES[(motif & 0x30) >> 4]
+    s += BASES[(motif & 0x0C) >> 2]
+    s += BASES[(motif & 0x03)]
+    return s
+
+
+def chr_id_to_chr_name(chr_id: int) -> str:
+    if chr_id == 23:
+        chr_name = 'chrX'
+    elif chr_id == 24:
+        chr_name = 'chrY'
+    elif chr_id == 25:
+        chr_name = 'chrM'
+    elif chr_id == 26:
+        chr_name = 'EBV'
+    else:
+        chr_name = f'chr{chr_id}'
+    return chr_name
+
+
+cdef class ReferenceNucMap:
+
+    cdef string filepath
+    cdef bool distance
+    cdef RefNucMap base
+
+    def __init__(self, filepath: str, distance: bool = False):
+        if not os.path.exists(filepath):
+            raise FileNotFoundError(f'Could not open file {filepath}')
+        self.filepath = <string>filepath.encode('utf-8')
+        self.distance = distance
+        self.base = RefNucMap(self.filepath, self.distance)
+
+    def score(self, chr_id: int, pos: int) -> float:
+        return self.base.phase_shift_score_wrt_reference(chr_id, pos)
+
 
 cdef class Sample:
 
@@ -69,18 +91,28 @@ cdef class Sample:
     @staticmethod
     def frag_to_dict(FragmentInfo& frag_) -> dict:
         return dict(
-            start_chr_id=frag_.start_chr_id,
+            start_chr_id=frag_.chr_id,
             start_pos=frag_.start_pos,
-            end_chr_id=frag_.end_chr_id,
             end_pos=frag_.end_pos,
             size=frag_.size,
-            n_methylated=frag_.n_methylated,
-            n_unmethylated=frag_.n_unmethylated,
-            snp_count=frag_.snp_count,
+            insert_size=frag_.insert_size,
+            n_methylated_cpg_r1=frag_.n_methylated_cpg_r1,
+            n_unmethylated_cpg_r1=frag_.n_unmethylated_cpg_r1,
+            n_methylated_cpg_r2=frag_.n_methylated_cpg_r2,
+            n_unmethylated_cpg_r2=frag_.n_unmethylated_cpg_r2,
+            n_methylated_cpg=frag_.n_methylated_cpg,
+            n_unmethylated_cpg=frag_.n_unmethylated_cpg,
+            n_methylated_ch=frag_.n_methylated_ch,
+            n_unmethylated_ch=frag_.n_unmethylated_ch,
             gc_count=frag_.gc_count,
             s_count=frag_.s_count,
-            n_inserted=frag_.n_inserted,
-            n_deleted=frag_.n_deleted
+            end_motif_5p_int=frag_.end_motif_5p,
+            end_motif_3p_int=frag_.end_motif_3p,
+            end_motif_5p=uint8_motif_to_str(frag_.end_motif_5p),
+            end_motif_3p=uint8_motif_to_str(frag_.end_motif_3p),
+            strand=frag_.strand,
+            mapq=frag_.mapping_quality,
+            weight=frag_.weight
         )
 
     def __iter__(self):
@@ -91,7 +123,7 @@ cdef class Sample:
             self.sample_.next()
 
     def __getitem__(self, i: int):
-        self.sample_.go_to_fragment(i)
+        self.sample_.go_to_chunk(i)
         return Sample.frag_to_dict(self.sample_.get())
 
     def get_name(self) -> str:
@@ -145,7 +177,8 @@ cdef unordered_map[cnp.uint8_t, vector[long]] load_ref_nuc_map(nuc_folder: str):
 
 def pairwise_kernels(
         filepaths: List[str],
-        nuc_filepath: str
+        nuc_filepath: str,
+        regions_filepath: str
 ) -> Dict[int, List[np.ndarray]]:
 
     # Check number of samples
@@ -153,25 +186,25 @@ def pairwise_kernels(
     if n <= 1:
         raise ValueError(f'Number of samples should be at least 2. Got {n}.')
 
-
     # Load reference nucleosome map
     if not os.path.exists(nuc_filepath):
         raise FileNotFoundError(f'Could not locate {nuc_filepath}')
     cdef RefNucMap nuc_map = RefNucMap(nuc_filepath.encode('utf-8'))
 
+    # Load regions to be considered
+    cdef _RegionList regions
+    regions.load(regions_filepath.encode('utf-8'))
+
     # Compute kernel matrices
     cdef vector[_Sample] samples = samples_from_filepaths(filepaths)
-    cdef unordered_map[cnp.uint8_t, vector[KernelMatrix]] matrices_ = compute_kernel_matrices(samples, nuc_map)
+    cdef vector[KernelMatrix] matrices_ = compute_kernel_matrices(samples, nuc_map, regions)
 
     # Convert output kernel matrices to dict of lists of numpy arrays
-    matrices = {}
-    for chr_id in range(MIN_CHR_ID, MAX_CHR_ID + 1):
-        if matrices_.find(chr_id) != matrices_.end():
-            matrices[chr_id] = []
-            for k in range(matrices_.at(chr_id).size()):
-                matrices[chr_id].append(to_array(matrices_.at(chr_id).at(k)))
+    matrices = []
+    for k in range(matrices_.size()):
+        matrices.append(to_array(matrices_.at(k)))
 
-    return matrices
+    return np.asarray(matrices)
 
 
 # ---------------------------------------------------------------------------------------
@@ -193,8 +226,11 @@ cdef cnp.ndarray fm_to_array(FeatureMatrix &km):
 
 def extract_features(
         filepaths: List[str],
-        nuc_filepath: str
-) -> Dict[int, List[np.ndarray]]:
+        nuc_filepath: str,
+        regions_filepath: str,
+        target_n_fragments: float = 1e+25,
+        weighting: bool = True
+) -> Dict[str, np.ndarray]:
 
     # Check number of samples
     n = len(filepaths)
@@ -202,18 +238,121 @@ def extract_features(
         raise ValueError(f'Number of samples should be at least 1. Got {n}.')
 
     # Load reference nucleosome map
+    if not os.path.exists(nuc_filepath):
+        raise FileNotFoundError(f'Could not find "{nuc_filepath}".')
     cdef RefNucMap nuc_map = RefNucMap(nuc_filepath.encode('utf-8'))
+
+    # Load regions to be considered
+    cdef _RegionList regions
+    regions.load(regions_filepath.encode('utf-8'))
 
     # Compute feature matrices
     cdef vector[_Sample] samples = samples_from_filepaths(filepaths)
-    cdef unordered_map[cnp.uint8_t, vector[FeatureMatrix]] matrices_ = extract_all_features(samples, nuc_map)
+    cdef vector[FeatureMatrix] matrices_ = extract_all_features(samples, nuc_map, regions, target_n_fragments, weighting)
 
     # Convert output feature matrices to dict of list of numpy arrays
-    matrices = {}
-    for chr_id in range(MIN_CHR_ID, MAX_CHR_ID + 1):
-        if matrices_.find(chr_id) != matrices_.end():
-            matrices[chr_id] = []
-            for k in range(matrices_.at(chr_id).size()):
-                matrices[chr_id].append(fm_to_array(matrices_.at(chr_id).at(k)))
+    matrices_dict = {
+            'Nucleosome positioning': fm_to_array(matrices_.at(0)),
+            'Fragment size index': fm_to_array(matrices_.at(1)),
+            'Fragment length counts': fm_to_array(matrices_.at(2)),
+            'CpG Methylation (first moment)': fm_to_array(matrices_.at(3)),
+            'CpG Methylation (second moment)': fm_to_array(matrices_.at(4)),
+            'CH Methylation (first moment)': fm_to_array(matrices_.at(5)),
+            'Coverage': fm_to_array(matrices_.at(6)),
+            'GC-content': fm_to_array(matrices_.at(7)),
+            'CpG count': fm_to_array(matrices_.at(8)),
+            'End-motif probability (5 prime)': fm_to_array(matrices_.at(9)),
+            'End-motif probability (3 prime)': fm_to_array(matrices_.at(10)),
+            'Mappability': fm_to_array(matrices_.at(11)),
+            'Nucleosome score counts': fm_to_array(matrices_.at(12)),
+            'Nucleosome score histogram': fm_to_array(matrices_.at(13)),
+            'Fully methylated fragment ratio': fm_to_array(matrices_.at(14)),
+            'CAFF': fm_to_array(matrices_.at(15)),
+            'R1 methylation': fm_to_array(matrices_.at(16)),
+            'R2 methylation': fm_to_array(matrices_.at(17)),
+            'End-motif probability (THEMIS)': fm_to_array(matrices_.at(18)),
+            'Proportion of long fragments': fm_to_array(matrices_.at(19)),
+    }
+    return matrices_dict
 
-    return matrices
+
+def compute_mss_matrix(filepaths: List[str]):
+    cdef vector[string] filepaths_
+    for filepath in filepaths:
+        filepaths_.push_back(filepath.encode('utf-8'))
+
+    cdef size_t n = filepaths_.size()
+    cdef size_t m = 300
+    cdef FeatureMatrix features = FeatureMatrix(n, m)
+    cdef FeatureMatrix counts = FeatureMatrix(n, m, False)
+    cdef MSS mss
+    for i in range(n):
+        mss = MSS(filepaths_.at(i))
+        mss.extract_features(i, features, counts)
+        mss.close()
+    return fm_to_array(features), fm_to_array(counts)
+
+
+def parse_chr_name(chr_name):
+    if chr_name.startswith('chr'):
+        chr_name = chr_name[3:]
+    chr_name = chr_name.upper()
+    if chr_name.isdigit():
+        return int(chr_name)
+    elif chr_name == 'X':
+        return 23
+    elif chr_name == 'Y':
+        return 24
+    elif chr_name == 'M':
+        return 25
+    elif chr_name == 'EBV':
+        return 26
+    else:
+        raise NotImplementedError(f'Unknown chromosome name "{chr_name}"')
+
+
+def compute_mss_markers_matrix(filepaths, marker_list_filepath):
+    cdef vector[string] filepaths_
+    for filepath in filepaths:
+        filepaths_.push_back(filepath.encode('utf-8'))
+
+    cdef cnp.uint8_t chr_id
+    cdef genome_size_t combined_coords
+    cdef unordered_map[genome_size_t, size_t] markers_pos
+    with open(marker_list_filepath, 'r') as f:
+        for line in f.readlines():
+            elements = line.rstrip().split('\t')
+            if len(elements) >= 2:
+                chr_id = parse_chr_name(elements[0])
+                pos = int(elements[1])
+                combined_coords = combine_coords(chr_id, pos)
+                markers_pos[combined_coords] = markers_pos.size()
+
+    cdef size_t n = filepaths_.size()
+    cdef size_t m = markers_pos.size()
+    cdef FeatureMatrix features = FeatureMatrix(n, m)
+    cdef FeatureMatrix counts = FeatureMatrix(n, m, False)
+    cdef MSS mss
+    for i in range(n):
+        mss = MSS(filepaths_.at(i))
+        mss.extract_markers(i, features, counts, markers_pos)
+        mss.close()
+
+    return fm_to_array(features), fm_to_array(counts)
+
+
+def find_dms(filepaths: List[str], y: np.ndarray, out_filepath: str) -> None:
+    cdef vector[string] filepaths_
+    for filepath in filepaths:
+        filepaths_.push_back(filepath.encode('utf-8'))
+
+    cdef string out_filepath_ = out_filepath.encode('utf-8')
+
+    cdef cnp.float_t[:] y_arr = y.astype(float)
+    cdef vector[float] y_
+    cdef int i
+    with nogil:
+        for i in range(y_arr.shape[0]):
+            y_.push_back(y_arr[i])
+
+    find_differentially_methylated_sites(filepaths_, y_, out_filepath_)

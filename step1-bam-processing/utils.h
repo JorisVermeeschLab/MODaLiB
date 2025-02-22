@@ -1,6 +1,6 @@
 //  utils.h
 //
-//  Copyright 2023 Antoine Passemiers <antoine.passemiers@gmail.com>
+//  Copyright 2024 Antoine Passemiers <antoine.passemiers@gmail.com>
 //
 //  This program is free software; you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -20,16 +20,28 @@
 #ifndef MODALIB_UTILS_H
 #define MODALIB_UTILS_H
 
-#include <string>
+#include <cstdint>
+#include <utility>
+#include <limits.h>
 
-bool all_chars_the_same(const std::string& s) {
-    if (s.empty()) return false;
-    char c = s[0];
-    for (int i = 1; i < s.length(); i++) {
-        if (s[i] != c)
-            return false;
-    }
-    return true;
+
+#if LONG_MAX > 4000000000
+typedef long genome_size_t;
+#else
+typedef long long genome_size_t;
+#endif
+
+
+inline genome_size_t combine_chromosomal_coordinates(uint8_t chr_id, uint32_t pos) {
+    return static_cast<genome_size_t>(chr_id) * 1000000000L + static_cast<genome_size_t>(pos);
 }
 
-#endif //MODALIB_UTILS_H
+
+inline std::pair<uint8_t, uint32_t> uncombine_chromosomal_coordinates(genome_size_t coords) {
+    auto chr_id = static_cast<uint8_t>(coords / 1000000000L);
+    auto pos = static_cast<uint32_t>(coords % 1000000000L);
+    return {chr_id, pos};
+}
+
+
+#endif // MODALIB_UTILS_H

@@ -37,101 +37,46 @@ public:
     char get_base(int abs_pos) const {
         return *(this->seq + abs_pos - this->start_pos);
     }
-    std::string get_substring(int start, int end) const {
-        return std::string(seq + start, end - start);
-    }
-    int is_cpg(char previous_base, char base, char next_base, int strand, int c_conversion) const {
-        if ((base == 'C') || (c_conversion && (base == 'T'))) {
-            if (next_base == 'G') {
-                if ((strand & 1) == 1) return 1;
-                else return 0;
-            }
-            return 0;
-        } else if ((base == 'G') || (c_conversion && (base == 'A'))) {
-            if (previous_base == 'C') {
-                if ((strand & 1) == 0) return -1;
-                else return 0;
-            }
-            return 0;
-        }
-        return 0;
-    }
-    int is_cpg(int abs_pos, int strand) const {
+    Context get_seq_context(
+            char first_base,
+            char previous_base,
+            char base,
+            char next_base,
+            char last_base,
+            int c_conversion,
+            int abs_pos,
+            int strand) const {
         int pos = abs_pos - this->start_pos;
-        if (pos >= this->length) return 0;
-        char base = static_cast<char>(std::toupper(*(this->seq + pos)));
-        if (base == 'C') {
-            if (pos + 1 == this->length) return 0;
-            char next_base = static_cast<char>(std::toupper(*(this->seq + pos + 1)));
-            if (next_base == 'G') {
-                if ((strand & 1) == 1) return 1;
-                else return 0;
+        if (pos >= this->length) return UNKNOWN_CONTEXT;
+        char ref_base = static_cast<char>(std::toupper(*(this->seq + pos)));
+
+        if ((strand & 1) == 1) {  // Forward strand
+            if ((ref_base == 'C') && ((base == 'C') || (c_conversion && (base == 'T')))) {
+                if (pos + 1 == this->length) return UNKNOWN_CONTEXT;
+                char next_ref_base = static_cast<char>(std::toupper(*(this->seq + pos + 1)));
+                if ((next_ref_base == 'G') && (next_base == 'G')) return CpG_CONTEXT;
+                else if ((next_ref_base != 'G') && (next_base != 'G')) {
+                    if (pos + 2 == this->length) return UNKNOWN_CONTEXT;
+                    char last_ref_base = static_cast<char>(std::toupper(*(this->seq + pos + 2)));
+                    if ((last_ref_base == 'G') && (last_base == 'G')) return CHG_CONTEXT;
+                    else if ((last_ref_base != 'G') && (last_base != 'G')) return CHH_CONTEXT;
+                }
             }
-            return 0;
-        } else if (base == 'G') {
-            if (pos == 0) return 0;
-            char previous_base = static_cast<char>(std::toupper(*(this->seq + pos - 1)));
-            if (previous_base == 'C') {
-                if ((strand & 1) == 0) return -1;
-                else return 0;
+        } else if ((strand & 1) == 0) {  // Reverse strand
+            if ((ref_base == 'G') && ((base == 'G') || (c_conversion && (base == 'A')))) {
+                if (pos == 0) return UNKNOWN_CONTEXT;
+                char previous_ref_base = static_cast<char>(std::toupper(*(this->seq + pos - 1)));
+                if ((previous_ref_base == 'C') && (previous_base == 'C')) return CpG_CONTEXT;
+                else if ((previous_ref_base != 'C') && (previous_base != 'C')) {
+                    if (pos < 2) return UNKNOWN_CONTEXT;
+                    char first_ref_base = static_cast<char>(std::toupper(*(this->seq + pos - 2)));
+                    if ((first_ref_base == 'C') && (first_base == 'C')) return CHG_CONTEXT;
+                    else if ((first_ref_base != 'C') && (first_base != 'C')) return CHH_CONTEXT;
+                }
             }
-            return 0;
         }
-        return 0;
+        return UNKNOWN_CONTEXT;
     }
-    int is_ch(int ref_pos) const {
-        int pos = ref_pos - this->start_pos;
-        if (pos >= this->length) return 0;
-        char base = static_cast<char>(std::toupper(*(this->seq + pos)));
-        if (base == 'C') {
-            if (pos + 1 == this->length) return 0;
-            char next_base = static_cast<char>(std::toupper(*(this->seq + pos + 1)));
-            if (next_base != 'G') return 1;
-            return 0;
-        } else if (base == 'G') {
-            if (pos == 0) return 0;
-            char previous_base = static_cast<char>(std::toupper(*(this->seq + pos - 1)));
-            if (previous_base != 'C') return -1;
-            return 0;
-        }
-        return 0;
-    }
-    int is_chg(int ref_pos) const {
-        int pos = ref_pos - this->start_pos;
-        if (pos >= this->length) return 0;
-        char base = static_cast<char>(std::toupper(*(this->seq + pos)));
-        if (base == 'C') {
-            if (pos + 2 >= this->length) return 0;
-            char second_base = static_cast<char>(std::toupper(*(this->seq + pos + 1)));
-            char third_base = static_cast<char>(std::toupper(*(this->seq + pos + 2)));
-            return (second_base != 'G') && (third_base == 'G');
-        } else if (base == 'G') {
-            if (pos <= 1) return 0;
-            char second_base = static_cast<char>(std::toupper(*(this->seq + pos - 1)));
-            char third_base = static_cast<char>(std::toupper(*(this->seq + pos - 2)));
-            return (second_base != 'C') && (third_base == 'G');
-        }
-        return 0;
-    }
-    int is_chh(int ref_pos) const {
-        int pos = ref_pos - this->start_pos;
-        if (pos >= this->length) return 0;
-        char base = static_cast<char>(std::toupper(*(this->seq + pos)));
-        if (base == 'C') {
-            if (pos + 2 >= this->length) return 0;
-            char second_base = static_cast<char>(std::toupper(*(this->seq + pos + 1)));
-            char third_base = static_cast<char>(std::toupper(*(this->seq + pos + 2)));
-            return (second_base != 'G') && (third_base != 'G');
-        } else if (base == 'G') {
-            if (pos <= 1) return 0;
-            char second_base = static_cast<char>(std::toupper(*(this->seq + pos - 1)));
-            char third_base = static_cast<char>(std::toupper(*(this->seq + pos - 2)));
-            return (second_base != 'C') && (third_base != 'C');
-        }
-        return 0;
-    }
-    int get_start_pos() const { return this->start_pos; }
-    int get_length() const { return this->length; }
 };
 
 #endif // MODALIB_REFERENCE_H

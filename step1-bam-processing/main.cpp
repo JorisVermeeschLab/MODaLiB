@@ -9,8 +9,10 @@
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <ctime>
 #include <cstring>
 #include <cinttypes>
+#include <regex>
 #include <pthread.h>
 #include <limits>
 #include <unordered_set>
@@ -26,14 +28,13 @@
 #include "base.h"
 #include "pairing/paired_reads.h"
 #include "pairing/single_read.h"
+#include "utils.h"
 
 #if HTS_VERSION < 101100
 #error "HTSlib version should be >= 1.11"
 #endif
 
 // #define NDEBUG
-static constexpr bool DEBUG_TEXT_OUTPUT = false;
-
 
 
 pthread_mutex_t positionMutex;
@@ -45,27 +46,45 @@ uint32_t bin = 0;
 uint32_t outputBin = 0;
 
 
-void write_fragment(kstring_t *os, Fragment& fragment) {
+void write_fragment(kstring_t *os, const Fragment& fragment) {
+    // Save fragment information in binary file
+    char buffer[FRAGMENT_SIZE_IN_BYTES];
+    fragment.serialize(buffer);
+    kputsn(buffer, sizeof(buffer), os);
+}
 
-    if (DEBUG_TEXT_OUTPUT) {
-        char str[10000];
-        snprintf(str, 10000, "%" PRIu8 "\t%" PRIu32 "\t%" PRIu8 "\t%" PRIu32 "\t%" PRIu16" \t%" PRIu16 "\t%" PRIu16 "\t%" PRIu16 "\t%" PRIu16 "\t%" PRIu16 "\n",
-            fragment.start_chr_id,
-            fragment.start_pos,
-            fragment.end_chr_id,
-            fragment.end_pos,
-            fragment.length,
-            fragment.n_methylated,
-            fragment.n_unmethylated,
-            fragment.snp_count,
-            fragment.gc_count,
-            fragment.s_count
-        );
-        kputs(str, os);
-    } else {
-        char buffer[FRAGMENT_SIZE_IN_BYTES];
-        fragment.serialize(buffer);
-        kputsn(buffer, sizeof(buffer), os);
+
+void write_methylation(kstring_t *c_os, OrderedQueueMap<genome_size_t, std::tuple<uint8_t, uint16_t, uint16_t, uint8_t>>& queue, const Fragment& fragment) {
+
+    for (const auto& p : fragment.cytosines) {
+        const BaseInfo& base = p.second;
+        genome_size_t coords = combine_chromosomal_coordinates(fragment.chr_id, p.first);
+        if ((base.context == CpG_CONTEXT) && ((fragment.strand & 1) == 0)) coords--;
+        uint8_t c_type = as_uint8_t(base.context);
+
+        if (!queue.contains(coords)) {
+            queue.add(coords, std::make_tuple(c_type, 0, 0, fragment.strand));
+        }
+        if (base.methylated) std::get<1>(queue.get(coords))++;
+        else std::get<2>(queue.get(coords))++;
+    }
+
+    // Save methylation information to file
+    while (queue.size_exceeded() && (queue.size() > 0)) {
+        auto p = queue.front();
+        std::pair<uint8_t, uint32_t> coords = uncombine_chromosomal_coordinates(p.first);
+        queue.pop();
+
+        // Serialize methylation information
+        int offset = 0;
+        char buffer[11];
+        offset += Serializer::serialize(buffer + offset, (uint8_t) coords.first);
+        offset += Serializer::serialize(buffer + offset, (uint32_t) coords.second);
+        offset += Serializer::serialize(buffer + offset, (uint8_t) std::get<0>(p.second));
+        offset += Serializer::serialize(buffer + offset, (uint16_t) std::get<1>(p.second));
+        offset += Serializer::serialize(buffer + offset, (uint16_t) std::get<2>(p.second));
+        offset += Serializer::serialize(buffer + offset, (uint8_t) std::get<3>(p.second));
+        kputsn(buffer, sizeof(buffer), c_os);
     }
 }
 
@@ -97,7 +116,7 @@ void trim_alignment(bam1_t *b, const Parameters& config) {
 }
 
 
-void process_read(const bam1_t *b, const AlignmentRefSequence& ref, ReadInfo& read_info, uint8_t min_phred, bool with_c_conversion) {
+void process_read(const bam1_t *b, const AlignmentRefSequence& ref, ReadInfo& read_info, const Parameters* params) {
 
     uint32_t query_pos = 0;  // 0-based relative coordinate
     uint32_t ref_pos = b->core.pos;  // 0-based coordinate (relative to some arbitrary start pos)
@@ -105,10 +124,6 @@ void process_read(const bam1_t *b, const AlignmentRefSequence& ref, ReadInfo& re
     uint8_t* read_seq = bam_get_seq(b);
     uint8_t* read_qual = bam_get_qual(b);
     int strand = get_strand(b);
-
-    int adjusted_read_length = 0;
-    int adjusted_ref_start = -1;
-    int adjusted_ref_end = -1;
 
     for (int cigar_pos = 0; cigar_pos < b->core.n_cigar; cigar_pos++) {
 
@@ -124,53 +139,50 @@ void process_read(const bam1_t *b, const AlignmentRefSequence& ref, ReadInfo& re
 
             // Get base from the reference sequence
             char ref_base = ref.get_base(ref_pos);
+            BaseInfo ref_base_info = BaseInfo();
+            ref_base_info.c = ref_base;
 
             if ((cigar_op_type == BAM_CMATCH) || (cigar_op_type == BAM_CEQUAL) ||
                 (cigar_op_type == BAM_CDIFF)) {  // M, = or X (alignment match, but can be sequence match or mismatch)
 
                 // Get bases from query sequence
-                char base = seq_nt16_str[bam_seqi(read_seq, query_pos)];
+                char base = seq_nt16_str[bam_seqi(read_seq, query_pos)];  // Base at current position
                 base_info.c = base;
                 base_info.phred_score = read_qual[query_pos];
-                char previous_base;
+                char first_base, previous_base;  // Base at previous 2 positions
                 if (query_pos >= 1) previous_base = seq_nt16_str[bam_seqi(read_seq, query_pos - 1)];
                 else previous_base = 'N';
-                char next_base;
+                if (query_pos >= 2) first_base = seq_nt16_str[bam_seqi(read_seq, query_pos - 2)];
+                else first_base = 'N';
+                char next_base, last_base;  // Base at next 2 positions
                 if (query_pos + 1 < b->core.l_qseq) next_base = seq_nt16_str[bam_seqi(read_seq, query_pos + 1)];
                 else next_base = 'N';
+                if (query_pos + 2 < b->core.l_qseq) last_base = seq_nt16_str[bam_seqi(read_seq, query_pos + 2)];
+                else last_base = 'N';
 
                 // Check that bases indeed match or mismatch
                 base_info.is_match = 1;
-                if (cigar_op_type == BAM_CEQUAL) assert(base == ref_base);
-                else if (cigar_op_type == BAM_CDIFF) assert(base != ref_base);
 
-                // Check if CpG site
-                int direction = ref.is_cpg(ref_pos, strand);
-                int query_direction = ref.is_cpg(previous_base, base, next_base, strand, with_c_conversion);
-                if (direction != query_direction) direction = 0;
-                if (direction != 0) base_info.is_cpg_site = 1;
+                // Check if CpG, CHH, CHG site
+                Context context = ref.get_seq_context(first_base, previous_base, base, next_base, last_base, params->c_conversion, ref_pos, strand);
+                base_info.context = context;
 
-                if (with_c_conversion) {  // If unmethylated cytosines have been converted (either chemically or enzymatically)
+                if (params->c_conversion) {  // If unmethylated cytosines have been converted (either chemically or enzymatically)
 
                     // Check methylation status if CpG site, and check the presence of a putative mutation otherwise.
-                    // Note: it is generally admitted that CpG site are symmetrically (un)methylated on both strands.
-                    if ((direction == 1) && (strand & 1) == 1) {  // OT or CTOT case
+                    if ((is_cytosine(context)) && ((strand & 1) == 1)) {  // OT or CTOT case
+                        assert(ref_base == 'C');
                         if (base == 'C') {
                             base_info.methylated = 1;
                         } else if (base == 'T') {
                             base_info.methylated = 0;
-                            // Revert back converted cytosine
-                            base_info.c = 'C';
-                            assert(ref_base == 'C');
                         }
-                    } else if ((direction == -1) && (strand & 1) == 0) {  // OB or CTOB
+                    } else if ((is_cytosine(context)) && ((strand & 1) == 0)) {  // OB or CTOB
+                        assert(ref_base == 'G');
                         if (base == 'G') {
                             base_info.methylated = 1;
                         } else if (base == 'A') {
                             base_info.methylated = 0;
-                            // Revert back converted cytosine
-                            base_info.c = 'G';
-                            assert(ref_base == 'G');
                         }
                     } else {  // Not a CpG site
                         if (base != ref_base) {  // base mismatch
@@ -196,7 +208,6 @@ void process_read(const bam1_t *b, const AlignmentRefSequence& ref, ReadInfo& re
                                 // than SNPs, we consider all mismatches as being caused by converted cytosines.
                                 // TODO: maybe adjust Phred score to account for the probability of a SNP?
                                 base_info.methylated = 0;
-                                base_info.c = ref_base;  // Convert back the converted cytosine
                             }
                         } else {  // Base match
                             base_info.uninformative = 0;
@@ -207,16 +218,17 @@ void process_read(const bam1_t *b, const AlignmentRefSequence& ref, ReadInfo& re
                     // is treated as a putative point mutation (or sequencing error)
                     if (base != ref_base) base_info.putative_snp = 1;
                 }
+
+                // If reference base is unknown, set it to the observed one
+                if (ref_base_info.c == 'N') ref_base_info.c = base;
+
             } else if (cigar_op_type == BAM_CINS) {  // I (insertion to the reference)
                 char base = seq_nt16_str[bam_seqi(read_seq, query_pos)];
                 base_info.c = base;
                 base_info.phred_score = read_qual[query_pos];
                 base_info.inserted = 1;
-                if (with_c_conversion) {
-                    // No reference -> no way to disentangle mutations from converted cytosines
-                    // -> uninformative base
-                    base_info.uninformative = 1;
-                }
+                base_info.uninformative = 1;  // No reference -> no way to disentangle mutations from sequencing errors
+                ref_base_info.deleted = true;
                 consume_ref = false;
             } else if (cigar_op_type == BAM_CDEL) {  // D (deletion from the reference)
                 base_info.uninformative = 1;
@@ -234,6 +246,7 @@ void process_read(const bam1_t *b, const AlignmentRefSequence& ref, ReadInfo& re
                 char base = seq_nt16_str[bam_seqi(read_seq, query_pos)];
                 base_info.c = base;
                 base_info.phred_score = read_qual[query_pos];
+                ref_base_info.soft_clipped = 1;
                 consume_ref = false;
                 valid_base = false;
             } else {  // Ignore H (hard clipping) and P (padding) operations
@@ -244,46 +257,60 @@ void process_read(const bam1_t *b, const AlignmentRefSequence& ref, ReadInfo& re
                 valid_base = false;
             }
 
-            // If base is unknown, set Phred score to 0
+            // If base is unknown, then it is considered as non-informative
             if (base_info.c == 'N') base_info.uninformative = 1;
 
-            // If quality is too low, mark base as uninformative
-            if (base_info.phred_score < min_phred) base_info.uninformative = 1;
+            // If Phred score is too low, mark base as uninformative
+            if (base_info.phred_score < params->min_phred) base_info.uninformative = 1;
 
-            // Update estimates for the start and end positions (soft-clipped parts excluded)
-            if (valid_base) {
-                if (adjusted_ref_start < 0) adjusted_ref_start = ref_pos;
-                adjusted_ref_end = ref_pos;
-                adjusted_read_length++;
+            // Store the alignment
+            if (!(base_info.soft_clipped || ref_base_info.soft_clipped)) {
+                if (base_info.inserted) read_info.add_base(ref_pos, base_info);
+                else read_info.add_base(ref_pos + 1, base_info);
+                read_info.add_ref_base(ref_pos + 1, ref_base_info);
             }
 
             // Go to next base
-            read_info.add_base(ref_pos, base_info);
-            if (consume_ref) {
-                read_info.add_ref_base(ref_base);
-                ref_pos++;
-            }
-            if (consume_query) {
-                query_pos++;
-            }
+            if (consume_ref) ref_pos++;
+            if (consume_query) query_pos++;
         }
     }
 
-    // Update read's positional information
-    read_info.adjusted_length = adjusted_read_length;
-    read_info.start = adjusted_ref_start + 1;
-    read_info.end = adjusted_ref_end + 1;
+    // Detect unreliable bases at the ends of the read
+    read_info.trim_alignment_inplace(*params);
+
+    // Compute average Phred score
+    uint32_t avg_phred = 0;
+    for (size_t pos = 0; pos < b->core.l_qseq; pos++) {
+        avg_phred += read_qual[pos];
+    }
+    avg_phred /= b->core.l_qseq;
+    read_info.avg_phred = avg_phred;
+
+    // Get read weight
+    read_info.weight = 1.0f;
+    uint8_t* gc_tag = bam_aux_get(b, "GC");
+    if (gc_tag) {
+        read_info.weight = bam_aux2f(gc_tag);
+    }
 
     assert(query_pos == b->core.l_qseq);
 }
 
 void* process_partition(void* config_) {
+
     Parameters* config = static_cast<Parameters*>(config_);
     uint32_t localBin = 0, localPos = 0, localEnd = 0, localTid = 0, localPos2 = 0;
     bam1_t* b = bam_init1();
 
     kstring_t* os = (kstring_t*) calloc(1, sizeof(kstring_t));
     if (!os) {
+        fprintf(stderr, "Couldn't allocate space the for kstring_t structure in perRead!\n");
+        return nullptr;
+    }
+
+    kstring_t* c_os = (kstring_t*) calloc(1, sizeof(kstring_t));
+    if (!c_os) {
         fprintf(stderr, "Couldn't allocate space the for kstring_t structure in perRead!\n");
         return nullptr;
     }
@@ -310,8 +337,14 @@ void* process_partition(void* config_) {
     }
     bam_hdr_t* hdr = sam_hdr_read(fp);
 
-    QueueMap<std::string, ReadInfo> paired_reads(100000);
+    // Queue used to temporarily store a read's mate
+    OrderedQueueMap<std::string, ReadInfo> paired_reads(10000);
     std::unordered_set<std::string> blacklisted_pairs;
+
+    // Queue used to store methylation statuses
+    OrderedQueueMap<genome_size_t, std::tuple<uint8_t, uint16_t, uint16_t, uint8_t>> meth_queue(100000);
+
+    size_t n_processed_reads = 0;
 
     while (true) {
         //Lock and unlock the mutex, so we can get/update the tid/position
@@ -327,10 +360,10 @@ void* process_partition(void* config_) {
         if (globalEnd && localEnd > globalEnd) localEnd = globalEnd;
         globalPos = localEnd;
         if (globalEnd > 0 && globalPos >= globalEnd) {
-            //If we've specified a region, then break once we're outside of it
+            // If we've specified a region, then break once we're outside of it
             globalTid = std::numeric_limits<uint32_t>::max();
         }
-        if (localTid < hdr->n_targets && globalTid != std::numeric_limits<uint32_t>::max()) {
+        if (localTid < hdr->n_targets && (globalTid != std::numeric_limits<uint32_t>::max())) {
             if (globalPos >= hdr->target_len[localTid]) {
                 localEnd = hdr->target_len[localTid];
                 globalTid++;
@@ -358,12 +391,16 @@ void* process_partition(void* config_) {
             // Create read
             std::string id = std::string(bam_get_qname(b));
             ReadInfo read(
-                id, hdr->target_name[b->core.tid],
+                id,
+                hdr->target_name[b->core.tid],
                 b->core.pos + 1,  // Change 0-based to 1-based coordinate
-                abs(b->core.l_qseq), abs(b->core.isize),
+                bam_endpos(b),  // 0-based position of first base after the alignment
+                abs(b->core.isize),  // Insert size
                 get_strand(b),
+                b->core.qual,
                 b->core.flag
             );
+            n_processed_reads++;
 
             // If secondary alignment, or mapping quality is insufficient, discard read.
             if ((!config->single_read) and (blacklisted_pairs.find(read.id) != blacklisted_pairs.end())) {
@@ -379,15 +416,21 @@ void* process_partition(void* config_) {
                 continue;
             }
 
+            // If read is not part of allowed read groups, skip it.
+            if (config->use_read_group) {
+                uint8_t* rg_tag = bam_aux_get(b, "RG");
+                if (rg_tag) {
+                    const char* rg_value = bam_aux2Z(rg_tag);
+                    if (!std::regex_match(rg_value, config->read_group)) continue;
+                }
+            }
+
             // Use inclusion bounds to trim alignments
             trim_alignment(b, *config);
 
             // Extract read-level statistics from read
             AlignmentRefSequence ref(seq, localPos2, seq_len);
-            process_read(
-                    b, ref, read, config->min_phred,
-                    !config->use_mm_ml  // IMPORTANT: When using MM/ML flags to call methylation, we assume that Cs have not been converted
-            );
+            process_read(b, ref, read, config);
 
             // Call methylation using MM and ML tags (if required)
             if (config->use_mm_ml) methylation_from_aux(b, read, config->ml_cutoff);
@@ -396,21 +439,26 @@ void* process_partition(void* config_) {
             // Combine read pairs into fragments
             if (config->single_read) {  // Single-read
                 Fragment fragment = compute_fragment_statistics(read);
-                if (fragment.is_valid()) write_fragment(os, fragment);
+                if (fragment.is_valid() && (fragment.length <= config->max_fragment_size)) {
+                    write_fragment(os, fragment);
+                    if (config->write_cytosines) write_methylation(c_os, meth_queue, fragment);
+                }
             } else {  // Paired-end
                 bool found_pair = false;
                 if (paired_reads.contains(read.id)) {
                     ReadInfo& other_read = paired_reads.get(read.id);
                     if (read.paired_with(other_read)) {
                         Fragment fragment = compute_fragment_statistics(read, other_read);
-                        if (fragment.is_valid()) write_fragment(os, fragment);
+                        if (fragment.is_valid() && (read.chr_id == other_read.chr_id) && (fragment.length <= config->max_fragment_size)) {
+                            write_fragment(os, fragment);
+                            if (config->write_cytosines) write_methylation(c_os, meth_queue, fragment);
+                        }
                         found_pair = true;
                         paired_reads.remove(read.id);
                     }
                 }
                 if (!found_pair) paired_reads.add(read.id, read);
             }
-
         }
         sam_itr_destroy(iter);
         free(seq);
@@ -424,6 +472,10 @@ void* process_partition(void* config_) {
             }
             if (os->l) fwrite(os->s, 1, os->l, config->output_fp[0]);
             os->l = 0;
+            if (config->write_cytosines) {
+                if (c_os->l) fwrite(c_os->s, 1, c_os->l, config->c_output_fp[0]);
+                c_os->l = 0;
+            }
             outputBin++;
             pthread_mutex_unlock(&outputMutex);
             break;
@@ -432,6 +484,8 @@ void* process_partition(void* config_) {
 
     if (os->s) free(os->s);
     free(os);
+    if (c_os->s) free(c_os->s);
+    free(c_os);
     bam_hdr_destroy(hdr);
     bam_destroy1(b);
     fai_destroy(fai);
@@ -480,6 +534,7 @@ void cli_help() {
 int run_convertor(int argc, char *argv[]) {
     Parameters config;
     FILE *ofile = stdout;
+    FILE *c_ofile = stdout;
     faidx_t *fai;
 
     static struct option lopts[] = {
@@ -488,6 +543,9 @@ int run_convertor(int argc, char *argv[]) {
             {"single_read",   0, nullptr, 20},
             {"useMMML",   0, nullptr, 21},
             {"mlCutoff",   1, nullptr, 22},
+            {"cconv",   0, nullptr, 23},
+            {"max_frag_size",   1, nullptr, 24},
+            {"read_group",   1, nullptr, 25},
             {"partition_size",    1, nullptr,  19},
             {"OT",           1, nullptr,   7},
             {"OB",           1, nullptr,   8},
@@ -496,16 +554,23 @@ int run_convertor(int argc, char *argv[]) {
             {0,         0, nullptr,   0}
     };
     char c;
-    while((c = getopt_long(argc, argv, "hvq:p:o:@:r:l:F:R:", lopts, nullptr)) >= 0) {
+    while((c = getopt_long(argc, argv, "hvq:p:o:m:n:c:@:r:l:F:R:", lopts, nullptr)) >= 0) {
         switch(c) {
             case 'h':
                 cli_help();
                 return 0;
             case 'o':
-                if((ofile = fopen(optarg, "wb")) == nullptr) {
+                if ((ofile = fopen(optarg, "wb")) == nullptr) {
                     fprintf(stderr, "Couldn't open %s for writing\n", optarg);
                     return 2;
                 }
+                break;
+            case 'c':
+                if ((c_ofile = fopen(optarg, "wb")) == nullptr) {
+                    fprintf(stderr, "Couldn't open %s for writing\n", optarg);
+                    return 2;
+                }
+                config.write_cytosines = true;
                 break;
             case 'q':
                 config.min_mapq = atoi(optarg);
@@ -525,6 +590,13 @@ int run_convertor(int argc, char *argv[]) {
             case 22:
                 config.ml_cutoff = static_cast<uint8_t>(atoi(optarg));
                 break;
+            case 23:
+                config.c_conversion = 1;
+                break;
+            case 25:
+                config.read_group = std::regex(optarg);
+                config.use_read_group = true;
+                break;
             case 7:
                 config.parse_ot_bounds(optarg);
                 break;
@@ -536,6 +608,9 @@ int run_convertor(int argc, char *argv[]) {
                 break;
             case 10:
                 config.parse_ctob_bounds(optarg);
+                break;
+            case 24:
+                config.max_fragment_size = strtoul(optarg, nullptr, 10);
                 break;
             case 19:
                 config.partition_size = strtoul(optarg, nullptr, 10);
@@ -594,9 +669,11 @@ int run_convertor(int argc, char *argv[]) {
         }
     }
 
-    // Output file
+    // Output files
     config.output_fp = (FILE**) malloc(sizeof(FILE *));
     config.output_fp[0] = ofile;
+    config.c_output_fp = (FILE**) malloc(sizeof(FILE *));
+    config.c_output_fp[0] = c_ofile;
 
     // Spin up the threads
     pthread_mutex_init(&positionMutex, nullptr);
@@ -606,10 +683,20 @@ int run_convertor(int argc, char *argv[]) {
     free(threads);
     pthread_mutex_destroy(&positionMutex);
 
+    // Add dummy fragment to output file to indicate that the file is valid
+    Fragment dummy;
+    dummy.chr_id = 0;
+    dummy.length = 0;
+    char buffer[FRAGMENT_SIZE_IN_BYTES];
+    dummy.serialize(buffer);
+    fwrite(buffer, sizeof(buffer), 1, config.output_fp[0]);
+
     // Close files and free memory
     hts_close(config.fp);
     if (ofile != stdout) fclose(ofile);
+    if (c_ofile != stdout) fclose(c_ofile);
     free(config.output_fp);
+    free(config.c_output_fp);
     fai_destroy(fai);
     hts_idx_destroy(config.bai);
 

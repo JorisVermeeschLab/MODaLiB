@@ -29,17 +29,25 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <iostream>
 #include <vector>
 #include <unordered_map>
 #include <cstdint>
 
 namespace modalib {
 
-    // https://download.cncb.ac.cn/nucmap/organisms/v1/Homo_sapiens/byDataType/Nucleosome_peaks_DANPOS/
-    // https://academic.oup.com/nar/article/47/D1/D163/5134334
+// https://download.cncb.ac.cn/nucmap/organisms/v1/Homo_sapiens/byDataType/Nucleosome_peaks_DANPOS/
+// https://academic.oup.com/nar/article/47/D1/D163/5134334
 
 class RefNucMap {
+public:
+    static constexpr float NULL_ANGLE = -1.0f;
+    static constexpr float NULL_SCORE = -1.0f;
+
 private:
+
+    // Whether to return distance to closest nucleosome instead of phase score
+    bool distance = false;
 
     // Nucleosome positions per chromosome.
     // Keys are chromosome ids, while values are vectors of called nucleosome positions.
@@ -52,20 +60,25 @@ private:
 
 public:
     RefNucMap() = default;
-    RefNucMap(const std::string& filepath) {
+    RefNucMap(const std::string& filepath): RefNucMap(filepath, false) {}
+    RefNucMap(const std::string& filepath, bool distance) {
+        this->distance = distance;
 
         genome_size_t last_combined_coords = 0;
+
+        int n_nucleosomes = 0;
 
         // Parse input bed file
         std::ifstream file(filepath);
         std::vector<std::string> line_elements;
         for (std::string line; std::getline(file, line);) {
+
             line_elements.clear();
             std::istringstream ss(line);
             for (std::string value; std::getline(ss, value, '\t');) {
                 line_elements.push_back(std::move(value));
             }
-            if (line_elements.size() == 4) {
+            if (line_elements.size() >= 2) {
 
                 // Parse nucleosome identifier
                 uint8_t chr_id = parse_chr_name(line_elements.at(0).c_str());
@@ -74,9 +87,7 @@ public:
                 if (chr_id == 0) continue;
 
                 // Get nucleosome center position
-                long start = std::stoi(line_elements.at(1));
-                long end = std::stoi(line_elements.at(2));
-                long center = (start + end) / 2;
+                long center = std::stoi(line_elements.at(1));
 
                 // Make sure bed file is properly sorted
                 genome_size_t combined_coords = combine_coords(chr_id, center);
@@ -84,7 +95,7 @@ public:
                 if (combined_coords < last_combined_coords) {
                     throw std::domain_error(
                             "Error while parsing reference nucleosome map. "
-                            "Input bed file should be sorted (chr1, chr2, ..., chr11, ..., chr22, chrX, chrY, chrM)");
+                            "Input bed file should be sorted (chr1, chr2, ..., chr11, ..., chr22, chrX, chrY)");
                 }
                 last_combined_coords = combined_coords;
 
@@ -98,11 +109,15 @@ public:
                 if (chr_angles.find(chr_id) == chr_angles.end()) {
                     if (chr_id < CHROMOSOME_BOUNDS.size()) {
                         unsigned long chr_size = CHROMOSOME_BOUNDS.at(chr_id).second * BIN_SIZE;
-                        chr_angles[chr_id] = std::vector<float>(chr_size, 0.0f);
+                        chr_angles[chr_id] = std::vector<float>(chr_size, RefNucMap::NULL_ANGLE);
                     }
                 }
+
+                n_nucleosomes++;
             }
         }
+
+        std::cout << "Found " << n_nucleosomes << " nucleosome(s) in reference map." << std::endl;
 
         // Update nucleosome scores
         for (auto& it: chr_angles) {
@@ -111,18 +126,22 @@ public:
             std::vector<long> &pos = nuc_pos.at(chr_id);
             size_t n = pos.size();
             if (n <= 1) continue;
-            for (int i = 1; i < n; i++) {
-                const long x1 = pos[i - 1];
-                const long x2 = pos[i];
+            for (size_t i = 1; i < n; i++) {
+                const unsigned long x1 = pos[i - 1];
+                const unsigned long x2 = pos[i];
                 if (x1 > x2) throw std::runtime_error("Nucleosome reference map file is not sorted!");
                 if (x2 >= ca.size()) continue;
-                if (x2 - x1 > 500) {
-                    for (long j = 0; j < x2 - x1 + 1; j++) {
-                        ca[x1 + j] = 0.0f;
+                if (x2 - x1 <= 500) {
+                    // x1     ...   x2
+                    // x1+0   ...   x1+x2-x1+1
+                    //    0
+                    for (unsigned long j = 0; j < x2 - x1; j++) {
+                        if (!distance) {
+                            ca[x1 + j] = 2.0f * static_cast<float>(j) / static_cast<float>(x2 - x1);
+                        } else {
+                            ca[x1 + j] = std::fmin(j, x2 - x1 - j);
+                        }
                     }
-                }
-                for (long j = 0; j < x2 - x1 + 1; j++) {
-                    ca[x1 + j] = 2.0f * static_cast<float>(j) / static_cast<float>(x2 - x1);
                 }
             }
         }
@@ -131,7 +150,7 @@ public:
 
     inline float angle(uint8_t chr_id, unsigned long genomic_coord) const {
         if (this->chr_angles.find(chr_id) == this->chr_angles.end()) {
-            return RefNucMap::default_angle(genomic_coord);
+            return RefNucMap::NULL_ANGLE;
         } else {
             const std::vector<float>& ca = this->chr_angles.at(chr_id);
             return RefNucMap::angle(ca, genomic_coord);
@@ -140,7 +159,7 @@ public:
 
     inline static float angle(const std::vector<float>& ca, unsigned long genomic_coord) {
         if (genomic_coord >= ca.size()) {
-            return RefNucMap::default_angle(genomic_coord);
+            return RefNucMap::NULL_ANGLE;
         } else {
             return ca[genomic_coord];
         }
@@ -154,7 +173,7 @@ public:
             uint8_t chr_id, const std::valarray<FragmentInfo>& frags, const std::vector<size_t>& idx, const FragmentInfo& frag_i
     ) const {
 
-        std::valarray<float> pss(0.0f, idx.size());
+        std::valarray<float> pss(RefNucMap::NULL_SCORE, idx.size());
 
         // Ensure contig is available in reference map
         if (this->chr_angles.find(chr_id) == this->chr_angles.end()) return pss;
@@ -170,10 +189,12 @@ public:
 
             // Compute score for start positions
             float phi = std::fabs(RefNucMap::angle(ca, frags[j].start_pos) - phi2);
+            if (phi == RefNucMap::NULL_ANGLE) continue;
             phi = 1.0f - std::fmin(phi, 2.0f - phi);
 
             // Compute score for end positions
             float psi = std::fabs(RefNucMap::angle(ca, frags[j].end_pos) - psi2);
+            if (psi == RefNucMap::NULL_ANGLE) continue;
             psi = 1.0f - std::fmin(psi, 2.0f - psi);
 
             // Compute total score
@@ -184,8 +205,28 @@ public:
 
     float phase_shift_score_wrt_reference(uint8_t chr_id, unsigned long x) const {
         float phi = this->angle(chr_id, x);
-        phi = std::fmin(phi, 2.0f - phi);
-        return 1.0f - phi;
+        if (phi == RefNucMap::NULL_ANGLE) {
+            return RefNucMap::NULL_SCORE;
+        } else {
+            if (!distance) {
+                return std::fmin(phi, 2.0f - phi);
+            } else {
+                return phi;
+            }
+        }
+    }
+
+    float alt_phase_shift_score_wrt_reference(uint8_t chr_id, unsigned long x, uint16_t frag_size) const {
+        float phi = this->angle(chr_id, x);
+        float psi = this->angle(chr_id, x + 1);
+        if ((phi == RefNucMap::NULL_ANGLE) || (psi == RefNucMap::NULL_ANGLE)) {
+            return RefNucMap::NULL_SCORE;
+        } else {
+            float nuc_distance = 2.0f / std::fabs(phi - psi);
+            if (nuc_distance < 120.0f) nuc_distance = 120.0f;
+            else if (nuc_distance > 250.0f) nuc_distance = 200.0f;
+            return ((float) frag_size > nuc_distance);
+        }
     }
 };
 

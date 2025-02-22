@@ -36,7 +36,7 @@ namespace modalib {
 inline int argmin(const std::valarray<genome_size_t>& coords) noexcept {
     const size_t n = coords.size();
     int k = 0;
-    for (int i = 0; i < n; i++) {
+    for (size_t i = 0; i < n; i++) {
         if (coords[i] < coords[k]) k = i;
     }
     return k;

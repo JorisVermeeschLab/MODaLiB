@@ -37,14 +37,14 @@ public:
     explicit IncrementalMean(size_t max_window_size) : running_sum(0.0f), total_weight(0.0f), max_window_size(max_window_size), window() {}
     void add(const FragmentInfo& frag, float value, float weight) {
         window.push_back({frag, {value, weight}});
-        running_sum += value;
+        running_sum += value * weight;
         total_weight += weight;
         update();
     }
     bool contains(const FragmentInfo& frag) const {
         if (window.empty()) return true;
         const FragmentInfo& newest = window.back().first;
-        if (newest.start_chr_id != frag.start_chr_id) return false;
+        if (newest.chr_id != frag.chr_id) return false;
         long diff = static_cast<long>(newest.start_pos) - static_cast<long>(frag.start_pos);
         if (std::labs(diff) >= max_window_size) return false;
         return true;
@@ -52,7 +52,7 @@ public:
     void update() {
         while (!contains(window.front().first)) {
             auto& pair = window.front();
-            running_sum -= pair.second.first;
+            running_sum -= pair.second.first * pair.second.second;
             total_weight -= pair.second.second;
             window.pop_front();
         }
@@ -62,9 +62,8 @@ public:
         }
     }
     inline float as_float() const {
-        size_t n = window.size();
-        if (n == 0) return 0.0f;
-        return running_sum / static_cast<float>(n);
+        if (total_weight == 0) return 0.0f;
+        return running_sum / total_weight;
     }
     inline float get_weight() const { return total_weight; }
     inline size_t size() const { return window.size(); }

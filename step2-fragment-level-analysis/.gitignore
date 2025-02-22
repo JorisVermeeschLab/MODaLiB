@@ -1,10 +1,6 @@
 *.pyd
 *.pyc
 *.c
-*.vcxproj
-*.vcxproj.filters
-
-*.png
 
 X.npz
 

@@ -21,74 +21,151 @@
 #define MODALIB_VNTR_H
 
 #include <cstdint>
+#include <utility>
 #include <string>
+
+#include "base.h"
 #include "reference.h"
-#include "utils.h"
+
 
 // Minimum length of a microsatellite motif (e.g., "A")
 const int MIN_MOTIF_LENGTH = 1;
 
-// Maximum length of a microsatellite motif (e.g., "ATCCAG")
+// Maximum length of a microsatellite motif (e.g., "ATCCA")
 const int MAX_MOTIF_LENGTH = 6;
 
 // Minimum number of repeats to be considered a microsatellite
 const int MIN_NUM_REPEATS = 5;
 
+// Minimum number of bases to be considered a microsatellite
+const int MS_MIN_NUM_BASES = 15;
+
+// Due to alignment errors, the insertion/deletion might occur slightly
+// before or after the microsatellite itself. Also, the indel might not
+// necessarily occur at the same location in R1 and R2.
+// For this reason, we need to allow indels close to the microsatellite.
+const uint16_t MS_FLANK_SIZE = 5;
+
+
 struct TandemRepeat {
     bool is_valid = false;
-    uint16_t start = 0;
-    uint16_t end = 0;
+    uint32_t start = 0;
+    uint32_t end = 0;
     std::string motif;
     uint16_t n_repeats = 0;
-    inline bool spans(uint16_t pos) const { return (start <= pos) && (pos <= end); }
+    int16_t indels = 0;
+    inline bool spans(uint32_t pos) const {
+        return (start <= pos + MS_FLANK_SIZE) && (pos <= end + MS_FLANK_SIZE);
+    }
 };
 
 
-TandemRepeat find_microsatellite(std::vector<char> seq) {
+TandemRepeat find_microsatellite_in_reference(const char* seq, size_t n) {
 
     TandemRepeat tr;
 
-    int n = seq.size();
+    if (n == 0) return tr;
 
     int counts[MAX_MOTIF_LENGTH - MIN_MOTIF_LENGTH + 1];
     for (int k = MIN_MOTIF_LENGTH; k <= MAX_MOTIF_LENGTH; k++) counts[k - MIN_MOTIF_LENGTH] = k;
-    int best_i = 0;
-    int best_n_repeats = 1;
-    int best_motif_length = 1;
 
     for (int i = 0; i < n; i++) {
-        for (int k = 0; k < MAX_MOTIF_LENGTH - MIN_MOTIF_LENGTH + 1; k++) {
+        // for (int k = 0; k < MAX_MOTIF_LENGTH - MIN_MOTIF_LENGTH + 1; k++) {
+        for (int k = MAX_MOTIF_LENGTH - MIN_MOTIF_LENGTH; k >= 0; k--) {
             int motif_length = k + MIN_MOTIF_LENGTH;
             if (i - motif_length >= 0) {
-                if (seq.at(i) == seq.at(i - motif_length)) {
-                    counts[k]++;
-                } else {
+                if ((seq[i] != seq[i - motif_length]) || (seq[i] == 'N')) {
                     counts[k] = motif_length;
+
+                    if (tr.is_valid && (tr.motif.length() == motif_length)) {
+                        return tr;
+                    }
+                } else {
+                    counts[k]++;
                 }
             }
-            int n_repeats = counts[k] / motif_length;
-            if (n_repeats * motif_length > best_n_repeats * best_motif_length) {
-                best_n_repeats = n_repeats;
-                best_motif_length = motif_length;
-                best_i = i;
+            if (counts[k] >= MS_MIN_NUM_BASES) {
+                int n_repeats = counts[k] / motif_length;
+                tr.is_valid = true;
+                tr.n_repeats = n_repeats;
+                tr.start = std::max(i + 1 - counts[k], 0);
+                tr.end = i;
+                tr.motif = std::string(&seq[tr.start], motif_length);
+
+                // Ensure that microsatellite is entirely contained in the sequence
+                if (tr.end >= n - 1) tr.is_valid = false;
+                else if (seq[tr.end + 1] == 'N') tr.is_valid = false;
+                if (tr.start <= 0) tr.is_valid = false;
+                else if (seq[tr.start - 1] == 'N') tr.is_valid = false;
             }
-        }
-    }
-
-    if (best_n_repeats >= MIN_NUM_REPEATS) {
-        tr.is_valid = true;
-        tr.n_repeats = best_n_repeats;
-        tr.start = best_i + 1 - best_motif_length * best_n_repeats;
-        tr.end = best_i;
-        tr.motif = std::string(&seq[tr.end + 1 - best_motif_length], best_motif_length);
-
-        // Handle homopolymeric sequences
-        if (all_chars_the_same(tr.motif)) {
-            tr.motif = tr.motif[0];
-            tr.n_repeats = tr.end - tr.start + 1;
         }
     }
     return tr;
+}
+
+
+void find_microsatellites_in_reference(const char* seq, size_t seq_end, size_t seq_offset, std::vector<TandemRepeat>& mss) {
+    size_t seq_start = 0;
+    TandemRepeat tr;
+    do {
+        tr = find_microsatellite_in_reference(seq + seq_start, seq_end - seq_start);
+        if (tr.is_valid) {
+            size_t new_seq_start = seq_start + tr.end + 1;
+            tr.start += seq_start + seq_offset;
+            tr.end += seq_start + seq_offset;
+            mss.push_back(tr);
+            seq_start = new_seq_start;
+            if (seq_start >= seq_end) break;
+        }
+    } while (tr.is_valid);
+}
+
+
+void find_microsatellites(const std::vector<std::pair<uint32_t, BaseInfo>>& bases, std::vector<TandemRepeat>& mss) {
+    if (bases.empty()) return;
+    char* seq = new char[bases.size()];
+    size_t seq_offset = bases.front().first;
+    size_t seq_end = 0;
+    for (const auto& pair : bases) {
+        if (pair.second.deleted) continue;
+        if (pair.second.soft_clipped) seq[seq_end++] = 'N';
+        else {
+            seq[seq_end++] = pair.second.c;
+        }
+    }
+    find_microsatellites_in_reference(seq, seq_end, seq_offset, mss);
+    delete[] seq;
+}
+
+
+void find_microsatellites(
+        const std::vector<std::pair<uint32_t, BaseInfo>>& b1,
+        const std::vector<std::pair<uint32_t, BaseInfo>>& b2,
+        std::vector<TandemRepeat>& mss
+        ) {
+    if (b1.size() + b2.size() == 0) return;
+    char* seq = new char[b1.size() + b2.size()];
+    size_t seq_offset;
+    if (!b1.empty()) seq_offset = b1.front().first;
+    else seq_offset = b2.front().first;
+    size_t seq_end = 0;
+    uint32_t last = 0;
+    for (const auto& pair : b1) {
+        last = pair.first;
+        if (pair.second.deleted) continue;
+        if (pair.second.soft_clipped) seq[seq_end++] = 'N';
+        else seq[seq_end++] = pair.second.c;
+    }
+    for (const auto& pair : b2) {
+        if (last < pair.first) {
+            last = pair.first;
+            if (pair.second.deleted) continue;
+            if (pair.second.soft_clipped) seq[seq_end++] = 'N';
+            else seq[seq_end++] = pair.second.c;
+        }
+    }
+    find_microsatellites_in_reference(seq, seq_end, seq_offset, mss);
+    delete[] seq;
 }
 
 #endif //MODALIB_VNTR_H
