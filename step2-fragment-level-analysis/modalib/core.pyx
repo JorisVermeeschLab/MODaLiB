@@ -85,6 +85,13 @@ cdef class Sample:
         self.filepath = <string>filepath.encode('utf-8')
         self.sample_ = _Sample(self.filepath)
 
+        n = self.__len__()
+        if n == 0:
+            raise RuntimeError(f'File {filepath} is empty')
+        frag = self.__getitem__(n - 1)
+        if (frag['start_chr_id'] != 0) or (frag['start_pos'] != 1) or (frag['end_pos'] != 0):
+            raise RuntimeError(f'File {filepath} is corrupted (bad termination). Consider re-generating it from scratch.')
+
     cdef _Sample get(self):
         return self.sample_
 
@@ -122,7 +129,7 @@ cdef class Sample:
             yield Sample.frag_to_dict(frag_)
             self.sample_.next()
 
-    def __getitem__(self, i: int):
+    def __getitem__(self, i: int) -> dict:
         self.sample_.go_to_chunk(i)
         return Sample.frag_to_dict(self.sample_.get())
 

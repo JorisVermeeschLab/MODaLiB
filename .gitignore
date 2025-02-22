@@ -1,3 +1,5 @@
+README.gc.md
+
 *.pyc
 *.c
 
@@ -13,12 +15,9 @@
 
 cmake_install.cmake
 
-X.npz
-K.npz
-
-kernels/
-nucleosomes/
-
+outputs/
+mutex/
+__pycache__/
 _deps/
 venv/
 cmake-build-debug/
