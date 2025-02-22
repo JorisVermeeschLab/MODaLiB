@@ -15,6 +15,7 @@ README.gc.md
 
 cmake_install.cmake
 
+.ipynb_checkpoints/
 outputs/
 mutex/
 __pycache__/
