@@ -83,9 +83,12 @@ def count_nucleotides_per_position(filepath: str, timeout: float = 48 * 3600) ->
     nuc_abs_freqs = np.zeros((64, 500), dtype=np.uint64)
     t0 = time.time()
     n_frags = 0
+
+    i = 0
     while True:
-        i = random.randint(0, n - 1)
+        #i = random.randint(0, n - 1)
         frag = sample[i]
+        i += 1
 
         chr_id = frag['start_chr_id']
         chr_name = chr_id_to_chr_name(chr_id)

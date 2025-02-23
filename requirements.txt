@@ -6,10 +6,19 @@ pandas
 # Data visualization
 matplotlib
 seaborn
+plotly
+python-ternary
+kaleido
+logomaker
 
 # Machine Learning
+statsmodels
 scikit-learn
 torch
+
+# Bioinformatics
+gseapy
+psmpy
 
 # Jupyter notebooks
 jupyterlab

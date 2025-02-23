@@ -82,8 +82,8 @@ class MethCellTypeDeconvolutionModality(BaseModality):
                 X = self.bb_transformer.transform(n, X * n, y=Y)
 
         # Supervised deconvolution
-        use_coverage = True
-        n_unknowns = 1
+        use_coverage = False
+        n_unknowns = 0
         unsupervised = False
         if fit:
             model = MetDecode(

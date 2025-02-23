@@ -28,8 +28,8 @@ def pearson_corrcoef(x: torch.Tensor, y: torch.Tensor, eps: float = 1e-6) -> tor
 
 def crossdomain_deconvolution(X: np.ndarray, R: np.ndarray, max_n_iter: int = 100) -> Tuple[np.ndarray, np.ndarray]:
 
-    #X = quantile_transform(X.T, n_quantiles=1000, output_distribution='uniform').T
-    #R = quantile_transform(R.T, n_quantiles=1000, output_distribution='uniform').T
+    X = quantile_transform(X.T, n_quantiles=1000, output_distribution='uniform').T
+    R = quantile_transform(R.T, n_quantiles=1000, output_distribution='uniform').T
 
     assert not np.any(np.isnan(X))
     assert not (np.any(np.isnan(R)) or np.any(np.isinf(R)))

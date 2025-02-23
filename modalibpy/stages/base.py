@@ -102,6 +102,7 @@ class Annotation:
         self.cancer_type: Optional[str] = cancer_type
         self.extra_info: str = extra_info
         self.msi: float = np.nan
+        self.subtype_: str = ""
 
         # TNM system
         self.tumor_size: Grade = Grade('X')
@@ -182,3 +183,7 @@ class Annotation:
 
     def __gt__(self, other: 'Annotation') -> bool:
         return float(self.grade) > float(Annotation.ensure_stage(other).grade)
+
+    def subtype(self) -> str:
+        return self.subtype_
+    
