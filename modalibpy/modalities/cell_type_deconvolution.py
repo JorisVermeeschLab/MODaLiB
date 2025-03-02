@@ -19,9 +19,9 @@ class FragCellTypeDeconvolutionModality(BaseModality):
 
 
     def __init__(self, *args, max_n_iter: int = 2000, **kwargs) -> None:
-        BaseModality.__init__(self, *args, kernel='rbf', **kwargs)
+        BaseModality.__init__(self, *args, kernel='chi2', **kwargs)
         self.max_n_iter: int = max_n_iter
-        self.use_compartments: bool = kwargs.get('use_compartments', True)
+        self.use_compartments: bool = kwargs.get('use_compartments', False)
 
     def preprocess(self, data: MultimodalData, fit: bool = True) -> None:
 
@@ -45,6 +45,8 @@ class FragCellTypeDeconvolutionModality(BaseModality):
     def process(self, data: MultimodalData, y: Optional[np.ndarray] = None, fit: bool = True) -> np.ndarray:
         X = self.load(data, 'Frag cell type proportions')
 
+        X = X + 1e-7
+
         X = X / np.sum(X, axis=1)[:, np.newaxis]
 
         return X
@@ -55,7 +57,7 @@ class MethCellTypeDeconvolutionModality(BaseModality):
     def __init__(self, *args, max_n_iter: int = 10, **kwargs) -> None:
         BaseModality.__init__(self, *args, kernel='chi2', **kwargs)
         self.scaler: RobustScaler = RobustScaler()
-        self.bb_transformer: BetaBinomialTransformer = BetaBinomialTransformer(gamma=0.01)
+        self.bb_transformer: BetaBinomialTransformer = BetaBinomialTransformer(gamma=0.01, lr=1e-6)
         self.max_n_iter: int = max_n_iter
         self.gamma_hat: Optional[np.ndarray] = None
 
@@ -67,11 +69,10 @@ class MethCellTypeDeconvolutionModality(BaseModality):
         X = data['CpG Methylation (deconvolution, cfDNA)']
         R = data['CpG Methylation (deconvolution, reference)']
 
-        y_cgn_ncg = np.log(cgnngc_ratios(data['End-motif probability (5 prime)']))
-        #y_cgn_ncg = np.log(cgnngc_ratios(data['End-motif probability (5 prime)']))
+        y_cgn_ncg = cgnngc_ratios(data['End-motif probability (5 prime)'])
         Y = np.repeat(y_cgn_ncg[:, np.newaxis], X.shape[1], axis=1)
 
-        n = np.clip(data['CpG count (deconvolution, cfDNA)'], 0.01, None) * 2
+        n = np.clip(data['CpG count (deconvolution, cfDNA)'], 0.01, None)
 
         n_atlas_entities = len(data['CpG Methylation (deconvolution, reference)'])
 

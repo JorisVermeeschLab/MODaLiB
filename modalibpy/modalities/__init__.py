@@ -7,9 +7,7 @@ from .end_motif_frequency import EndMotifFrequencyModality
 from .frag_length_counts import FragLengthCountModality
 from .jaggedness import JaggednessModality
 from .long_frag_ratio import LongFragmentRatioModality
-from .mutational import MutationalSignatureModality
 from .nucleosome_positioning import NucleosomePositioningModality
-from .context import TrinucleotideContext
 
 
 class Modalities(enum.Enum):
@@ -46,6 +44,6 @@ MODALITY_CLASSES = {
     Modalities.CAFF: CAFFModality,
     Modalities.END_MOTIFS: EndMotifFrequencyModality,
     Modalities.JAGGEDNESS: JaggednessModality,
-    Modalities.MUTATIONS: MutationalSignatureModality,
-    Modalities.TRINUCLEOTIDE_CONTEXT: TrinucleotideContext
+    #Modalities.MUTATIONS: MutationalSignatureModality,
+    #Modalities.TRINUCLEOTIDE_CONTEXT: TrinucleotideContext
 }

@@ -17,7 +17,7 @@ class CpGMethylationModality(BaseModality):
     def __init__(self, *args, fmr: bool = False, **kwargs) -> None:
         BaseModality.__init__(self, *args, kernel='rbf', **kwargs)
         self.scaler: RobustScaler = RobustScaler()
-        self.bb_transformer: BetaBinomialTransformer = BetaBinomialTransformer(gamma=0.01, max_n_iter=50)
+        self.bb_transformer: BetaBinomialTransformer = BetaBinomialTransformer(gamma=0.01, lr=1e-7, max_n_iter=500)
         self.feature_weights: Optional[np.ndarray] = None
         self.fs: FeatureSelector = FeatureSelector(n_min=500)
         self.use_fmr: bool = fmr
@@ -32,11 +32,9 @@ class CpGMethylationModality(BaseModality):
             return None
 
         X = data['Fully methylated fragment ratio'] if self.use_fmr else data['CpG Methylation (first moment)']
-        #n = np.clip(data['Fully methylated fragment ratio (coverage)'] if self.use_fmr else data['CpG count'], 0.01, None)
-        n = np.clip(data['CpG count'] if self.use_fmr else data['CpG count'], 0.01, None) * 2
+        n = np.clip(data['Coverage'] if self.use_fmr else data['CpG count'], 0.01, None)
         
-        #Y = data['CH Methylation (first moment)']
-        y_cgn_ncg = np.log(cgnngc_ratios(data['End-motif probability (5 prime)']))
+        y_cgn_ncg = cgnngc_ratios(data['End-motif probability (5 prime)'])
         Y = np.repeat(y_cgn_ncg[:, np.newaxis], X.shape[1], axis=1)
 
         if self.probabilistic:
@@ -50,21 +48,7 @@ class CpGMethylationModality(BaseModality):
     def process(self, data: MultimodalData, y: Optional[np.ndarray] = None, fit: bool = True) -> np.ndarray:
 
         X = self.load(data, self.key)
-        n = np.clip(data['Fully methylated fragment ratio (coverage)'] if self.use_fmr else data['CpG count'], 0.01, None)
-
-        """
-        if fit:
-            X = self.scaler.fit_transform(X)
-        else:
-            X = self.scaler.transform(X)
-        """
-
-        # Reweight based on coverage
-        #if fit:
-        #    weights = np.mean(np.sqrt(n), axis=0)
-        #    weights /= np.std(weights)
-        #    self.feature_weights = weights
-        #X = X * self.feature_weights[np.newaxis, :]
+        n = np.clip(data['Coverage'] if self.use_fmr else data['CpG count'], 0.01, None)
 
         # Feature selection
         if fit:

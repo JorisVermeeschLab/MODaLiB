@@ -51,10 +51,10 @@ class CoverageModality(BaseModality):
         X = self.load(data, self.key)
 
         # Feature selection
-        #if fit:
-        #    X = self.fs.fit_transform(X, y)
-        #else:
-        #    X = self.fs.transform(X)
+        if fit:
+            X = self.fs.fit_transform(X, y)
+        else:
+            X = self.fs.transform(X)
 
         return X
 

@@ -13,6 +13,8 @@ logomaker
 
 # Machine Learning
 statsmodels
+MLstatkit
+qpsolvers[cvxopt]
 scikit-learn
 torch
 

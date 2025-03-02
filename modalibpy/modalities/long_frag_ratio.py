@@ -20,32 +20,20 @@ class LongFragmentRatioModality(BaseModality):
 
     def preprocess(self, data: MultimodalData, fit: bool = True) -> None:
 
-        if ('Proportion of long fragments (preprocessed)' in data) and self.cache:
+        if ('Fragment size index (preprocessed)' in data) and self.cache:
             return None
 
-        X = data['Proportion of long fragments']
+        if 'Fragment size index' in data:
+            X = data['Fragment size index']
+        else:
+            X = data['Proportion of long fragments']
         n = data['Coverage']
 
-        # Remove low-coverage bins
-        #if fit:
-        #    self.mask = (np.mean(n, axis=0) > 200)
-        #X = X[:, self.mask]
-        #n = n[:, self.mask]
-
-        #if self.probabilistic:
-        #    y = semfar_scores(data['End-motif probability (5 prime)'])
-        #    Y = np.repeat(y[:, np.newaxis], X.shape[1], axis=1)
-        #    Y = StandardScaler().fit_transform(Y)
-        #    if fit:
-        #        X = self.bb_transformer.fit_transform(n, X * n, y=Y)
-        #    else:
-        #        X = self.bb_transformer.transform(n, X * n, y=Y)
-
-        self.save(data, 'Proportion of long fragments (preprocessed)', X)
+        self.save(data, 'Fragment size index (preprocessed)', X)
 
     def process(self, data: MultimodalData, y: Optional[np.ndarray] = None, fit: bool = True) -> np.ndarray:
 
-        X = self.load(data, 'Proportion of long fragments (preprocessed)')
+        X = self.load(data, 'Fragment size index (preprocessed)')
         n = np.clip(data['Coverage'], 0.01, None)
 
         return X

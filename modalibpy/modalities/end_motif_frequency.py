@@ -29,24 +29,11 @@ class EndMotifFrequencyModality(BaseModality):
         if ('End motif frequencies (preprocessed)' in data) and self.cache:
             return None
 
-        counts = data['End-motif probability (5 prime)']
-        counts = np.clip(counts, 0.1, None) 
-
-        """
-        if self.probabilistic:  # TODO
-            y = average_frag_lengths(data)
-            #y = np.mean(data['GC-content'], axis=1)
-            #y = JaggednessModality.compute_jaggedness(data)
-            #y = semfar_scores(counts)
-            Y = np.repeat(y[:, np.newaxis], counts.shape[1], axis=1)
-            Y = RobustScaler().fit_transform(Y)
-            if fit:
-                X = self.dm_transformer.fit_transform(counts, y=Y)
-            else:
-                X = self.dm_transformer.transform(counts, y=Y)
+        if 'End motifs (one strand)' in data:
+            counts = data['End motifs (one strand)']
         else:
-            X = counts / np.sum(counts, axis=1)[:, np.newaxis]
-        """
+            counts = data['End-motif probability (5 prime)']
+        counts = np.clip(counts, 0.1, None) 
 
         X = counts / np.sum(counts, axis=1)[:, np.newaxis]
 

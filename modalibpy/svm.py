@@ -35,7 +35,6 @@ def platt_scaling(y: np.ndarray, y_pred: np.ndarray, a0: float, b0: float, eps: 
 def compute_intercept(y: np.ndarray, y_pred: np.ndarray, alpha: np.ndarray, C: np.ndarray, eps: float = 1e-7) -> float:
     sv_mask = np.logical_and(eps < alpha, alpha < C - eps)
     weights = sv_mask
-    #weights = alpha
     s_ = np.sum(weights)
     if s_ > 0:
         weights = weights / s_
@@ -64,7 +63,7 @@ class SVM(BaseEstimator, ClassifierMixin):
 
     def __init__(
             self,
-            C: float = 10000,
+            C: float = 1,
             platt_scaling: bool = True,
             random_state: int = 0
     ):
@@ -177,8 +176,8 @@ class CARSVM(BaseEstimator, ClassifierMixin):
 
     def __init__(
             self,
-            C_c: float = 10000,
-            C_r: float = 1,
+            C_c: float = 1,
+            C_r: float = 0.1,
             epsilon: float = 0.2,
             platt_scaling: bool = True,
             balanced: bool = True,

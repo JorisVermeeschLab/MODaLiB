@@ -3,15 +3,18 @@ from typing import Tuple, Optional
 import tqdm
 import numpy as np
 import scipy.special
+from sklearn.preprocessing import StandardScaler
 
 
-def beta_ll(p: np.ndarray, a: np.ndarray, b: np.ndarray) -> float:
+def beta_ll(p: np.ndarray, a: np.ndarray, b: np.ndarray, eps: float = 1e-5) -> float:
     a = a[np.newaxis, :]
     b = b[np.newaxis, :]
+    p = np.clip(p, eps, 1. - eps)
     return (a - 1) * np.log(p) + (b - 1) * np.log(1 - p) - scipy.special.betaln(a, b)
 
 
-def binomial_ll(n: np.ndarray, k: np.ndarray, p: np.ndarray) -> float:
+def binomial_ll(n: np.ndarray, k: np.ndarray, p: np.ndarray, eps: float = 1e-5) -> float:
+    p = np.clip(p, eps, 1. - eps)
     return k * np.log(p) + (n - k) * np.log(1 - p)
 
 
@@ -43,7 +46,6 @@ def beta_values_from_beta_parameters(n: np.ndarray, k: np.ndarray, a: np.ndarray
     alpha = k + a
     beta = n - k + b
     p = alpha / (alpha + beta)
-    p = np.clip(p, eps, 1 - eps)
     return p
 
 
@@ -51,7 +53,6 @@ def infer_beta_values(n: np.ndarray, k: np.ndarray, tol: float = 1e-6, max_n_ite
     
     p = k / n
     eps = 1e-7
-    p = np.clip(p, eps, 1 - eps)
     a, b = beta_parameters_from_beta_values(p)
 
     losses = []
@@ -106,16 +107,15 @@ def solve_bayesian_logistic_regressions_wrt_p(
         a: np.ndarray,
         b: np.ndarray,
         max_n_iter: int = 10,
-        eps: float = 1e-7
-) -> np.ndarray:
+        eps: float = 1e-7,
+        lr: float = 5 * 1e-7
+) -> Tuple[np.ndarray, bool]:
 
     a = a[np.newaxis, :]
     b = b[np.newaxis, :]
 
-    p0 = np.clip(p0, eps, 1 - eps)
-    p_logit = scipy.special.logit(p0)
+    p_logit = scipy.special.logit(np.clip(p0, eps, 1 - eps))
     pi = scipy.special.expit(p_logit + y * w[np.newaxis, :])
-    pi = np.clip(pi, eps, 1 - eps)
 
     losses = []
     loss = -np.mean(binomial_ll(n, k, pi) + beta_ll(p0, a, b))
@@ -126,33 +126,31 @@ def solve_bayesian_logistic_regressions_wrt_p(
         # Compute gradient of the logarithm of the likelihood function + Beta prior + Jacobian
         p_logit_grad = k * (1 - pi) - (n - k) * pi
         p = scipy.special.expit(p_logit)
-        p = np.clip(p, eps, 1 - eps)
-        p_logit_grad += (a - 1) * (1 - p) - (b - 1) * p
+        p_logit_grad += a * (1 - p) - b * p
 
         # Update parameters
-        lr = 2 * 1e-6
         p_logit += lr * p_logit_grad
-
-        # Deal with numerical instability
-        p = scipy.special.expit(p_logit)
-        p = np.clip(p, eps, 1 - eps)
-        p_logit = scipy.special.logit(p)
 
         # Logistic regression predictions
         pi = scipy.special.expit(p_logit + y * w[np.newaxis, :])
-        pi = np.clip(pi, eps, 1 - eps)
 
         # Compute loss
         loss = -np.mean(binomial_ll(n, k, pi) + beta_ll(p, a, b))
         losses.append(loss)
 
+        assert not np.all(p == p[0, np.newaxis, :])
+
     improving = (losses[-1] < losses[0])
-    # assert improving
+    if not improving:
+        p = p0
 
-    return p
+    return p, improving
 
 
-def infer_beta_values_with_confounders(n: np.ndarray, k: np.ndarray, Y: np.ndarray, tol: float = 1e-10, max_n_iter: int = 500, gamma: float = 0.1) -> np.ndarray:
+def infer_beta_values_with_confounders(
+        n: np.ndarray, k: np.ndarray, Y: np.ndarray, tol: float = 1e-10, max_n_iter: int = 500,
+        eps: float = 1e-5, gamma: float = 0.1, lr: float = 1e-5
+) -> np.ndarray:
 
     p = k / n
     eps = 1e-7
@@ -167,13 +165,12 @@ def infer_beta_values_with_confounders(n: np.ndarray, k: np.ndarray, Y: np.ndarr
     for _ in pbar:
 
         # Solve Bayesian logistic regressions w.r.t. p
-        p_new = solve_bayesian_logistic_regressions_wrt_p(n, k, p, Y, w, a, b, eps=eps)
-        p_new = np.clip(p_new, eps, 1 - eps)
+        p_new, improving = solve_bayesian_logistic_regressions_wrt_p(n, k, p, Y, w, a, b, eps=eps, lr=lr)
 
         # Solve logistic regressions w.r.t. w
-        p_logit = scipy.special.logit(p)
         w_new = solve_logistic_regressions_wrt_w(n, k, p, Y, w, gamma=gamma)
-        pi_new = np.clip(scipy.special.expit(p_logit + Y * w[np.newaxis, :]), eps, 1 - eps)
+        p_logit = scipy.special.logit(np.clip(p, eps, 1. - eps))
+        pi_new = scipy.special.expit(p_logit + Y * w[np.newaxis, :])
 
         # Update latent variables
         p = p_new
@@ -189,6 +186,8 @@ def infer_beta_values_with_confounders(n: np.ndarray, k: np.ndarray, Y: np.ndarr
 
         # Stopping criterion
         losses.append(loss)
+        if losses[-2] == losses[-1]:
+            break
         #if abs((losses[-2] - losses[-1]) / losses[-1]) < tol:
         #    break
 
@@ -202,34 +201,37 @@ def beta_values_from_beta_parameters_and_confounder(
         b: np.ndarray,
         y: np.ndarray,
         w: np.ndarray,
-        eps: float = 1e-7
+        eps: float = 1e-7,
+        lr: float = 1e-5
 ) -> np.ndarray:
 
     # Compute initial solution
     alpha = k + a
     beta = n - k + b
     p = alpha / (alpha + beta)
-    p = np.clip(p, eps, 1 - eps)
 
     # Maximize full log-likelihood function
-    p = solve_bayesian_logistic_regressions_wrt_p(n, k, p, y, w, a, b, eps=eps)
+    p, improving = solve_bayesian_logistic_regressions_wrt_p(n, k, p, y, w, a, b, eps=eps, lr=lr)
 
-    return np.clip(p, eps, 1 - eps)
+    return p
 
 
 class BetaBinomialTransformer:
 
-    def __init__(self, tol: float = 1e-6, max_n_iter: int = 100, gamma: float = 0.1):
+    def __init__(self, tol: float = 1e-6, max_n_iter: int = 100, gamma: float = 0.01, lr: float = 1e-6):
         self.tol: float = tol
         self.max_n_iter: int = max_n_iter
         self.gamma: float = gamma
+        self.lr: float = lr
         self.a: Optional[np.ndarray] = None
         self.b: Optional[np.ndarray] = None
         self.w: Optional[np.ndarray] = None
 
     def fit(self, n: np.ndarray, k: np.ndarray, y: Optional[np.ndarray] = None) -> 'BetaBinomialTransformer':
         if y is not None:
-            p, a, b, w = infer_beta_values_with_confounders(n, k, y, tol=self.tol, max_n_iter=self.max_n_iter, gamma=self.gamma)
+            p, a, b, w = infer_beta_values_with_confounders(
+                n, k, y, tol=self.tol, max_n_iter=self.max_n_iter, gamma=self.gamma, lr=self.lr
+            )
             self.w = w
         else:
             p, a, b = infer_beta_values(n, k, tol=self.tol, max_n_iter=self.max_n_iter)
@@ -239,7 +241,9 @@ class BetaBinomialTransformer:
 
     def fit_transform(self, n: np.ndarray, k: np.ndarray, y: Optional[np.ndarray] = None) -> np.ndarray:
         if y is not None:
-            p, a, b, w = infer_beta_values_with_confounders(n, k, y, tol=self.tol, max_n_iter=self.max_n_iter, gamma=self.gamma)
+            p, a, b, w = infer_beta_values_with_confounders(
+                n, k, y, tol=self.tol, max_n_iter=self.max_n_iter, gamma=self.gamma, lr=self.lr
+            )
             self.w = w
         else:
             p, a, b = infer_beta_values(n, k, tol=self.tol, max_n_iter=self.max_n_iter)
@@ -249,6 +253,6 @@ class BetaBinomialTransformer:
 
     def transform(self, n: np.ndarray, k: np.ndarray, y: Optional[np.ndarray] = None) -> np.ndarray:
         if y is not None:
-            return beta_values_from_beta_parameters_and_confounder(n, k, self.a, self.b, y, self.w)
+            return beta_values_from_beta_parameters_and_confounder(n, k, self.a, self.b, y, self.w, lr=self.lr)
         else:
             return beta_values_from_beta_parameters(n, k, self.a, self.b)
