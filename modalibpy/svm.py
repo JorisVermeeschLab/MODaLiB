@@ -137,7 +137,7 @@ class SVM(BaseEstimator, ClassifierMixin):
 
         return ay, intercept
 
-    def fit(self, K: np.ndarray, y: np.ndarray) -> 'CARSVM':
+    def fit(self, K: np.ndarray, y: np.ndarray) -> 'SVM':
 
         # Fit model
         ay, intercept = self._fit(K, y)

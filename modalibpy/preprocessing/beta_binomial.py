@@ -1,5 +1,6 @@
 from typing import Tuple, Optional
 
+import time
 import tqdm
 import numpy as np
 import scipy.special
@@ -149,18 +150,19 @@ def solve_bayesian_logistic_regressions_wrt_p(
 
 def infer_beta_values_with_confounders(
         n: np.ndarray, k: np.ndarray, Y: np.ndarray, tol: float = 1e-10, max_n_iter: int = 500,
-        eps: float = 1e-5, gamma: float = 0.1, lr: float = 1e-5
+        eps: float = 1e-5, gamma: float = 0.1, lr: float = 1e-5, timeout: float = 5 * 60
 ) -> np.ndarray:
 
     p = k / n
     eps = 1e-7
-    p, a, b = infer_beta_values(n, k, tol=tol, max_n_iter=max_n_iter)
+    p, a, b = infer_beta_values(n, k, tol=tol, max_n_iter=2000)
     pi = np.copy(p)
     w = np.zeros(n.shape[1])
 
     losses = []
     losses.append(np.mean(-beta_ll(p, a, b) - binomial_ll(n, k, pi)))
 
+    t0 = time.time()
     pbar = tqdm.tqdm(range(max_n_iter), desc='Infer beta values')
     for _ in pbar:
 
@@ -190,6 +192,8 @@ def infer_beta_values_with_confounders(
             break
         #if abs((losses[-2] - losses[-1]) / losses[-1]) < tol:
         #    break
+        if time.time() - t0 > timeout:
+            break
 
     return p, a, b, w
 
@@ -202,7 +206,8 @@ def beta_values_from_beta_parameters_and_confounder(
         y: np.ndarray,
         w: np.ndarray,
         eps: float = 1e-7,
-        lr: float = 1e-5
+        lr: float = 1e-5,
+        max_n_iter: int = 10
 ) -> np.ndarray:
 
     # Compute initial solution
@@ -211,18 +216,21 @@ def beta_values_from_beta_parameters_and_confounder(
     p = alpha / (alpha + beta)
 
     # Maximize full log-likelihood function
-    p, improving = solve_bayesian_logistic_regressions_wrt_p(n, k, p, y, w, a, b, eps=eps, lr=lr)
+    p, improving = solve_bayesian_logistic_regressions_wrt_p(
+        n, k, p, y, w, a, b, eps=eps, lr=lr, max_n_iter=max_n_iter
+    )
 
     return p
 
 
 class BetaBinomialTransformer:
 
-    def __init__(self, tol: float = 1e-6, max_n_iter: int = 100, gamma: float = 0.01, lr: float = 1e-6):
+    def __init__(self, tol: float = 1e-6, max_n_iter: int = 100, gamma: float = 0.01, lr: float = 1e-6, timeout: float = 5 * 60):
         self.tol: float = tol
         self.max_n_iter: int = max_n_iter
         self.gamma: float = gamma
         self.lr: float = lr
+        self.timeout: float = timeout
         self.a: Optional[np.ndarray] = None
         self.b: Optional[np.ndarray] = None
         self.w: Optional[np.ndarray] = None
@@ -230,7 +238,7 @@ class BetaBinomialTransformer:
     def fit(self, n: np.ndarray, k: np.ndarray, y: Optional[np.ndarray] = None) -> 'BetaBinomialTransformer':
         if y is not None:
             p, a, b, w = infer_beta_values_with_confounders(
-                n, k, y, tol=self.tol, max_n_iter=self.max_n_iter, gamma=self.gamma, lr=self.lr
+                n, k, y, tol=self.tol, max_n_iter=self.max_n_iter, gamma=self.gamma, lr=self.lr, timeout=self.timeout
             )
             self.w = w
         else:
@@ -242,7 +250,7 @@ class BetaBinomialTransformer:
     def fit_transform(self, n: np.ndarray, k: np.ndarray, y: Optional[np.ndarray] = None) -> np.ndarray:
         if y is not None:
             p, a, b, w = infer_beta_values_with_confounders(
-                n, k, y, tol=self.tol, max_n_iter=self.max_n_iter, gamma=self.gamma, lr=self.lr
+                n, k, y, tol=self.tol, max_n_iter=self.max_n_iter, gamma=self.gamma, lr=self.lr, timeout=self.timeout
             )
             self.w = w
         else:
@@ -253,6 +261,8 @@ class BetaBinomialTransformer:
 
     def transform(self, n: np.ndarray, k: np.ndarray, y: Optional[np.ndarray] = None) -> np.ndarray:
         if y is not None:
-            return beta_values_from_beta_parameters_and_confounder(n, k, self.a, self.b, y, self.w, lr=self.lr)
+            return beta_values_from_beta_parameters_and_confounder(
+                n, k, self.a, self.b, y, self.w, lr=self.lr, max_n_iter=self.max_n_iter
+            )
         else:
             return beta_values_from_beta_parameters(n, k, self.a, self.b)

@@ -3,7 +3,7 @@ from typing import Optional
 import numpy as np
 import scipy.special
 from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.preprocessing import RobustScaler
+from sklearn.preprocessing import RobustScaler, StandardScaler
 
 from .modalities.base import MultimodalData
 from .modalities.jaggedness import JaggednessModality
@@ -33,39 +33,12 @@ class NucleaseActivityEstimator(BaseEstimator, TransformerMixin):
 
         X = data['End-motif probability (5 prime)']
         X = X / np.sum(X, axis=1)[:, np.newaxis]
-
-        alpha = SemiSupervisedDeconvolution(1).fit_transform([X], [F_PROFILES])
-        alpha = alpha[:, [2, 1, 0]]
-        alpha /= np.sum(alpha, axis=1)[:, np.newaxis]
-        return alpha
-
-        import scipy.optimize
-        alpha = np.zeros((len(X), 3))
-        for i in range(len(X)):
-            y, _ = scipy.optimize.nnls(F_PROFILES.T, X[i, :])
-            y /= np.sum(y)
-            print(y)
-            alpha[i, :] = y[[2, 1, 0]]
-        #alpha /= np.sum(alpha, axis=1)[:, np.newaxis]
-        return alpha
-
-        """
-        # GC-content
-        gc = np.zeros(len(data['Coverage']))
-        for i in range(len(data['Coverage'])):
-            n = data['Coverage'][i]
-            gc[i] = np.sum(n * data['GC-content'][i]) / np.sum(n)
-        print(gc)
         
         # Methylation
         methylation = np.zeros(len(data['CpG count']))
         for i in range(len(data['CpG count'])):
             n = data['CpG count'][i]
             methylation[i] = np.sum(n * data['CpG Methylation (first moment)'][i]) / np.sum(n)
-
-        # GC-correction of CpG methylation
-        coef = np.polyfit(gc, methylation, 1)
-        methylation -= np.polyval(coef, gc)
         
         # End motif histograms
         emh = EndMotifHistograms(data['End-motif probability (5 prime)'])
@@ -81,57 +54,29 @@ class NucleaseActivityEstimator(BaseEstimator, TransformerMixin):
         nucleosomal /= norm
         oligonucleosomal /= norm
 
-        # Nucleosome positioning
-        nuc = np.zeros(len(data['Coverage']))
-        for i in range(len(data['Coverage'])):
-            n = data['Coverage'][i]
-            nuc[i] = np.sum(n * data['Nucleosome positioning'][i]) / np.sum(n)
-
         # Features
         features = np.asarray([
-            methylation,
             emh['CGNN'] / emh['NCGN'],
-            (emh['ANNC'] + emh['ANNT'] + emh['GNNC'] + emh['GNNT']),  #emh['ANNC'],
-            (emh['CGNN'] + emh['TGNN']),
-            (emh['CCNN']),
+            emh['ANNC'] + emh['ANNT'] + emh['GNNC'] + emh['GNNT'],
+            emh['CGNN'] + emh['TGNN'],
+            emh['CCNN'],
             JaggednessModality.compute_jaggedness(data),
             subnucleosomal,
             nucleosomal,
-            oligonucleosomal,
-            nuc
+            oligonucleosomal
         ]).T
         if fit:
             features = self.scaler.fit_transform(features).T
         else:
             features = self.scaler.transform(features).T
 
-
-        import seaborn
-        import matplotlib.pyplot as plt
-
-        P = np.zeros((features.T.shape[1], y.shape[1]))
-        C = np.zeros((features.T.shape[1], y.shape[1]))
-        for i in range(features.T.shape[1]):
-            for j in range(y.shape[1]):
-                res = scipy.stats.spearmanr(features.T[:, i], y[:, j])
-                C[i, j] = res.statistic
-                P[i, j] = -np.log10(res.pvalue)
-        seaborn.heatmap(P, annot=C)
-        plt.xticks(np.arange(3) + 0.5, ['DFFB', 'DNASE1', 'DNASE1L3'])
-        plt.yticks(np.arange(features.T.shape[1]) + 0.5, ['Meth', 'CGN/NCG', 'A/G', 'CG/TG', 'CC', 'Jaggedness', 'Subnucl', 'Nucl', 'Oligonucl', 'NUC'], rotation=0)
-        plt.show()
-
-        return
-        
-
-
-        features[2:5, :] *= 1. / 3.
-        features[6:9, :] *= 1. / 3.
+        features[1:4, :] *= 1. / 3.
+        features[5:8, :] *= 1. / 3.
 
         R_sign = np.asarray([
-            [-1, -1,  1, -1, -1, -1, -1, -1,  1,  1], # dffb
-            [-1, -1, -1,  1, -1,  1,  1, -1, -1,  1], # dnase1
-            [ 1,  1, -1, -1,  1,  1, -1,  1, -1, -1]  # dnase1l3
+            [-1,  1, -1, -1, -1, -1, -1,  1], # dffb
+            [-1, -1,  1, -1,  1,  1, -1, -1], # dnase1
+            [ 1, -1, -1,  1,  1, -1,  1, -1]  # dnase1l3
         ])
 
         #features = features[:5, :]
@@ -145,8 +90,10 @@ class NucleaseActivityEstimator(BaseEstimator, TransformerMixin):
     
         # Normalize activities
         nuclease_activities = np.log(nuclease_activities)
-        nuclease_activities *= 0.4
+        nuclease_activities = RobustScaler().fit_transform(nuclease_activities)
+        #nuclease_activities[:, 0] -= 0.2
+        #nuclease_activities[:, 2] += 0.2
+        nuclease_activities *= 10
         nuclease_activities = scipy.special.softmax(nuclease_activities, axis=1)
 
         return 100 * nuclease_activities
-        """

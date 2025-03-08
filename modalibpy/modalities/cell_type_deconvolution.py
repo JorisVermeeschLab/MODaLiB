@@ -76,11 +76,11 @@ class MethCellTypeDeconvolutionModality(BaseModality):
 
         n_atlas_entities = len(data['CpG Methylation (deconvolution, reference)'])
 
-        if self.probabilistic:
-            if fit:
-                X = self.bb_transformer.fit_transform(n, X * n, y=Y)
-            else:
-                X = self.bb_transformer.transform(n, X * n, y=Y)
+        #if self.probabilistic:
+        #    if fit:
+        #        X = self.bb_transformer.fit_transform(n, X * n, y=Y)
+        #    else:
+        #        X = self.bb_transformer.transform(n, X * n, y=Y)
 
         # Supervised deconvolution
         use_coverage = False

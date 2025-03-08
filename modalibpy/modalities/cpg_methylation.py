@@ -17,7 +17,7 @@ class CpGMethylationModality(BaseModality):
     def __init__(self, *args, fmr: bool = False, **kwargs) -> None:
         BaseModality.__init__(self, *args, kernel='rbf', **kwargs)
         self.scaler: RobustScaler = RobustScaler()
-        self.bb_transformer: BetaBinomialTransformer = BetaBinomialTransformer(gamma=0.01, lr=1e-7, max_n_iter=500)
+        self.bb_transformer: BetaBinomialTransformer = BetaBinomialTransformer(gamma=0.01, lr=1e-7, max_n_iter=50)
         self.feature_weights: Optional[np.ndarray] = None
         self.fs: FeatureSelector = FeatureSelector(n_min=500)
         self.use_fmr: bool = fmr
@@ -32,7 +32,7 @@ class CpGMethylationModality(BaseModality):
             return None
 
         X = data['Fully methylated fragment ratio'] if self.use_fmr else data['CpG Methylation (first moment)']
-        n = np.clip(data['Coverage'] if self.use_fmr else data['CpG count'], 0.01, None)
+        n = np.clip(data['Coverage'] if self.use_fmr else data['CpG count'], 0.01, None) * 10
         
         y_cgn_ncg = cgnngc_ratios(data['End-motif probability (5 prime)'])
         Y = np.repeat(y_cgn_ncg[:, np.newaxis], X.shape[1], axis=1)

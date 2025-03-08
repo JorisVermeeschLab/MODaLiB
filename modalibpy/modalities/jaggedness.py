@@ -34,7 +34,7 @@ class JaggednessModality(BaseModality):
             X1 = data['R1 methylation'][:, lb:ub]
             X2 = data['R2 methylation'][:, lb:ub]
             if probabilistic:
-                n = data['Fragment length counts'][:, lb:ub]
+                n = data['Fragment length counts'][:, lb:ub] * 10
                 Y = np.repeat(y_cgn_ncg[:, np.newaxis], X.shape[1], axis=1)
                 bb_transformer = BetaBinomialTransformer(gamma=0.01)
                 X1 = bb_transformer.fit_transform(n, n * X1, y=Y)
