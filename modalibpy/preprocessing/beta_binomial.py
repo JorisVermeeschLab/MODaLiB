@@ -7,21 +7,21 @@ import scipy.special
 from sklearn.preprocessing import StandardScaler
 
 
-def beta_ll(p: np.ndarray, a: np.ndarray, b: np.ndarray, eps: float = 1e-5) -> float:
+def beta_ll(p: np.ndarray, a: np.ndarray, b: np.ndarray, eps: float = 1e-7) -> float:
     a = a[np.newaxis, :]
     b = b[np.newaxis, :]
     p = np.clip(p, eps, 1. - eps)
     return (a - 1) * np.log(p) + (b - 1) * np.log(1 - p) - scipy.special.betaln(a, b)
 
 
-def binomial_ll(n: np.ndarray, k: np.ndarray, p: np.ndarray, eps: float = 1e-5) -> float:
+def binomial_ll(n: np.ndarray, k: np.ndarray, p: np.ndarray, eps: float = 1e-7) -> float:
     p = np.clip(p, eps, 1. - eps)
     return k * np.log(p) + (n - k) * np.log(1 - p)
 
 
-def beta_binomial_ll(n: np.ndarray, k: np.ndarray, p: np.ndarray, a: np.ndarray, b: np.ndarray) -> float:
-    binomial_pmf = binomial_ll(n, k, p)
-    beta_pdf = beta_ll(p, a, b)
+def beta_binomial_ll(n: np.ndarray, k: np.ndarray, p: np.ndarray, a: np.ndarray, b: np.ndarray, eps: float = 1e-7) -> float:
+    binomial_pmf = binomial_ll(n, k, p, eps=eps)
+    beta_pdf = beta_ll(p, a, b, eps=eps)
     return np.mean(binomial_pmf + beta_pdf)
 
 
@@ -57,14 +57,14 @@ def infer_beta_values(n: np.ndarray, k: np.ndarray, tol: float = 1e-6, max_n_ite
     a, b = beta_parameters_from_beta_values(p)
 
     losses = []
-    losses.append(-beta_binomial_ll(n, k, p, a, b))
+    losses.append(-beta_binomial_ll(n, k, p, a, b, eps=eps))
 
     pbar = tqdm.tqdm(range(max_n_iter), desc='Infer beta values')
     for _ in pbar:
 
         p = beta_values_from_beta_parameters(n, k, a, b)
         a, b = beta_parameters_from_beta_values(p)
-        loss = -beta_binomial_ll(n, k, p, a, b)
+        loss = -beta_binomial_ll(n, k, p, a, b, eps=eps)
         pbar.set_description(f'Infer beta values (NLL={loss})')
 
         # Stopping criterion
@@ -117,9 +117,10 @@ def solve_bayesian_logistic_regressions_wrt_p(
 
     p_logit = scipy.special.logit(np.clip(p0, eps, 1 - eps))
     pi = scipy.special.expit(p_logit + y * w[np.newaxis, :])
+    best_p_logit = p_logit
 
     losses = []
-    loss = -np.mean(binomial_ll(n, k, pi) + beta_ll(p0, a, b))
+    loss = -np.mean(binomial_ll(n, k, pi, eps=eps) + beta_ll(p0, a, b, eps=eps))
     losses.append(loss)
 
     for _ in range(max_n_iter):
@@ -136,31 +137,39 @@ def solve_bayesian_logistic_regressions_wrt_p(
         pi = scipy.special.expit(p_logit + y * w[np.newaxis, :])
 
         # Compute loss
-        loss = -np.mean(binomial_ll(n, k, pi) + beta_ll(p, a, b))
+        loss = -np.mean(binomial_ll(n, k, pi, eps=eps) + beta_ll(p, a, b, eps=eps))
         losses.append(loss)
 
+        if losses[-1] < losses[-2]:
+            best_p_logit = p_logit
+        elif losses[-1] > losses[-2]:
+            p_logit = best_p_logit
+            lr *= 0.5
         assert not np.all(p == p[0, np.newaxis, :])
 
     improving = (losses[-1] < losses[0])
-    if not improving:
-        p = p0
+    
+    p = scipy.special.expit(best_p_logit)
 
     return p, improving
 
 
 def infer_beta_values_with_confounders(
         n: np.ndarray, k: np.ndarray, Y: np.ndarray, tol: float = 1e-10, max_n_iter: int = 500,
-        eps: float = 1e-5, gamma: float = 0.1, lr: float = 1e-5, timeout: float = 5 * 60
+        eps: float = 1e-7, gamma: float = 0.1, lr: float = 1e-5, timeout: float = 5 * 60,
+        positive: bool = True
 ) -> np.ndarray:
 
     p = k / n
-    eps = 1e-7
     p, a, b = infer_beta_values(n, k, tol=tol, max_n_iter=2000)
     pi = np.copy(p)
     w = np.zeros(n.shape[1])
 
+    best_loss = np.inf
+    best_p, best_a, best_b, best_w = p, a, b, w
+
     losses = []
-    losses.append(np.mean(-beta_ll(p, a, b) - binomial_ll(n, k, pi)))
+    losses.append(np.mean(-beta_ll(p, a, b, eps=eps) - binomial_ll(n, k, pi, eps=eps)))
 
     t0 = time.time()
     pbar = tqdm.tqdm(range(max_n_iter), desc='Infer beta values')
@@ -179,12 +188,24 @@ def infer_beta_values_with_confounders(
         pi = pi_new
         w = w_new
 
+        # Ensure regression weights are positive
+        if positive:
+            w = np.clip(w, 0, None)
+
         # Update concentration parameters (prior Beta distribution)
         a, b = beta_parameters_from_beta_values(p)
 
         # Compute log-likelihood
-        loss = np.mean(-beta_ll(p, a, b) - binomial_ll(n, k, pi))
+        loss = np.mean(-beta_ll(p, a, b, eps=eps) - binomial_ll(n, k, pi, eps=eps))
         pbar.set_description(f'Infer beta values (NLL={loss})')
+
+        # Keep track of best solution
+        if loss < best_loss:
+            best_loss = loss
+            best_p = p
+            best_a = a
+            best_b = b
+            best_w = w
 
         # Stopping criterion
         losses.append(loss)
@@ -195,7 +216,7 @@ def infer_beta_values_with_confounders(
         if time.time() - t0 > timeout:
             break
 
-    return p, a, b, w
+    return best_p, best_a, best_b, best_w
 
 
 def beta_values_from_beta_parameters_and_confounder(
@@ -206,7 +227,7 @@ def beta_values_from_beta_parameters_and_confounder(
         y: np.ndarray,
         w: np.ndarray,
         eps: float = 1e-7,
-        lr: float = 1e-5,
+        lr: float = 1e-6,
         max_n_iter: int = 10
 ) -> np.ndarray:
 
@@ -225,20 +246,27 @@ def beta_values_from_beta_parameters_and_confounder(
 
 class BetaBinomialTransformer:
 
-    def __init__(self, tol: float = 1e-6, max_n_iter: int = 100, gamma: float = 0.01, lr: float = 1e-6, timeout: float = 5 * 60):
+    def __init__(
+            self, tol: float = 1e-6, max_n_iter: int = 100, gamma: float = 0.01, lr: float = 1e-6, timeout: float = 5 * 60,
+            positive: bool = True
+    ):
         self.tol: float = tol
         self.max_n_iter: int = max_n_iter
         self.gamma: float = gamma
         self.lr: float = lr
+        self.scaler = StandardScaler()
         self.timeout: float = timeout
         self.a: Optional[np.ndarray] = None
         self.b: Optional[np.ndarray] = None
         self.w: Optional[np.ndarray] = None
+        self.positive: bool = positive
 
     def fit(self, n: np.ndarray, k: np.ndarray, y: Optional[np.ndarray] = None) -> 'BetaBinomialTransformer':
         if y is not None:
+            y = self.scaler.fit_transform(y)
             p, a, b, w = infer_beta_values_with_confounders(
-                n, k, y, tol=self.tol, max_n_iter=self.max_n_iter, gamma=self.gamma, lr=self.lr, timeout=self.timeout
+                n, k, y, tol=self.tol, max_n_iter=self.max_n_iter, gamma=self.gamma, lr=self.lr, timeout=self.timeout,
+                positive=self.positive
             )
             self.w = w
         else:
@@ -249,8 +277,10 @@ class BetaBinomialTransformer:
 
     def fit_transform(self, n: np.ndarray, k: np.ndarray, y: Optional[np.ndarray] = None) -> np.ndarray:
         if y is not None:
+            y = self.scaler.fit_transform(y)
             p, a, b, w = infer_beta_values_with_confounders(
-                n, k, y, tol=self.tol, max_n_iter=self.max_n_iter, gamma=self.gamma, lr=self.lr, timeout=self.timeout
+                n, k, y, tol=self.tol, max_n_iter=self.max_n_iter, gamma=self.gamma, lr=self.lr, timeout=self.timeout,
+                positive=self.positive
             )
             self.w = w
         else:
@@ -261,8 +291,9 @@ class BetaBinomialTransformer:
 
     def transform(self, n: np.ndarray, k: np.ndarray, y: Optional[np.ndarray] = None) -> np.ndarray:
         if y is not None:
+            y = self.scaler.transform(y)
             return beta_values_from_beta_parameters_and_confounder(
-                n, k, self.a, self.b, y, self.w, lr=self.lr, max_n_iter=self.max_n_iter
+                n, k, self.a, self.b, y, self.w, lr=self.lr, max_n_iter=200
             )
         else:
             return beta_values_from_beta_parameters(n, k, self.a, self.b)

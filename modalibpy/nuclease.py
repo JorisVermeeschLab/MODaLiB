@@ -79,9 +79,6 @@ class NucleaseActivityEstimator(BaseEstimator, TransformerMixin):
             [ 1, -1, -1,  1,  1, -1,  1, -1]  # dnase1l3
         ])
 
-        #features = features[:5, :]
-        #R_sign = R_sign[:, :5]
-
         if fit:
             nuclease_activities, R = constrained_sign_deconvolution(features.T, R_sign, max_n_iter=self.max_n_iter)
             self.R = R
@@ -90,10 +87,10 @@ class NucleaseActivityEstimator(BaseEstimator, TransformerMixin):
     
         # Normalize activities
         nuclease_activities = np.log(nuclease_activities)
-        nuclease_activities = RobustScaler().fit_transform(nuclease_activities)
+        #nuclease_activities = RobustScaler().fit_transform(nuclease_activities)
         #nuclease_activities[:, 0] -= 0.2
         #nuclease_activities[:, 2] += 0.2
-        nuclease_activities *= 10
+        nuclease_activities *= 0.3
         nuclease_activities = scipy.special.softmax(nuclease_activities, axis=1)
 
         return 100 * nuclease_activities

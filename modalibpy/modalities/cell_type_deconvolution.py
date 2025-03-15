@@ -72,15 +72,15 @@ class MethCellTypeDeconvolutionModality(BaseModality):
         y_cgn_ncg = cgnngc_ratios(data['End-motif probability (5 prime)'])
         Y = np.repeat(y_cgn_ncg[:, np.newaxis], X.shape[1], axis=1)
 
-        n = np.clip(data['CpG count (deconvolution, cfDNA)'], 0.01, None)
+        n = np.clip(data['CpG count (deconvolution, cfDNA)'], 0.01, None) * 5
 
         n_atlas_entities = len(data['CpG Methylation (deconvolution, reference)'])
 
-        #if self.probabilistic:
-        #    if fit:
-        #        X = self.bb_transformer.fit_transform(n, X * n, y=Y)
-        #    else:
-        #        X = self.bb_transformer.transform(n, X * n, y=Y)
+        if self.probabilistic:
+            if fit:
+                X = self.bb_transformer.fit_transform(n, X * n, y=Y)
+            else:
+                X = self.bb_transformer.transform(n, X * n, y=Y)
 
         # Supervised deconvolution
         use_coverage = False

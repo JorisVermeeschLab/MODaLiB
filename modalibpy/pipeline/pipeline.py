@@ -44,18 +44,12 @@ class Pipeline(object):
     def fit(self, dataset: Dataset) -> 'Pipeline':
 
         annotations = dataset.annotations
-        groups = dataset.groups
         y = dataset.y
 
         self.extractor.preprocess(dataset.data, fit=True)
         Ks = self.extractor.fit_transform(dataset.data, y)
 
         K = self.mkl.fit_transform(Ks, y=y)
-
-        weights = np.full(len(K), 1. / len(K))
-        weights /= np.sum(weights)
-        weights = weights[:, np.newaxis, np.newaxis]
-        K = np.sum(weights * K, axis=0)
 
         if self.model_name == 'stage-svm':
             self.model.fit(K, annotations)

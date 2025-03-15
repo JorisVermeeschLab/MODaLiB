@@ -97,7 +97,7 @@ class MultipleKernelLearning:
 
         weights = weights.reshape(len(kernel_matrices), -1)
         weights = np.mean(weights, axis=1)
-        #weights += 1e-9
+        weights += 1e-10
         weights /= np.sum(weights)
         return weights
 
@@ -140,52 +140,6 @@ class MultipleKernelLearning:
         return MultipleKernelLearning.weighted_pearson_corrcoef(x_res, y_res, weights)
 
     @staticmethod
-    def infer_weights_old(Ks: np.ndarray, y: np.ndarray) -> np.ndarray:
-
-        if len(Ks) == 1:
-            return np.asarray([1.])
-
-        n_modalities = len(Ks)
-        Ks = Kernel.safe_log(Ks)
-        Ks = torch.FloatTensor(Ks)
-        K_y, W_y = MultipleKernelLearning.compute_ideal_kernel_matrix(y)
-        K_y = torch.FloatTensor(K_y)
-        W_y = torch.FloatTensor(W_y)
-        mask = (K_y > 0.5)
-
-        y = torch.FloatTensor(y)
-        w = torch.nn.Parameter(torch.FloatTensor(np.log(np.full((n_modalities, 1, 1), 1. / n_modalities))))
-        optimizer = torch.optim.Adam([w], lr=0.01)
-        losses = []
-        for _ in range(1000):
-
-            optimizer.zero_grad()
-
-            w_cons = torch.softmax(w, dim=0)
-            K = torch.exp((w_cons * Ks).sum(dim=0))
-            #K = torch.sum(w_cons * torch.exp(Ks), dim=0)
-
-            loss = torch.sum(W_y * torch.abs(K - K_y))
-            #loss = -torch.sum(K * K_y) / torch.sqrt(torch.sum(K * K) * torch.sum(K_y * K_y))
-
-            # Entropy regularization
-            #loss = loss + 0.001 * torch.sum(w_cons * torch.log(w_cons))
-
-            loss.backward()
-            optimizer.step()
-            losses.append(loss.item())
-
-        #print(losses[0], losses[-1])
-
-        assert losses[-1] < losses[0]
-
-        w_cons = torch.softmax(w, dim=0)
-        w = w_cons.cpu().data.numpy().reshape(-1)
-        #print(w)
-
-        return w
-
-    @staticmethod
     def infer_weights(Ks: np.ndarray, y: np.ndarray) -> np.ndarray:
 
         if len(Ks) == 1:
@@ -207,7 +161,7 @@ class MultipleKernelLearning:
                 W_y.flatten()
             ))
         weights = np.asarray(weights)
-        weights = np.clip(weights, 0, None)
+        weights = np.clip(weights, 1e-10, None)
         weights /= np.sum(weights)
 
         return weights
