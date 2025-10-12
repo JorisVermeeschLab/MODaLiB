@@ -14,10 +14,11 @@ from .end_motifs import EndMotifHistograms, F_PROFILES
 
 class NucleaseActivityEstimator(BaseEstimator, TransformerMixin):
 
-    def __init__(self, max_n_iter: int = 5000):
+    def __init__(self, max_n_iter: int = 5000, gamma: float = 0.1):
         self.scaler: RobustScaler = RobustScaler()
         self.max_n_iter: int = max_n_iter
         self.R: Optional[np.ndarray] = None
+        self.gamma: float = gamma
 
     def fit(self, data: MultimodalData, y: Optional[np.ndarray] = None):
         self.run(data, y=y, fit=True)
@@ -70,27 +71,22 @@ class NucleaseActivityEstimator(BaseEstimator, TransformerMixin):
         else:
             features = self.scaler.transform(features).T
 
-        features[1:4, :] *= 1. / 3.
-        features[5:8, :] *= 1. / 3.
-
         R_sign = np.asarray([
-            [-1,  1, -1, -1, -1, -1, -1,  1], # dffb
-            [-1, -1,  1, -1,  1,  1, -1, -1], # dnase1
+            [-1,  1, -1, -1,  0, -1, -1,  1], # dffb
+            [-1, -1,  1, -1,  0,  1, -1, -1], # dnase1
             [ 1, -1, -1,  1,  1, -1,  1, -1]  # dnase1l3
         ])
 
         if fit:
-            nuclease_activities, R = constrained_sign_deconvolution(features.T, R_sign, max_n_iter=self.max_n_iter)
+            if self.gamma > 0:
+                alpha_mean = np.array([[0.003, 0.4, 0.597]])
+            else:
+                alpha_mean = None
+            nuclease_activities, R = constrained_sign_deconvolution(
+                features.T, R_sign, max_n_iter=self.max_n_iter, alpha_mean=alpha_mean, gamma=self.gamma
+            )
             self.R = R
         else:
-            nuclease_activities, _, _ = constrained_sign_deconvolution(features.T, R_sign, max_n_iter=self.max_n_iter, R=self.R)
-    
-        # Normalize activities
-        nuclease_activities = np.log(nuclease_activities)
-        #nuclease_activities = RobustScaler().fit_transform(nuclease_activities)
-        #nuclease_activities[:, 0] -= 0.2
-        #nuclease_activities[:, 2] += 0.2
-        nuclease_activities *= 0.3
-        nuclease_activities = scipy.special.softmax(nuclease_activities, axis=1)
+            nuclease_activities, _ = constrained_sign_deconvolution(features.T, R_sign, max_n_iter=self.max_n_iter, R=self.R)
 
         return 100 * nuclease_activities

@@ -28,15 +28,16 @@ def constrained_sign_deconvolution(
         X: np.ndarray,
         R_sign: np.ndarray,
         max_n_iter: int = 5000,
-        R: Optional[np.ndarray] = None
+        R: Optional[np.ndarray] = None,
+        alpha_mean: Optional[np.ndarray] = None,
+        gamma: float = 0.1
 ) -> Tuple[np.ndarray, np.ndarray]:
 
     # Initialize factor matrices
     fit_R = (R is None)
     if R is None:
-        model = NMF(n_components=3)
-        R = model.fit_transform(np.abs(X).T).T
-        alpha = model.components_.T
+        R = np.abs(np.random.normal(0, 1, size=R_sign.shape)) * R_sign
+        alpha = np.random.rand(X.shape[0], R_sign.shape[0])
     else:
         alpha = []
         for i in range(len(X)):
@@ -48,13 +49,15 @@ def constrained_sign_deconvolution(
     R_sign = torch.FloatTensor(R_sign.astype(float))
 
     X = torch.FloatTensor(X)
+    if alpha_mean is not None:
+        alpha_mean = torch.FloatTensor(alpha_mean).unsqueeze(0)
 
     optimizer = Optimizer(verbose=False)
     optimizer.add([alpha_logit], 1e-2)
     if fit_R:
         optimizer.add([R], 1e-2)
 
-    patience = 100
+    patience = 1000
     n_steps_without_improvement = 0
     best_loss = np.inf
     pbar = tqdm.tqdm(range(max_n_iter))
@@ -64,10 +67,13 @@ def constrained_sign_deconvolution(
 
         alpha = torch.softmax(alpha_logit, dim=1)
 
-        R_signed = R_sign * torch.abs(R) + (1 - torch.abs(R_sign)) * R
+        R_signed = R_sign * torch.abs(R)
         X_hat = torch.mm(alpha, R_signed)
 
         loss = -torch.mean(pearson_corrcoef(X, X_hat))
+        if alpha_mean is not None:
+            loss = loss + gamma * torch.mean(torch.square(alpha - alpha_mean))
+        loss = loss + gamma * torch.mean(torch.square(torch.clamp(0.03 - alpha, 0, None)))
 
         loss.backward()
         pbar.set_description(str(loss.item()))
