@@ -25,6 +25,7 @@
 #include "../read_info.h"
 #include "../base.h"
 #include "../end_motifs.h"
+#include "../jaggedness.h"
 #include "../fragment.h"
 #include "../msi/vntr.h"
 #include "../msi/overlap.h"
@@ -93,6 +94,11 @@ Fragment compute_fragment_statistics(const ReadInfo& read_info) {
 
         // Check if base is soft-clipped
         if (ref_base.soft_clipped || base.soft_clipped) fragment.n_soft_clipped++;
+
+        // Increment meth counts for jaggedness estimation (no trimming)
+        if (base.is_cpg_site()) {
+            increment_methylation_count(i, fragment.length, base.methylated);
+        }
 
         if (!base.uninformative) {
             if (base.is_cpg_site()) {

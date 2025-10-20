@@ -536,6 +536,7 @@ int run_convertor(int argc, char *argv[]) {
     FILE *ofile = stdout;
     FILE *c_ofile = stdout;
     faidx_t *fai;
+    std::string out_filepath;
 
     static struct option lopts[] = {
             {"help",    0, nullptr, 'h'},
@@ -560,6 +561,7 @@ int run_convertor(int argc, char *argv[]) {
                 cli_help();
                 return 0;
             case 'o':
+                out_filepath = optarg;
                 if ((ofile = fopen(optarg, "wb")) == nullptr) {
                     fprintf(stderr, "Couldn't open %s for writing\n", optarg);
                     return 2;
@@ -690,6 +692,9 @@ int run_convertor(int argc, char *argv[]) {
     char buffer[FRAGMENT_SIZE_IN_BYTES];
     dummy.serialize(buffer);
     fwrite(buffer, sizeof(buffer), 1, config.output_fp[0]);
+
+    // Save overall methylation counts in separate file
+    write_methylation_counts_to_file(out_filepath + ".jag");
 
     // Close files and free memory
     hts_close(config.fp);

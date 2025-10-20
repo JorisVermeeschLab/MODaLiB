@@ -1,4 +1,7 @@
 README.gc.md
+process-all.py
+
+*.slurm
 
 *.pyc
 *.c

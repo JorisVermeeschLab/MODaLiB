@@ -29,6 +29,7 @@
 #include "../base.h"
 #include "../fragment.h"
 #include "../end_motifs.h"
+#include "../jaggedness.h"
 #include "../msi/vntr.h"
 #include "single_read.h"
 #include "../msi/region_list.h"
@@ -71,6 +72,7 @@ Fragment compute_fragment_statistics(const ReadInfo& read1, const ReadInfo& read
 
     size_t i = 0;
     size_t j = 0;
+    int rel_pos = 0;
 
     std::vector<uint32_t> ins1_not2;  // Number of bases that are insertions in R1 but are absent from R2
     std::vector<uint32_t> ins2_not1;  // Number of bases that are insertions in R2 but are absent from R1
@@ -117,6 +119,16 @@ Fragment compute_fragment_statistics(const ReadInfo& read1, const ReadInfo& read
                 // b.uninformative = 1;  // TODO
             }
 
+            // Increment meth counts for jaggedness estimation (no trimming)
+            if (b.is_cpg_site()) {  // CpG context
+                rel_pos = k - fragment.start_pos;
+                if (r1.is_first_in_pair()) {
+                    increment_methylation_count(rel_pos, fragment.length, b.methylated);
+                } else {
+                    increment_methylation_count(fragment.length - rel_pos - 1, fragment.length, b.methylated);
+                }
+            }
+
             // Methylation calling
             if (!b.uninformative) {
                 if (b.is_cpg_site()) {
@@ -155,6 +167,17 @@ Fragment compute_fragment_statistics(const ReadInfo& read1, const ReadInfo& read
                 else if (!b1.has_cytosine_context()) b = b2;
                 else if (b1.phred_score >= b2.phred_score) b = b1;
                 else b = b2;
+
+                // Increment meth counts for jaggedness estimation (no trimming)
+                if (b.is_cpg_site()) {  // CpG context
+                    rel_pos = r1.bases[i].first - fragment.start_pos;
+                    if (r1.is_first_in_pair()) {
+                        increment_methylation_count(rel_pos, fragment.length, b.methylated);
+                    } else {
+                        increment_methylation_count(fragment.length - rel_pos - 1, fragment.length, b.methylated);
+                    }
+                }
+
                 if (!b.uninformative) {
                     if (b.is_cpg_site()) {  // CpG context
                         if (b.methylated) fragment.n_methylated_cpg++;
@@ -238,6 +261,7 @@ Fragment compute_fragment_statistics(const ReadInfo& read1, const ReadInfo& read
         // Go to next base
         if (use1) i++;
         if (use2) j++;
+        if (!b.deleted) rel_pos++;
     }
 
     // Fragment-level indel calling

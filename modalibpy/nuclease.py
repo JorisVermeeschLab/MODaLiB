@@ -72,8 +72,8 @@ class NucleaseActivityEstimator(BaseEstimator, TransformerMixin):
             features = self.scaler.transform(features).T
 
         R_sign = np.asarray([
-            [-1,  1, -1, -1,  0, -1, -1,  1], # dffb
-            [-1, -1,  1, -1,  0,  1, -1, -1], # dnase1
+            [-1,  1, -1, -1, -1, -1, -1,  1], # dffb
+            [-1, -1,  1, -1, -1,  1, -1, -1], # dnase1
             [ 1, -1, -1,  1,  1, -1,  1, -1]  # dnase1l3
         ])
 
