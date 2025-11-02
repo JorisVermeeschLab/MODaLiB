@@ -135,7 +135,7 @@ def evaluate(
                 assert not np.any(np.isinf(K_train))
 
                 if model_name == 'stage-svm':
-                    model = MultiStageSVM(C=C, C_aux=0.1*C, random_state=random_state, platt_scaling=platt_scaling)
+                    model = MultiStageSVM(C=C, C_aux=C, random_state=random_state, platt_scaling=platt_scaling)
                     model.fit(K_train, annotations[train_index])
                 elif model_name == 'svm-reimpl':
                     model = SVM(C=C, random_state=random_state, platt_scaling=platt_scaling)
@@ -145,7 +145,7 @@ def evaluate(
                     #model = SVC(kernel='precomputed', class_weight='balanced', probability=True, C=C, tol=1e-6, random_state=random_state)
                     model.fit(K_train, y_train)
                 elif model_name == 'carsvm':
-                    model = CARSVM(C_c=C, C_r=C*0.01, epsilon=0.05, platt_scaling=platt_scaling)
+                    model = CARSVM(C_c=C, C_r=C*0.05, epsilon=0.1, platt_scaling=platt_scaling)
                     model.fit(K_train, np.asarray([y_train, tf_train]).T)
                 else:
                     raise NotImplementedError(f'Unknown model "{model_name}"')

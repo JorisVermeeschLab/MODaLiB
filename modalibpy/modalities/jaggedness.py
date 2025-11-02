@@ -11,10 +11,10 @@ from ..end_motifs import cgnngc_ratios, semfar_scores
 class JaggednessModality(BaseModality):
 
     # Minimum fragment length for which jag index will be estimated
-    LB = 150
+    LB = 70
 
     # Maximum fragment length for which jag index will be estimated
-    UB = 300
+    UB = 200
 
     def __init__(self, *args, **kwargs) -> None:
         BaseModality.__init__(self, *args, kernel='rbf', **kwargs)
@@ -129,22 +129,28 @@ class JaggednessModality(BaseModality):
         lb, ub = JaggednessModality.LB, JaggednessModality.UB
         r1_meth = X1[:, lb:ub]
         r2_meth = X2[:, lb:ub]
-        jag = (r1_meth - r2_meth) / r1_meth
+        jag = 100.0 * (r1_meth - r2_meth) / r1_meth
+        jag_corrected = np.copy(jag)
 
         # Correct for SEMFaR score
         X = data['End-motif probability (5 prime)']
         X = X / np.sum(X, axis=1)[:, np.newaxis]
         c = semfar_scores(X)
-        self.a, self.b = [], []
+        if fit:
+            self.a, self.b = [], []
         for k in range(r1_meth.shape[1]):
-            if fit and (y is not None):
-                coef = np.polyfit(c[y == 0], jag[y == 0, k], 1)
-                self.a.append(coef[1])
-                self.b.append(coef[0])
-            else:
-                self.a.append(-30517.79899074)
-                self.b.append(165.4546993)
-            jag_hat = self.a[-1] * c + self.b[-1]
-            jag[:, k] /= jag_hat
+            if fit:
+                if (y is not None):
+                    coef = np.polyfit(c[y == 0], jag[y == 0, k], 1)
+                    self.a.append(coef[0])
+                    self.b.append(coef[1])
+                else:
+                    self.a.append(-30517.79899074)
+                    self.b.append(165.4546993)
+            jag_hat = self.a[k] * c + self.b[k]
+            jag_corrected[:, k] /= jag_hat
+
+        # Use both jag index and S-jag index
+        jag = np.concatenate((jag, jag_corrected), axis=1)
 
         return jag
