@@ -27,7 +27,7 @@ make
 cd ..
 ```
 
-Compile the Cython extensions of the second part of the pipeline with:
+Compile the Cython extensions with:
 ```
 cd step2-fragment-level-analysis
 python setup.py install --user
@@ -50,4 +50,6 @@ Next, run all the code cells in the `tabula-sapiens-to-numpy.ipynb` notebook to 
 Usage
 -----
 
+See `process.py` for processing BAM files. For each BAM file, multiple `.npz`/`.npy` are generated and placed in separate sub-folders.
 
+To analyze these NumPy files, please refer to `paper/main.ipynb`.
