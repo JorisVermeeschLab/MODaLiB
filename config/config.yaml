@@ -1,0 +1,23 @@
+tools:
+  gcparagon: /lustre1/project/stg_00019/research/Antoine/GCparagon/src/GCparagon/correct_GC_bias.py
+  methyldackel: MethylDackel
+  bamconvertor: /lustre1/project/stg_00019/research/Antoine/MODaLiB/step1-bam-processing/BAMConvertor
+
+references:
+  genome: /lustre1/project/stg_00019/research/Antoine/MODaLiB/references/GCA_000001405.15_GRCh38_no_alt_analysis_set_lambda_puc19_combined.fa
+  genome_2bits: /lustre1/project/stg_00019/research/Antoine/MODaLiB/references/hg38-lambda-puc19.2bit
+  nucleosomes: /lustre1/project/stg_00019/research/Antoine/MODaLiB/nucleosome-peaks/GSE71378_CA01.peaks.hg38.txt
+  tabula_sapiens: /lustre1/project/stg_00019/research/Antoine/MODaLiB/10df7690-6d10-4029-a47e-0f071bb2df83.h5ad
+
+data:
+  folder: /lustre1/project/stg_00019/methylation_data/bam_files/inhouse_hg38
+
+gcparagon:
+  threads: 8
+
+methyldackel:
+  threads: 8
+
+modalib:
+  downsample: true
+  target_n_fragments: 20000000

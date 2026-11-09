@@ -1,0 +1,13 @@
+sample_id,bam,cancer_type,cancer_stage,cancer_location,batch,cbc_neutrophils,cbc_lymphocytes,cbc_monocytes,cbc_eosinophils,cbc_basophils
+GC131344,GC131344.merged.rmdup.bam,Healthy,,,85.2,8.3,1.8,3.4,0.8
+GC131345,GC131345.merged.rmdup.bam,Healthy,,,58.2,28.0,8.3,2.4,1.0
+GC131346,GC131346.merged.rmdup.bam,Healthy,,,70.6,18.0,3.7,5.6,1.0
+GC131347,GC131347.merged.rmdup.bam,Healthy,,,55.2,30.2,6.7,4.3,1.9
+GC131348,GC131348.merged.rmdup.bam,Healthy,,,68.6,20.1,6.3,1.7,1.5
+GC131349,GC131349.merged.rmdup.bam,Healthy,,,60.4,25.0,8.8,1.7,2.6
+GC131350,GC131350.merged.rmdup.bam,Healthy,,,68.5,18.4,9.6,1.0,1.1
+GC131351,GC131351.merged.rmdup.bam,Healthy,,,68.9,14.6,7.7,4.1,3.2
+GC131352,GC131352.merged.rmdup.bam,Healthy,,,53.5,31.1,6.6,5.7,1.5
+GC131353,GC131353.merged.rmdup.bam,Healthy,,,46.7,31.5,11.4,5.2,1.7
+GC131354,GC131354.merged.rmdup.bam,Healthy,,,50.1,34.7,5.9,5.3,1.7
+GC131355,GC131355.merged.rmdup.bam,Healthy,,,56.2,29.7,7.2,1.8,2.5

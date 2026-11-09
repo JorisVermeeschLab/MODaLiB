@@ -1,0 +1,116 @@
+import os
+import csv
+from pathlib import Path
+
+
+configfile: "config/config.yaml"
+
+with open("config/samples.csv", newline="") as f:
+    reader = csv.DictReader(f, delimiter=",")
+    samples = {
+        row["sample_id"]: os.path.join(config["data"]["folder"], row["bam"])
+        for row in reader
+    }
+if not samples or len(samples) != len(set(samples)):
+    raise ValueError("Sample table is empty or has duplicate sample identifiers")
+SAMPLES = list(samples)
+
+RUN_BENCHMARK = str(config.get("benchmark", False)).lower() == "true"
+
+
+def bam_of(wc):
+    return samples[wc.sample]
+
+
+rule all:
+    input:
+        expand("results/features/{sample}/50kb-noXY.npz", sample=SAMPLES)
+
+
+rule preprocess_reference_expression:
+    priority: 100
+    input:
+        h5ad=config["references"]["tabula_sapiens"]
+    output:
+        npz="results/reference_expression/mat.npz"
+    log:
+        "logs/preprocess_reference_expression.log"
+    script:
+        "scripts/preprocess_reference_expression.py"
+
+
+rule gcparagon:
+    priority: 0
+    input:
+        bam=bam_of
+    output:
+        bam=temp("results/gcparagon/{sample}.bam"),
+        bai=temp("results/gcparagon/{sample}.bam.bai")
+    threads: config["gcparagon"].get("threads", 8)
+    params:
+        tool=config["tools"]["gcparagon"],
+        reference=config["references"]["genome_2bits"],
+    log:
+        "logs/gcparagon/{sample}.log"
+    script:
+        "scripts/run_gcparagon.py"
+
+
+rule methyldackel:
+    priority: 10
+    input:
+        bam="results/gcparagon/{sample}.bam",
+        bai="results/gcparagon/{sample}.bam.bai",
+        ref=config["references"]["genome"]
+    output:
+        mbias="results/methylation/{sample}/{sample}_mbias.tsv"
+    threads: config["methyldackel"].get("threads", 8)
+    params:
+        tool=config["tools"]["methyldackel"]
+    log:
+        "logs/methyldackel/{sample}.log"
+    script:
+        "scripts/run_methyldackel.py"
+
+
+rule bamconvertor:
+    priority: 20
+    input:
+        bam="results/gcparagon/{sample}.bam",
+        bai="results/gcparagon/{sample}.bam.bai",
+        mbias="results/methylation/{sample}/{sample}_mbias.tsv"
+    output:
+        modalib="results/modalib/{sample}.modalib"
+    threads: 1
+    params:
+        tool=config["tools"]["bamconvertor"],
+        reference=config["references"]["genome"],
+    log:
+        "logs/bamconvertor/{sample}.log"
+    script:
+        "scripts/run_bamconvertor.py"
+
+
+rule feature_extraction:
+    priority: 30
+    input:
+        modalib="results/modalib/{sample}.modalib",
+        modalib_jag="results/modalib/{sample}.modalib.jag",
+        mbias="results/methylation/{sample}/{sample}_mbias.tsv"
+    output:
+        ctcf="results/features/{sample}/ctcf-noXY.npz",
+        windows="results/features/{sample}/50kb-noXY.npz",
+        promoters="results/features/{sample}/promoters-noXY.npz",
+        tss="results/features/{sample}/tss-noXY.npz",
+        genebodies="results/features/{sample}/genebodies-noXY.npz",
+        metdecode="results/features/{sample}/metdecode-noXY.npz",
+        colorectal="results/features/{sample}/meth-noXY.npz"
+    threads: 1
+    params:
+        nuc_reference=config["references"]["nucleosomes"],
+        downsample=config["modalib"]["downsample"],
+        target_n_fragments=config["modalib"]["target_n_fragments"]
+    log:
+        "logs/feature_extraction/{sample}.log"
+    script:
+        "scripts/run_feature_extraction.py"
