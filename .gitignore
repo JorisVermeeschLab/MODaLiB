@@ -19,6 +19,7 @@ Metadata_EMseqsamples.xlsx
 
 cmake_install.cmake
 
+.vscode/
 figures/
 
 .ipynb_checkpoints/

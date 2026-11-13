@@ -15,7 +15,12 @@
 #include <regex>
 #include <pthread.h>
 #include <limits>
+#include <algorithm>
 #include <unordered_set>
+#include <map>
+#include "msi/allele_length.h"
+#include <atomic>
+#include <cctype>
 #include <string>
 
 #include "params.h"
@@ -39,6 +44,10 @@
 
 pthread_mutex_t positionMutex;
 pthread_mutex_t outputMutex;
+pthread_mutex_t msiMutex = PTHREAD_MUTEX_INITIALIZER;
+static std::atomic<uint64_t> msi_reads_checked{0};
+static std::atomic<uint64_t> msi_candidates_found{0};
+static std::atomic<uint64_t> msi_records_written{0};
 uint32_t globalTid = 0;
 uint32_t globalPos = 0;
 uint32_t globalEnd = 0;
@@ -53,6 +62,79 @@ void write_fragment(kstring_t *os, const Fragment& fragment) {
     kputsn(buffer, sizeof(buffer), os);
 }
 
+// MSI output: a reference-anchored locus plus the observed sample allele.
+// First four columns are preserved for backward compatibility.
+// Fractional repeat counts are ratios (bp / motif length), not motif-purity calls.
+static void write_msi_record(FILE* fp, uint8_t chr_id,
+                             const MicrosatelliteAllele& allele,
+                             float weight) {
+    if (!fp || allele.start == 0 || allele.motif.empty()) return;
+
+    pthread_mutex_lock(&msiMutex);
+
+    fprintf(fp, "%u\t%u\t%u\t%u\t%s\t%u\t%.3f\t%.3f\t%.3f\n",
+            static_cast<unsigned int>(chr_id),
+            allele.start - 1,
+            allele.end,
+            allele.observed_length,
+            allele.motif.c_str(),
+            allele.reference_length,
+            allele.observed_repeat_count(),
+            allele.reference_repeat_count(),
+            static_cast<double>(weight));
+
+    pthread_mutex_unlock(&msiMutex);
+    ++msi_records_written;
+}
+
+// Detect reference-defined repeat loci, then measure the observed length
+// in this sample's aligned read bases (including indels).
+static void detect_microsatellites_in_read(
+    FILE* fp,
+    const ReadInfo& read,
+    uint32_t flank,
+    float weight
+) {
+    if (!fp || !read.chr_id) return;
+
+    ++msi_reads_checked;
+
+    const auto calls = msi_call_alleles(read, flank);
+    msi_candidates_found += calls.size();
+
+    for (const auto& call : calls) {
+        write_msi_record(fp, read.chr_id, call, weight);
+    }
+}
+
+static void detect_microsatellites_in_pair(FILE* fp, const ReadInfo& r1,
+                                           const ReadInfo& r2, uint32_t flank,
+                                           float weight) {
+    if (!fp || !r1.chr_id || r1.chr_id != r2.chr_id) return;
+    msi_reads_checked += 2;
+    const auto calls1 = msi_call_alleles(r1, flank);
+    const auto calls2 = msi_call_alleles(r2, flank);
+    msi_candidates_found += calls1.size() + calls2.size();
+
+    // A locus seen by both mates is reported once. If their lengths disagree,
+    // discard the locus rather than silently choosing an arbitrary allele.
+    std::map<std::string, MicrosatelliteAllele> by_locus;
+    std::unordered_set<std::string> conflicting;
+    auto add = [&](const MicrosatelliteAllele& call) {
+        const std::string key = std::to_string(call.start) + ":" +
+            std::to_string(call.end) + ":" + call.motif;
+        auto result = by_locus.emplace(key, call);
+        if (!result.second && result.first->second.observed_length != call.observed_length)
+            conflicting.insert(key);
+    };
+    for (const auto& call : calls1) add(call);
+    for (const auto& call : calls2) add(call);
+    for (const auto& pair : by_locus) {
+        if (conflicting.count(pair.first)) continue;
+        const auto& call = pair.second;
+        write_msi_record(fp, r1.chr_id, call, weight);
+    }
+}
 
 void write_methylation(kstring_t *c_os, OrderedQueueMap<genome_size_t, std::tuple<uint8_t, uint16_t, uint16_t, uint8_t>>& queue, const Fragment& fragment) {
 
@@ -203,11 +285,14 @@ void process_read(const bam1_t *b, const AlignmentRefSequence& ref, ReadInfo& re
                             }
                             if (putative_mutation) {  // Not a converted cytosine -> maybe SNP (or sequencing error)
                                 base_info.putative_snp = 1;
-                            } else {  // Ambiguous case: can be either a mutation or a converted cytosine
-                                // IMPORTANT NOTE: Because cytosines are orders of magnitude more frequent
-                                // than SNPs, we consider all mismatches as being caused by converted cytosines.
-                                // TODO: maybe adjust Phred score to account for the probability of a SNP?
-                                base_info.methylated = 0;
+                            } else {
+                                // Ambiguous case: a mismatch may reflect bisulfite conversion OR a true
+                                // mutation. In cfDNA and especially cancer-derived cfDNA, assuming every
+                                // such event is a converted cytosine biases methylation calls toward
+                                // unmethylated statuses. Keep the base conservative instead of forcing a
+                                // methylation call in this scenario.
+                                base_info.putative_snp = 1;
+                                base_info.uninformative = 1;
                             }
                         } else {  // Base match
                             base_info.uninformative = 0;
@@ -440,6 +525,7 @@ void* process_partition(void* config_) {
             if (config->single_read) {  // Single-read
                 Fragment fragment = compute_fragment_statistics(read);
                 if (fragment.is_valid() && (fragment.length <= config->max_fragment_size)) {
+                    if (config->write_msi) detect_microsatellites_in_read(config->msi_output_fp, read, config->msi_flank, fragment.weight);
                     write_fragment(os, fragment);
                     if (config->write_cytosines) write_methylation(c_os, meth_queue, fragment);
                 }
@@ -450,6 +536,7 @@ void* process_partition(void* config_) {
                     if (read.paired_with(other_read)) {
                         Fragment fragment = compute_fragment_statistics(read, other_read);
                         if (fragment.is_valid() && (read.chr_id == other_read.chr_id) && (fragment.length <= config->max_fragment_size)) {
+                            if (config->write_msi) detect_microsatellites_in_pair(config->msi_output_fp, read, other_read, config->msi_flank, fragment.weight);
                             write_fragment(os, fragment);
                             if (config->write_cytosines) write_methylation(c_os, meth_queue, fragment);
                         }
@@ -509,6 +596,9 @@ void cli_help() {
 " -p INT     Minimum Phred threshold to include a base (default 5). This must "
 "            be >0.\n"
 " -o STR     Output file name [stdout]\n"
+" -m STR     Write microsatellite calls to the given text file (4 columns).\n"
+" -x INT     Minimum number of flanking bases required around a microsatellite\n"
+"            for MSI detection (default 3).\n"
 " -nthreads INT    The number of threads to use, the default is 1\n"
 " --partition_size INT  The size of the genome processed by a single thread at a time.\n"
 "            The default is 1000000 bases. This value MUST be at least 1.\n"
@@ -548,6 +638,8 @@ int run_convertor(int argc, char *argv[]) {
             {"max_frag_size",   1, nullptr, 24},
             {"read_group",   1, nullptr, 25},
             {"partition_size",    1, nullptr,  19},
+            {"msi-output",   1, nullptr, 26},
+            {"msi-flank",   1, nullptr, 27},
             {"OT",           1, nullptr,   7},
             {"OB",           1, nullptr,   8},
             {"CTOT",         1, nullptr,   9},
@@ -555,7 +647,7 @@ int run_convertor(int argc, char *argv[]) {
             {0,         0, nullptr,   0}
     };
     char c;
-    while((c = getopt_long(argc, argv, "hvq:p:o:m:n:c:@:r:l:F:R:", lopts, nullptr)) >= 0) {
+    while((c = getopt_long(argc, argv, "hvq:p:o:m:n:c:@:r:l:F:R:x:", lopts, nullptr)) >= 0) {
         switch(c) {
             case 'h':
                 cli_help();
@@ -566,6 +658,16 @@ int run_convertor(int argc, char *argv[]) {
                     fprintf(stderr, "Couldn't open %s for writing\n", optarg);
                     return 2;
                 }
+                break;
+            case 'm':
+                config.write_msi = true;
+                if ((config.msi_output_fp = fopen(optarg, "w")) == nullptr) {
+                    fprintf(stderr, "Couldn't open %s for writing\n", optarg);
+                    return 2;
+                }
+                break;
+            case 'x':
+                config.msi_flank = static_cast<uint32_t>(std::max(0, atoi(optarg)));
                 break;
             case 'c':
                 if ((c_ofile = fopen(optarg, "wb")) == nullptr) {
@@ -621,6 +723,16 @@ int run_convertor(int argc, char *argv[]) {
                     return 1;
                 }
                 break;
+            case 26:
+                config.write_msi = true;
+                if ((config.msi_output_fp = fopen(optarg, "w")) == nullptr) {
+                    fprintf(stderr, "Couldn't open %s for writing\n", optarg);
+                    return 2;
+                }
+                break;
+            case 27:
+                config.msi_flank = static_cast<uint32_t>(std::max(0, atoi(optarg)));
+                break;
             default:
                 fprintf(stderr, "Invalid option '%c'\n", c);
                 cli_help();
@@ -647,6 +759,10 @@ int run_convertor(int argc, char *argv[]) {
         fprintf(stderr, "-q %i is invalid. Resetting to 0, which is the lowest possible value.\n", config.min_mapq);
         config.min_mapq = 0;
     }
+    if (config.msi_flank > 10000) {
+        fprintf(stderr, "-x %u is unusually large; clamping it to 10000.\n", config.msi_flank);
+        config.msi_flank = 10000;
+    }
 
     if ((fai = fai_load(argv[optind])) == nullptr) {
         fprintf(stderr, "Couldn't open the index for %s!\n", argv[optind]);
@@ -671,6 +787,16 @@ int run_convertor(int argc, char *argv[]) {
         }
     }
 
+    // MSI output has chromosome ID so coordinates are not ambiguous.
+    if (config.write_msi && config.msi_output_fp) {
+        fprintf(
+            config.msi_output_fp,
+            "#chrom_id\tstart0\tend0\tobserved_length\tmotif\t"
+            "reference_length\tobserved_repeat_count\t"
+            "reference_repeat_count\tfragment_weight\n"
+        );
+    }
+
     // Output files
     config.output_fp = (FILE**) malloc(sizeof(FILE *));
     config.output_fp[0] = ofile;
@@ -679,11 +805,19 @@ int run_convertor(int argc, char *argv[]) {
 
     // Spin up the threads
     pthread_mutex_init(&positionMutex, nullptr);
+    pthread_mutex_init(&outputMutex, nullptr);
     pthread_t *threads = (pthread_t*) calloc(config.n_threads, sizeof(pthread_t));
     for (int i = 0; i < config.n_threads; i++) pthread_create(threads + i, nullptr, &process_partition, &config);
     for (int i = 0; i < config.n_threads; i++) pthread_join(threads[i], nullptr);
     free(threads);
     pthread_mutex_destroy(&positionMutex);
+    pthread_mutex_destroy(&outputMutex);
+    if (config.write_msi) {
+        fprintf(stderr, "MSI: reads searched=%" PRIu64
+                ", candidate repeats=%" PRIu64 ", records written=%" PRIu64 "\n",
+                msi_reads_checked.load(), msi_candidates_found.load(),
+                msi_records_written.load());
+    }
 
     // Add dummy fragment to output file to indicate that the file is valid
     Fragment dummy;
@@ -700,6 +834,7 @@ int run_convertor(int argc, char *argv[]) {
     hts_close(config.fp);
     if (ofile != stdout) fclose(ofile);
     if (c_ofile != stdout) fclose(c_ofile);
+    if (config.msi_output_fp != nullptr) fclose(config.msi_output_fp);
     free(config.output_fp);
     free(config.c_output_fp);
     fai_destroy(fai);

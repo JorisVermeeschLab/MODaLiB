@@ -18,7 +18,7 @@ cmd = [
     "--bam", str(Path(snakemake.input.bam).resolve()),
     "--out-dir", str(native_out.resolve()),
     "--output-bam",
-    "--two-bit-reference-genome", str(snakemake.params.reference)
+    "--two-bit-reference-genome", str(snakemake.input.reference)
 ]
 
 with log_path.open("w") as log:

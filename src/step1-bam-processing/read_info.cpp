@@ -23,41 +23,39 @@
 
 
 void ReadInfo::trim_alignment_inplace_(const Parameters& params, bool left) {
-    bool uninformative = true;
-    size_t lookahead = params.trim_lookahead;
-    size_t n_invalid_bases = 0;
-    for (size_t i = 0; i < bases.size(); i++) {
-        size_t j = (left) ? i : bases.size() - i - 1;
-        BaseInfo& base = bases.at(j).second;
-        const BaseInfo& ref_base = ref_bases.at(i).second;
-        if (base.uninformative || base.putative_snp || (base.c == 'N') || base.inserted || base.deleted) {
-            uninformative = true;
-        } else if (params.c_conversion && (base.is_chg_site() || base.is_chh_site())) {
-            if (base.methylated) uninformative = true;  // Methylation in CHH/CHG contexts is unlikely
-            else uninformative = false;
-        } else if (params.c_conversion && base.is_cpg_site()) {
-            uninformative = false;
-        } else if (base.c != ref_base.c) {
-            uninformative = true;
-        }
-        if (uninformative) {
-            base.uninformative = true;
-            lookahead = params.trim_lookahead;
-            n_invalid_bases = i + 1;
-        } else {
-            lookahead--;
-            if (lookahead == 0) break;
-        }
-        if (++i > params.trim_lookahead) break;
-    }
+    // Base/ref-base vectors are aligned by index by process_read().
+    const size_t n = std::min(bases.size(), ref_bases.size());
+    if (!n || !params.trim_lookahead || !params.trim_max_n_bases) return;
 
-    for (size_t i = 0; i < n_invalid_bases; i++) {
-        size_t j = (left) ? i : bases.size() - i - 1;
-        BaseInfo &base = bases.at(j).second;
-        base.uninformative = true;
+    const size_t limit = std::min(n, params.trim_max_n_bases);
+    size_t last_invalid = 0;
+    size_t consecutive_valid = 0;
+    for (size_t i = 0; i < limit; ++i) {
+        const size_t j = left ? i : n - 1 - i;
+        const BaseInfo& base = bases[j].second;
+        const BaseInfo& ref_base = ref_bases[j].second;
+        bool invalid = base.uninformative || base.putative_snp ||
+                       base.c == 'N' || base.inserted || base.deleted;
+        if (!invalid && params.c_conversion &&
+            (base.is_chg_site() || base.is_chh_site())) {
+            invalid = base.methylated;
+        } else if (!invalid && params.c_conversion && base.is_cpg_site()) {
+            invalid = false;
+        } else if (!invalid) {
+            invalid = base.c != ref_base.c;
+        }
+        if (invalid) {
+            last_invalid = i + 1;
+            consecutive_valid = 0;
+        } else if (++consecutive_valid >= params.trim_lookahead) {
+            break;
+        }
+    }
+    for (size_t i = 0; i < last_invalid; ++i) {
+        const size_t j = left ? i : n - 1 - i;
+        bases[j].second.uninformative = true;
     }
 }
-
 
 void ReadInfo::trim_alignment_inplace(const Parameters& params) {
     trim_alignment_inplace_(params, true);

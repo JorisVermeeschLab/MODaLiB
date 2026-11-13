@@ -1,137 +1,159 @@
-//  vntr.cpp
-//
-//  Copyright 2023 Antoine Passemiers <antoine.passemiers@gmail.com>
-//
-//  This program is free software; you can redistribute it and/or modify
-//  it under the terms of the GNU General Public License as published by
-//  the Free Software Foundation; either version 2 of the License, or
-//  (at your option) any later version.
-//
-//  This program is distributed in the hope that it will be useful,
-//  but WITHOUT ANY WARRANTY; without even the implied warranty of
-//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-//  GNU General Public License for more details.
-//
-//  You should have received a copy of the GNU General Public License
-//  along with this program; if not, write to the Free Software
-//  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
-//  MA 02110-1301, USA.
+//  vntr.cpp -- coordinate-safe tandem repeat detection
+//  Copyright 2023 Antoine Passemiers
+//  SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "vntr.h"
 
+#include <algorithm>
+#include <cctype>
 #include <cstdint>
+#include <limits>
 #include <string>
-#include <utility>
 #include <vector>
 
-#include "../base.h"
-#include "../reference.h"
+namespace {
 
+bool canonical(char c) {
+    c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+    return c == 'A' || c == 'C' || c == 'G' || c == 'T';
+}
 
-TandemRepeat find_microsatellite_in_reference(const char* seq, size_t n) {
+// Report maximal, nonoverlapping exact tandem repeats. Coordinates are
+// 0-based inclusive relative to `seq`.
+void scan_sequence(const char* seq, size_t n, std::vector<TandemRepeat>& out) {
+    if (!seq) return;
+    size_t i = 0;
+    while (i < n) {
+        if (!canonical(seq[i])) { ++i; continue; }
+        TandemRepeat best;
+        size_t best_length = 0;
+        for (int motif_len = MIN_MOTIF_LENGTH; motif_len <= MAX_MOTIF_LENGTH; ++motif_len) {
+            const size_t k = static_cast<size_t>(motif_len);
+            if (k > (n - i) / MIN_NUM_REPEATS) continue;
+            bool motif_ok = true;
+            for (size_t j = 0; j < k; ++j) {
+                if (!canonical(seq[i+j])) { motif_ok = false; break; }
+            }
+            if (!motif_ok) continue;
 
-    TandemRepeat tr;
-
-    if (n == 0) return tr;
-
-    int counts[MAX_MOTIF_LENGTH - MIN_MOTIF_LENGTH + 1];
-    for (int k = MIN_MOTIF_LENGTH; k <= MAX_MOTIF_LENGTH; k++) counts[k - MIN_MOTIF_LENGTH] = k;
-
-    for (int i = 0; i < n; i++) {
-        // for (int k = 0; k < MAX_MOTIF_LENGTH - MIN_MOTIF_LENGTH + 1; k++) {
-        for (int k = MAX_MOTIF_LENGTH - MIN_MOTIF_LENGTH; k >= 0; k--) {
-            int motif_length = k + MIN_MOTIF_LENGTH;
-            if (i - motif_length >= 0) {
-                if ((seq[i] != seq[i - motif_length]) || (seq[i] == 'N')) {
-                    counts[k] = motif_length;
-
-                    if (tr.is_valid && (tr.motif.length() == motif_length)) {
-                        return tr;
+            size_t copies = 1;
+            while (copies < (n-i)/k) {
+                const size_t next = i + copies*k;
+                bool equal = true;
+                for (size_t j = 0; j < k; ++j) {
+                    if (!canonical(seq[next+j]) ||
+                        std::toupper(static_cast<unsigned char>(seq[i+j])) !=
+                            std::toupper(static_cast<unsigned char>(seq[next+j]))) {
+                        equal = false;
+                        break;
                     }
-                } else {
-                    counts[k]++;
+                }
+                if (!equal) break;
+                ++copies;
+            }
+            // Recognize terminal partial motif copies (e.g. ACT*4 + AC).
+            // A terminal partial copy must agree with the beginning of the motif.
+            size_t partial = 0;
+            if (k > 1 && i + copies*k < n) {
+                const size_t max_partial = std::min(k - 1, n - (i + copies*k));
+                while (partial < max_partial &&
+                       canonical(seq[i + copies*k + partial]) &&
+                       std::toupper(static_cast<unsigned char>(seq[i + partial])) ==
+                           std::toupper(static_cast<unsigned char>(seq[i + copies*k + partial]))) {
+                    ++partial;
                 }
             }
-            if (counts[k] >= MS_MIN_NUM_BASES) {
-                int n_repeats = counts[k] / motif_length;
-                tr.is_valid = true;
-                tr.n_repeats = n_repeats;
-                tr.start = std::max(i + 1 - counts[k], 0);
-                tr.end = i;
-                tr.motif = std::string(&seq[tr.start], motif_length);
-
-                // Ensure that microsatellite is entirely contained in the sequence
-                if (tr.end >= n - 1) tr.is_valid = false;
-                else if (seq[tr.end + 1] == 'N') tr.is_valid = false;
-                if (tr.start <= 0) tr.is_valid = false;
-                else if (seq[tr.start - 1] == 'N') tr.is_valid = false;
+            const size_t span = copies*k + partial;
+            const bool complete = copies >= MIN_NUM_REPEATS &&
+                                  copies*k >= MS_MIN_NUM_BASES;
+            const bool fractional = partial > 0 &&
+                                    copies >= MIN_FULL_COPIES_WITH_PARTIAL &&
+                                    span >= MIN_PARTIAL_REPEAT_BASES;
+            if ((!complete && !fractional) ||
+                copies > std::numeric_limits<uint16_t>::max()) continue;
+            if (span > best_length || (span == best_length && k < best.motif.size())) {
+                best.is_valid = true;
+                best.start = static_cast<uint32_t>(i);
+                best.end = static_cast<uint32_t>(i + span - 1);
+                best.motif = std::string(seq+i, k);
+                best.n_repeats = static_cast<uint16_t>(copies);
+                best.terminal_partial_bases = static_cast<uint8_t>(partial);
+                best_length = span;
             }
         }
-    }
-    return tr;
-}
-
-
-void find_microsatellites_in_reference(const char* seq, size_t seq_end, size_t seq_offset, std::vector<TandemRepeat>& mss) {
-    size_t seq_start = 0;
-    TandemRepeat tr;
-    do {
-        tr = find_microsatellite_in_reference(seq + seq_start, seq_end - seq_start);
-        if (tr.is_valid) {
-            size_t new_seq_start = seq_start + tr.end + 1;
-            tr.start += seq_start + seq_offset;
-            tr.end += seq_start + seq_offset;
-            mss.push_back(tr);
-            seq_start = new_seq_start;
-            if (seq_start >= seq_end) break;
-        }
-    } while (tr.is_valid);
-}
-
-
-void find_microsatellites(const std::vector<std::pair<uint32_t, BaseInfo>>& bases, std::vector<TandemRepeat>& mss) {
-    if (bases.empty()) return;
-    char* seq = new char[bases.size()];
-    size_t seq_offset = bases.front().first;
-    size_t seq_end = 0;
-    for (const auto& pair : bases) {
-        if (pair.second.deleted) continue;
-        if (pair.second.soft_clipped) seq[seq_end++] = 'N';
-        else {
-            seq[seq_end++] = pair.second.c;
+        if (best.is_valid) {
+            out.push_back(best);
+            i += best_length;
+        } else {
+            ++i;
         }
     }
-    find_microsatellites_in_reference(seq, seq_end, seq_offset, mss);
-    delete[] seq;
 }
 
+} // namespace
+
+TandemRepeat find_microsatellite_in_reference(const char* seq, size_t n) {
+    std::vector<TandemRepeat> repeats;
+    scan_sequence(seq, n, repeats);
+    return repeats.empty() ? TandemRepeat{} : repeats.front();
+}
+
+void find_microsatellites_in_reference(
+    const char* seq, size_t seq_end, size_t seq_offset,
+    std::vector<TandemRepeat>& mss) {
+    std::vector<TandemRepeat> repeats;
+    scan_sequence(seq, seq_end, repeats);
+    for (auto& tr : repeats) {
+        tr.start += static_cast<uint32_t>(seq_offset);
+        tr.end += static_cast<uint32_t>(seq_offset);
+        mss.push_back(std::move(tr));
+    }
+}
 
 void find_microsatellites(
-        const std::vector<std::pair<uint32_t, BaseInfo>>& b1,
-        const std::vector<std::pair<uint32_t, BaseInfo>>& b2,
-        std::vector<TandemRepeat>& mss
-        ) {
-    if (b1.size() + b2.size() == 0) return;
-    char* seq = new char[b1.size() + b2.size()];
-    size_t seq_offset;
-    if (!b1.empty()) seq_offset = b1.front().first;
-    else seq_offset = b2.front().first;
-    size_t seq_end = 0;
-    uint32_t last = 0;
-    for (const auto& pair : b1) {
-        last = pair.first;
-        if (pair.second.deleted) continue;
-        if (pair.second.soft_clipped) seq[seq_end++] = 'N';
-        else seq[seq_end++] = pair.second.c;
-    }
-    for (const auto& pair : b2) {
-        if (last < pair.first) {
-            last = pair.first;
-            if (pair.second.deleted) continue;
-            if (pair.second.soft_clipped) seq[seq_end++] = 'N';
-            else seq[seq_end++] = pair.second.c;
+    const std::vector<std::pair<uint32_t, BaseInfo>>& bases,
+    std::vector<TandemRepeat>& mss) {
+    // Only contiguous aligned, non-insertion/non-deletion reference coordinates
+    // may be interpreted as an exact genomic tandem repeat. Indels and missing
+    // coverage split the run; never close the gap by concatenating bases.
+    std::string run;
+    uint32_t run_start = 0;
+    uint32_t previous = 0;
+    auto flush = [&]() {
+        if (!run.empty()) {
+            find_microsatellites_in_reference(run.data(), run.size(), run_start, mss);
+            run.clear();
         }
+    };
+    for (const auto& item : bases) {
+        const uint32_t pos = item.first;
+        const BaseInfo& b = item.second;
+        if (b.deleted || b.inserted || b.soft_clipped || !canonical(b.c)) {
+            flush();
+            previous = 0;
+            continue;
+        }
+        if (!run.empty() && (pos <= previous || pos - previous != 1)) flush();
+        if (run.empty()) run_start = pos;
+        run.push_back(static_cast<char>(std::toupper(static_cast<unsigned char>(b.c))));
+        previous = pos;
     }
-    find_microsatellites_in_reference(seq, seq_end, seq_offset, mss);
-    delete[] seq;
+    flush();
+}
+
+void find_microsatellites(
+    const std::vector<std::pair<uint32_t, BaseInfo>>& b1,
+    const std::vector<std::pair<uint32_t, BaseInfo>>& b2,
+    std::vector<TandemRepeat>& mss) {
+    // Do not concatenate mates across an unsequenced template gap.
+    find_microsatellites(b1, mss);
+    find_microsatellites(b2, mss);
+    std::sort(mss.begin(), mss.end(), [](const TandemRepeat& a, const TandemRepeat& b) {
+        if (a.start != b.start) return a.start < b.start;
+        if (a.end != b.end) return a.end < b.end;
+        return a.motif < b.motif;
+    });
+    mss.erase(std::unique(mss.begin(), mss.end(), [](const TandemRepeat& a, const TandemRepeat& b) {
+        return a.start == b.start && a.end == b.end && a.motif == b.motif;
+    }), mss.end());
 }

@@ -32,7 +32,6 @@
 #include "../jaggedness.h"
 #include "../msi/vntr.h"
 #include "single_read.h"
-#include "../msi/region_list.h"
 
 
 void print_pair(const ReadInfo& r1, const ReadInfo& r2);
@@ -163,10 +162,37 @@ Fragment compute_fragment_statistics(const ReadInfo& read1, const ReadInfo& read
             b = b1;
 
             if (b1.has_cytosine_context() || b2.has_cytosine_context()) {  // CpG|CHG|CHH context
-                if (!b2.has_cytosine_context()) b = b1;
-                else if (!b1.has_cytosine_context()) b = b2;
-                else if (b1.phred_score >= b2.phred_score) b = b1;
-                else b = b2;
+                const bool valid1 =
+                    b1.is_cpg_site() &&
+                    !b1.uninformative &&
+                    !b1.putative_snp &&
+                    !b1.inserted &&
+                    !b1.deleted;
+
+                const bool valid2 =
+                    b2.is_cpg_site() &&
+                    !b2.uninformative &&
+                    !b2.putative_snp &&
+                    !b2.inserted &&
+                    !b2.deleted;
+
+                if (valid1 && valid2) {
+                    if (b1.methylated != b2.methylated) {
+                        // Conservative treatment of discordant mates.
+                        b = b1;
+                        b.uninformative = 1;
+                    } else {
+                        b = (b1.phred_score >= b2.phred_score) ? b1 : b2;
+                    }
+                } else if (valid1) {
+                    b = b1;
+                } else if (valid2) {
+                    b = b2;
+                } else {
+                    // Preserve existing non-CpG handling separately.
+                    b = (b1.phred_score >= b2.phred_score) ? b1 : b2;
+                    b.uninformative = 1;
+                }
 
                 // Increment meth counts for jaggedness estimation (no trimming)
                 if (b.is_cpg_site()) {  // CpG context
@@ -279,14 +305,21 @@ Fragment compute_fragment_statistics(const ReadInfo& read1, const ReadInfo& read
         fragment.length = fragment.insert_size;  // Trust insert size
     } else {
         fragment.length = fragment.insert_size;
-        fragment.length += fragment.n_inserted - fragment.n_deleted;
-    }
-    if ((fragment.length == 0) && (fragment.end_pos > fragment.start_pos)) {
-        fragment.length = fragment.end_pos - fragment.start_pos + 1;
+        const int64_t corrected_length =
+            static_cast<int64_t>(fragment.insert_size) +
+            static_cast<int64_t>(fragment.n_inserted) -
+            static_cast<int64_t>(fragment.n_deleted);
+
+        if (corrected_length <= 0 ||
+            corrected_length > std::numeric_limits<uint16_t>::max()) {
+            fragment.length = 0;
+        } else {
+            fragment.length = static_cast<uint16_t>(corrected_length);
+        }
     }
 
     // Store end motifs
-    if ((r1.ref_bases.size() >= 4) && (r2.ref_bases.size() >= 4)) {
+    if (ref_seq.size() >= 4) {
         size_t p = ref_seq.size();
         if ((fragment.strand & 1) == 1) {
             fragment.end_motif_5p = EndMotif(ref_seq[0].c, ref_seq[1].c, ref_seq[2].c, ref_seq[3].c, STRAND_OT);
@@ -305,6 +338,8 @@ Fragment compute_fragment_statistics(const ReadInfo& read1, const ReadInfo& read
     fragment.n_unmethylated_cpg_r1 = 0;
     for (auto &pair : r1.bases) {
         BaseInfo &b = pair.second;
+        if (b.uninformative)
+            continue;
         if (b.is_cpg_site()) {
             if (b.methylated) fragment.n_methylated_cpg_r1++;
             else fragment.n_unmethylated_cpg_r1++;
@@ -314,6 +349,8 @@ Fragment compute_fragment_statistics(const ReadInfo& read1, const ReadInfo& read
     fragment.n_unmethylated_cpg_r2 = 0;
     for (auto &pair : r2.bases) {
         BaseInfo &b = pair.second;
+        if (b.uninformative)
+            continue;
         if (b.is_cpg_site()) {
             if (b.methylated) fragment.n_methylated_cpg_r2++;
             else fragment.n_unmethylated_cpg_r2++;

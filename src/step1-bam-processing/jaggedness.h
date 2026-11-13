@@ -43,7 +43,7 @@ void write_methylation_counts_to_file(const std::string& path, char sep = ',') {
     if (!out) throw std::runtime_error("Failed to open " + path);
     out << "fragment_length" << sep << "base_position" << sep << "methylated" << sep << "unmethylated" << '\n';
     for (std::size_t i = 0; i < MAX_FRAGMENT_LENGTH + 1; ++i) {
-        for (std::size_t j = 0; j < i + 1; ++j) {
+        for (std::size_t j = 0; j < MAX_FRAGMENT_LENGTH + 1; ++j) {
             if ((overall_methylated_counts[i][j] > 0) || (overall_unmethylated_counts[i][j] > 0)) {
                 out << i << sep << j << sep << overall_methylated_counts[i][j] << sep << overall_unmethylated_counts[i][j] << '\n';
             }

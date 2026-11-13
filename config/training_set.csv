@@ -1,0 +1,133 @@
+sample_id,bam,category,cancer_type,cancer_stage,cancer_location,batch,reference
+GC1003995,GC1003995.bam,cancer,Colorectal cancer,IIIC,Ascendens,EMseq_Nov2020_PT2,ref2
+GC1003996,GC1003996.bam,cancer,Colorectal cancer,IIA,,EMseq_Nov2020_PT2,ref2
+GC1004000,GC1004000.bam,cancer,Colorectal cancer,IVA,Rectum,EMseq_Nov2020_PT2,ref2
+GC1004001,GC1004001.bam,cancer,Colorectal cancer,I,Hepatic flexure,EMseq_Nov2020_PT2,ref2
+GC121327,GC121327.bam,cancer,Colorectal Cancer,II,,Emseq_March2022,ref2
+GC121330,GC121330.bam,cancer,Colorectal Cancer,I,,Emseq_March2022,ref2
+GC137539,GC137539.merged.rmdup.bam,cancer,Colorectal Cancer,I,,Emseq_Jun23,ref1
+GC137540,GC137540.merged.rmdup.bam,cancer,Colorectal Cancer,I,,Emseq_Jun23,ref1
+GC137542,GC137542.merged.rmdup.bam,cancer,Colorectal Cancer,I,,Emseq_Jun23,ref1
+GC137547,GC137547.merged.rmdup.bam,cancer,Colorectal Cancer,I,,Emseq_Jun23,ref1
+GC137548,GC137548.merged.rmdup.bam,cancer,Colorectal Cancer,II,,Emseq_Jun23,ref1
+GC137550,GC137550.merged.rmdup.bam,cancer,Colorectal Cancer,I,,Emseq_Jun23,ref1
+GC137553,GC137553.merged.rmdup.bam,cancer,Colorectal Cancer,I,,Emseq_Jun23,ref1
+GC137557,GC137557.merged.rmdup.bam,cancer,Colorectal Cancer,I,,Emseq_Jun23,ref1
+GC146328,GC146328.merged.rmdup.bam,cancer,Colorectal Cancer,IIIB,Sigmoid,Emseq_February2024,ref1
+GC146329,GC146329.merged.rmdup.bam,cancer,Colorectal Cancer,I,Transversum,Emseq_February2024,ref1
+GC146332,GC146332.merged.rmdup.bam,cancer,Colorectal Cancer,I,Transversum,Emseq_February2024,ref1
+GC146335,GC146335.merged.rmdup.bam,cancer,Colorectal Cancer,IIA,Descendens,Emseq_February2024,ref1
+GC146337,GC146337.merged.rmdup.bam,cancer,Colorectal Cancer,I,Rectosigmoid,Emseq_February2024,ref1
+GC146339,GC146339.merged.rmdup.bam,cancer,Colorectal Cancer,IIIB,Ascendens,Emseq_February2024,ref1
+GC146340,GC146340.merged.rmdup.bam,cancer,Colorectal Cancer,III,Ascendens,Emseq_February2024,ref1
+GC146342,GC146342.merged.rmdup.bam,cancer,Colorectal Cancer,I,Transversum,Emseq_February2024,ref1
+GC146343,GC146343.merged.rmdup.bam,cancer,Colorectal Cancer,I,Splenic flexure,Emseq_February2024,ref1
+GC146344,GC146344.merged.rmdup.bam,cancer,Colorectal Cancer,I,Ascendens,Emseq_February2024,ref1
+GC146350,GC146350.merged.rmdup.bam,cancer,Colorectal Cancer,I,Hepatic flexure,Emseq_February2024,ref1
+GC146351,GC146351.merged.rmdup.bam,cancer,Colorectal Cancer,IIA,Ascendens,Emseq_February2024,ref1
+GC146352,GC146352.merged.rmdup.bam,cancer,Colorectal Cancer,I,Rectosigmoid,Emseq_February2024,ref1
+GC146353,GC146353.merged.rmdup.bam,cancer,Colorectal Cancer,IIIB,Sigmoid,Emseq_February2024,ref1
+GC146355,GC146355.merged.rmdup.bam,cancer,Colorectal Cancer,IV,Caecum,Emseq_February2024,ref1
+GC146356,GC146356.merged.rmdup.bam,cancer,Colorectal Cancer,IIA,Ascendens,Emseq_February2024,ref1
+GC146357,GC146357.merged.rmdup.bam,cancer,Colorectal Cancer,IIA,Hepatic flexure,Emseq_February2024,ref1
+GC146359,GC146359.merged.rmdup.bam,cancer,Colorectal Cancer,IVC,Ascendens,Emseq_February2024,ref1
+GC146360,GC146360.merged.rmdup.bam,cancer,Colorectal Cancer,I,Ascendens,Emseq_February2024,ref1
+GC146363,GC146363.merged.rmdup.bam,cancer,Colorectal Cancer,I,Sigmoid,Emseq_February2024,ref1
+GC146364,GC146364.merged.rmdup.bam,cancer,Colorectal Cancer,IIA,Ascendens,Emseq_February2024,ref1
+GC146366,GC146366.merged.rmdup.bam,cancer,Colorectal Cancer,IVA,Sigmoid,Emseq_February2024,ref1
+GC146367,GC146367.merged.rmdup.bam,cancer,Colorectal Cancer,IIA,Ascendens,Emseq_February2024,ref1
+GC146368,GC146368.merged.rmdup.bam,cancer,Colorectal Cancer,IIIB,Sigmoid,Emseq_February2024,ref1
+GC146370,GC146370.merged.rmdup.bam,cancer,Colorectal Cancer,IIIC,Caecum,Emseq_February2024,ref1
+GC146372,GC146372.merged.rmdup.bam,cancer,Colorectal Cancer,IIIB,Sigmoid,Emseq_February2024,ref1
+GC146373,GC146373.merged.rmdup.bam,cancer,Colorectal Cancer,I,Ascendens,Emseq_February2024,ref1
+GC146374,GC146374.merged.rmdup.bam,cancer,Colorectal Cancer,I,Sigmoid,Emseq_February2024,ref1
+GC146375,GC146375.merged.rmdup.bam,cancer,Colorectal Cancer,I,,Emseq_February2024,ref1
+GC146377,GC146377.merged.rmdup.bam,cancer,Colorectal Cancer,IIIB,Transversum,Emseq_February2024,ref1
+GC146381,GC146381.merged.rmdup.bam,cancer,Colorectal Cancer,IIA,Ascendens,Emseq_February2024,ref1
+GC146382,GC146382.merged.rmdup.bam,cancer,Colorectal Cancer,I,Transversum,Emseq_February2024,ref1
+GC146387,GC146387.merged.rmdup.bam,cancer,Colorectal Cancer,IIA,Transversum,Emseq_February2024,ref1
+GC146390,GC146390.merged.rmdup.bam,cancer,Colorectal Cancer,IIA,Sigmoid,Emseq_February2024,ref1
+GC146391,GC146391.merged.rmdup.bam,cancer,Colorectal Cancer,I,Transversum,Emseq_February2024,ref1
+GC146664_AAGACACC-GTAACCGA,GC146664_AAGACACC-GTAACCGA.merged.rmdup.bam,cancer,Colorectal Cancer,IIB,Sigmoid,Emseq_February2024_pt2,ref1
+GC146664_AGCTAAGC-GTCGTTAC,GC146664_AGCTAAGC-GTCGTTAC.merged.rmdup.bam,cancer,Colorectal Cancer,IIIC,Sigmoid,Emseq_February2024_pt2,ref1
+GC146664_CAATAGCC-TCTACGCA,GC146664_CAATAGCC-TCTACGCA.merged.rmdup.bam,cancer,Colorectal Cancer,IIA,Transversum,Emseq_February2024_pt2,ref1
+GC146664_CACAGACT-CTGTACCA,GC146664_CACAGACT-CTGTACCA.merged.rmdup.bam,cancer,Colorectal Cancer,I,Caecum,Emseq_February2024_pt2,ref1
+GC146664_CAGCATAC-GCGTTAGA,GC146664_CAGCATAC-GCGTTAGA.merged.rmdup.bam,cancer,Colorectal Cancer,I,Descendens,Emseq_February2024_pt2,ref1
+GC146664_CCACAACA-GTACCACA,GC146664_CCACAACA-GTACCACA.merged.rmdup.bam,cancer,Colorectal Cancer,,,Emseq_February2024_pt2,ref1
+GC146664_CGTATCTC-CAAGGTAC,GC146664_CGTATCTC-CAAGGTAC.merged.rmdup.bam,cancer,Colorectal Cancer,IIIB,Caecum,Emseq_February2024_pt2,ref1
+GC146664_GGCAAGTT-CTCAGAAG,GC146664_GGCAAGTT-CTCAGAAG.merged.rmdup.bam,cancer,Colorectal Cancer,IIA,Transversum,Emseq_February2024_pt2,ref1
+GC146664_GGTGTACA-AGACGCTA,GC146664_GGTGTACA-AGACGCTA.merged.rmdup.bam,cancer,Colorectal Cancer,IIIB,Descendens,Emseq_February2024_pt2,ref1
+GC146664_TTACGTGC-AGACCTTG,GC146664_TTACGTGC-AGACCTTG.merged.rmdup.bam,cancer,Colorectal Cancer,IIA,Sigmoid,Emseq_February2024_pt2,ref1
+GC146665_CATGAGCA-GATCTTGC,GC146665_CATGAGCA-GATCTTGC.merged.rmdup.bam,cancer,Colorectal Cancer,IIA,Sigmoid,Emseq_February2024_pt2,ref1
+GC146665_CGAATTGC-GTAAGGTG,GC146665_CGAATTGC-GTAAGGTG.merged.rmdup.bam,cancer,Colorectal Cancer,IIIB,Sigmoid,Emseq_February2024_pt2,ref1
+GC146665_GAATCCGT-CAACTCCA,GC146665_GAATCCGT-CAACTCCA.merged.rmdup.bam,cancer,Colorectal Cancer,I,Sigmoid,Emseq_February2024_pt2,ref1
+GC146665_GCAATTCC-CTCGAACA,GC146665_GCAATTCC-CTCGAACA.merged.rmdup.bam,cancer,Colorectal Cancer,IIIB,Transversum,Emseq_February2024_pt2,ref1
+GC146665_GTCCTAAG-AGCTACCA,GC146665_GTCCTAAG-AGCTACCA.merged.rmdup.bam,cancer,Colorectal Cancer,,,Emseq_February2024_pt2,ref1
+GC146665_TTGCGAGA-TATGGCAC,GC146665_TTGCGAGA-TATGGCAC.merged.rmdup.bam,cancer,Colorectal Cancer,IIA,Caecum,Emseq_February2024_pt2,ref1
+GC146766_CAGGTTCA-ATAACGCC,GC146766_CAGGTTCA-ATAACGCC.merged.rmdup.bam,cancer,Colorectal Cancer,,,Emseq_February2024_pt3,ref1
+GC114138,GC114138.bam,GRP_healthy,,,,EMseq_Aug2021,ref2
+GC119384,GC119384.bam,GRP_healthy,,,,Emseq_Feb2022,ref2
+GC121344,GC121344.bam,GRP_healthy,,,,Emseq_March2022,ref2
+GC118496,GC118496.bam,GRP_healthy,,,,EMBCseq_Jan2022,ref2
+GC119376,GC119376.bam,GRP_healthy,,,,Emseq_Feb2022,ref2
+GC121339,GC121339.bam,GRP_healthy,,,,Emseq_March2022,ref2
+GC114131,GC114131.bam,GRP_healthy,,,,EMseq_Aug2021,ref2
+GC121333,GC121333.bam,GRP_healthy,,,,Emseq_March2022,ref2
+GC119381,GC119381.bam,GRP_healthy,,,,Emseq_Feb2022,ref2
+GC119394,GC119394.bam,GRP_healthy,,,,Emseq_Feb2022,ref2
+GC121346,GC121346.bam,GRP_healthy,,,,Emseq_March2022,ref2
+GC114135,GC114135.bam,GRP_healthy,,,,EMseq_Aug2021,ref2
+GC118481,GC118481.bam,GRP_healthy,,,,EMBCseq_Jan2022,ref2
+GC118465,GC118465.bam,GRP_healthy,,,,EMBCseq_Jan2022,ref2
+GC119403,GC119403.bam,GRP_healthy,,,,Emseq_Feb2022,ref2
+GC119405,GC119405.bam,GRP_healthy,,,,Emseq_Feb2022,ref2
+GC121341,GC121341.bam,GRP_healthy,,,,Emseq_March2022,ref2
+GC121334,GC121334.bam,GRP_healthy,,,,Emseq_March2022,ref2
+GC121342,GC121342.bam,GRP_healthy,,,,Emseq_March2022,ref2
+GC119395,GC119395.bam,GRP_healthy,,,,Emseq_Feb2022,ref2
+GC119389,GC119389.bam,GRP_healthy,,,,Emseq_Feb2022,ref2
+GC119344,GC119344.bam,GRP_healthy,,,,Emseq_Feb2022,ref2
+GC118482,GC118482.bam,GRP_healthy,,,,EMBCseq_Jan2022,ref2
+GC119382,GC119382.bam,GRP_healthy,,,,Emseq_Feb2022,ref2
+GC118493,GC118493.bam,GRP_healthy,,,,EMBCseq_Jan2022,ref2
+GC119369,GC119369.bam,GRP_healthy,,,,Emseq_Feb2022,ref2
+GC119408,GC119408.bam,GRP_healthy,,,,Emseq_Feb2022,ref2
+GC118483,GC118483.bam,GRP_healthy,,,,EMBCseq_Jan2022,ref2
+GC114134,GC114134.bam,GRP_healthy,,,,EMseq_Aug2021,ref2
+GC121343,GC121343.bam,GRP_healthy,,,,Emseq_March2022,ref2
+GC118466,GC118466.bam,GRP_healthy,,,,EMBCseq_Jan2022,ref2
+GC114140,GC114140.bam,GRP_healthy,,,,EMseq_Aug2021,ref2
+GC119423,GC119423.bam,GRP_healthy,,,,Emseq_Feb2022,ref2
+GC118463,GC118463.bam,GRP_healthy,,,,EMBCseq_Jan2022,ref2
+GC119414,GC119414.bam,GRP_healthy,,,,Emseq_Feb2022,ref2
+GC121348,GC121348.bam,GRP_healthy,,,,Emseq_March2022,ref2
+GC121331,GC121331.bam,GRP_healthy,,,,Emseq_March2022,ref2
+GC119367,GC119367.bam,GRP_healthy,,,,Emseq_Feb2022,ref2
+GC114142,GC114142.bam,GRP_healthy,,,,EMseq_Aug2021,ref2
+GC119377,GC119377.bam,GRP_healthy,,,,Emseq_Feb2022,ref2
+GC119361,GC119361.bam,GRP_healthy,,,,Emseq_Feb2022,ref2
+GC118486,GC118486.bam,GRP_healthy,,,,EMBCseq_Jan2022,ref2
+GC114132,GC114132.bam,GRP_healthy,,,,EMseq_Aug2021,ref2
+GC119406,GC119406.bam,GRP_healthy,,,,Emseq_Feb2022,ref2
+GC114133,GC114133.bam,GRP_healthy,,,,EMseq_Aug2021,ref2
+GC119429,GC119429.bam,GRP_healthy,,,,Emseq_Feb2022,ref2
+GC114185,GC114185.bam,GRP_healthy,,,,EMseq_Aug2021,ref2
+GC114137,GC114137.bam,GRP_healthy,,,,EMseq_Aug2021,ref2
+GC119418,GC119418.bam,GRP_healthy,,,,Emseq_Feb2022,ref2
+GC119420,GC119420.bam,GRP_healthy,,,,Emseq_Feb2022,ref2
+GC114127,GC114127.bam,GRP_healthy,,,,EMseq_Aug2021,ref2
+GC119390,GC119390.bam,GRP_healthy,,,,Emseq_Feb2022,ref2
+GC114129,GC114129.bam,GRP_healthy,,,,EMseq_Aug2021,ref2
+GC121335,GC121335.bam,GRP_healthy,,,,Emseq_March2022,ref2
+GC119430,GC119430.bam,GRP_healthy,,,,Emseq_Feb2022,ref2
+GC119380,GC119380.bam,GRP_healthy,,,,Emseq_Feb2022,ref2
+GC114186,GC114186.bam,GRP_healthy,,,,EMseq_Aug2021,ref2
+GC118473,GC118473.bam,GRP_healthy,,,,EMBCseq_Jan2022,ref2
+GC121338,GC121338.bam,GRP_healthy,,,,Emseq_March2022,ref2
+GC114139,GC114139.bam,GRP_healthy,,,,EMseq_Aug2021,ref2
+GC119410,GC119410.bam,GRP_healthy,,,,Emseq_Feb2022,ref2
+GC118484,GC118484.bam,GRP_healthy,,,,EMBCseq_Jan2022,ref2
+GC118472,GC118472.bam,GRP_healthy,,,,EMBCseq_Jan2022,ref2
+GC118468,GC118468.bam,GRP_healthy,,,,EMBCseq_Jan2022,ref2
+GC119409,GC119409.bam,GRP_healthy,,,,Emseq_Feb2022,ref2
+GC114183,GC114183.bam,GRP_healthy,,,,EMseq_Aug2021,ref2

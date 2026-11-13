@@ -73,6 +73,9 @@ struct Parameters {
     FILE** output_fp = nullptr;
     FILE** c_output_fp = nullptr;
     bool write_cytosines = false;
+    FILE* msi_output_fp = nullptr;
+    bool write_msi = false;
+    uint32_t msi_flank = 3;
 
     // Inclusion bounds for the 4 types of (converted) strands.
     // Useful resources:
@@ -115,23 +118,25 @@ struct Parameters {
     void parse_ctot_bounds(const char* arg) { parse_bounds(arg, ctot_bounds); }
     void parse_ctob_bounds(const char* arg) { parse_bounds(arg, ctob_bounds); }
     static void parse_bounds(const char* arg, int* bounds) {
-        size_t i = 0;
-        std::string s(arg);
-        size_t pos;
-        std::string token;
-        while ((pos = s.find(',')) != std::string::npos) {
-            token = s.substr(0, pos);
-            bounds[i] = std::stoi(token);
-            s.erase(0, pos + 1);
-            i++;
+        // Reject more than four values *before* writing beyond bounds[4].
+        size_t count = 0;
+        std::string remaining(arg);
+        size_t pos = 0;
+        while (true) {
+            pos = remaining.find(',');
+            const std::string token = remaining.substr(0, pos);
+            if (token.empty() || count == 4) {
+                throw std::invalid_argument("Expected exactly four nonempty inclusion bounds");
+            }
+            bounds[count++] = std::stoi(token);
+            if (pos == std::string::npos) break;
+            remaining.erase(0, pos + 1);
         }
-        if (s.length() > 0) {
-            bounds[i++] = std::stoi(s);
-        }
-        if (i != 4) {
-            throw std::invalid_argument("Inclusion bounds parameter expected 4 integers. Got " + std::to_string(i) + ".");
+        if (count != 4) {
+            throw std::invalid_argument("Expected exactly four inclusion bounds");
         }
     }
+
 };
 
 #endif // PARAMS_H_

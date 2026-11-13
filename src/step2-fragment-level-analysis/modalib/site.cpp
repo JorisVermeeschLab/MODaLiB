@@ -23,13 +23,6 @@
 
 namespace modalib {
 
-Region::Region(uint8_t chr, uint32_t start, uint32_t end) {
-    this->start.chr = chr;
-    this->start.pos = start;
-    this->end.chr = chr;
-    this->end.pos = end;
-}
-
 /**
  * Compare the position of a fragment with respect to the closest region.
  *
@@ -62,7 +55,7 @@ int Region::cmp(const FragmentInfo &r) {
     uint32_t end = this->end.pos;
     uint32_t r_end = r.end_pos;
 
-    if (r.start_chr_id == chr_id) {
+    if (r.chr_id == chr_id) {
         if (r_end < start) {
             return 1;
         } else if (r.start_pos > end) {
@@ -78,7 +71,7 @@ int Region::cmp(const FragmentInfo &r) {
         } else {
             return 5;
         }
-    } else if (r.start_chr_id < chr_id) {
+    } else if (r.chr_id < chr_id) {
         return 1;
     } else {
         return -1;

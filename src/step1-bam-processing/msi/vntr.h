@@ -35,19 +35,28 @@ const int MIN_MOTIF_LENGTH = 1;
 // Maximum length of a microsatellite motif (e.g., "ATCCA")
 const int MAX_MOTIF_LENGTH = 6;
 
-// Minimum number of repeats to be considered a microsatellite
+// Minimum number of complete motif copies to be considered a microsatellite
 const int MIN_NUM_REPEATS = 5;
 
 // Minimum number of bases to be considered a microsatellite
 const int MS_MIN_NUM_BASES = 15;
 
+// Permit terminal partial motifs when there are at least four complete copies
+// and the total motif-consistent run is at least 14 bases (e.g., ACT*4 + AC).
+// This broadens the reference catalog: validate specificity for your use case.
+const int MIN_FULL_COPIES_WITH_PARTIAL = 4;
+const int MIN_PARTIAL_REPEAT_BASES = 14;
+
 
 struct TandemRepeat {
     bool is_valid = false;
+    // Reference coordinates for read-based calls: 1-based inclusive.
+    // Sequence-local coordinates for find_microsatellite_in_reference(): 0-based inclusive.
     uint32_t start = 0;
     uint32_t end = 0;
     std::string motif;
-    uint16_t n_repeats = 0;
+    uint16_t n_repeats = 0;  // Complete motif copies
+    uint8_t terminal_partial_bases = 0;
     int16_t indels = 0;
     inline bool spans(uint32_t pos) const {
         return (start <= pos + 1) && (pos <= end + 1);

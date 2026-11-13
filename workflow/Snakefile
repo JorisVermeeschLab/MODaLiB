@@ -1,3 +1,4 @@
+
 import os
 import csv
 from pathlib import Path
@@ -5,98 +6,268 @@ from pathlib import Path
 
 configfile: "config/config.yaml"
 
+
+# --------------------------------------------------
+# Samples
+# --------------------------------------------------
+
 with open("config/samples.csv", newline="") as f:
     reader = csv.DictReader(f, delimiter=",")
-    samples = {
-        row["sample_id"]: os.path.join(config["data"]["folder"], row["bam"])
-        for row in reader
+    rows = list(reader)
+
+sample_ids = [row["sample_id"] for row in rows]
+
+if not sample_ids or len(sample_ids) != len(set(sample_ids)):
+    raise ValueError(
+        "Sample table is empty or contains duplicate sample identifiers"
+    )
+
+samples = {
+    row["sample_id"]: {
+        "bam": os.path.join(config["data"]["folder"], row["bam"]),
+        "reference": row["reference"].strip(),
     }
-if not samples or len(samples) != len(set(samples)):
-    raise ValueError("Sample table is empty or has duplicate sample identifiers")
+    for row in rows
+}
+
 SAMPLES = list(samples)
 
-RUN_BENCHMARK = str(config.get("benchmark", False)).lower() == "true"
+for sample, info in samples.items():
+    if info["reference"] not in {"ref1", "ref2"}:
+        raise ValueError(
+            f"Invalid reference for sample {sample}: "
+            f"{info['reference']!r}"
+        )
 
 
 def bam_of(wc):
-    return samples[wc.sample]
+    return samples[wc.sample]["bam"]
 
+
+def genome_of(wc):
+    reference = samples[wc.sample]["reference"]
+    if reference == "ref1":
+        return config["references"]["genome"]
+    else:
+        return config["references"]["genome_alt"]
+
+
+def genome_2bits_of(wc):
+    reference = samples[wc.sample]["reference"]
+    if reference == "ref1":
+        return config["references"]["genome_2bits"]
+    else:
+        return config["references"]["genome_alt_2bits"]
+
+
+# --------------------------------------------------
+# Optional benchmarking
+# --------------------------------------------------
+
+RUN_BENCHMARK = (
+    str(config.get("benchmark", False)).lower() == "true"
+)
+
+if RUN_BENCHMARK:
+    benchmark_inputs = config.get("benchmark_inputs", {})
+
+    required_inputs = (
+        "chrom_sizes",
+        "delfi_bins",
+        "wps_sites",
+        "gap_file"
+    )
+
+    missing_inputs = [
+        key
+        for key in required_inputs
+        if not isinstance(benchmark_inputs.get(key), str)
+        or not benchmark_inputs[key]
+    ] if isinstance(benchmark_inputs, dict) else list(required_inputs)
+
+    if missing_inputs:
+        raise ValueError(
+            "Benchmarking enabled, but benchmark_inputs is missing: "
+            + ", ".join(missing_inputs)
+        )
+
+benchmark_outputs = (
+    expand(
+        "results/benchmarks/{sample}/benchmark.json",
+        sample=SAMPLES
+    )
+    if RUN_BENCHMARK
+    else []
+)
+
+
+# --------------------------------------------------
+# Final targets
+# --------------------------------------------------
 
 rule all:
     input:
-        expand("results/features/{sample}/50kb-noXY.npz", sample=SAMPLES)
+        expand(
+            "results/features/{sample}/50kb-noXY.npz",
+            sample=SAMPLES
+        ),
+        benchmark_outputs
 
+
+# --------------------------------------------------
+# Benchmarking
+# --------------------------------------------------
+
+if RUN_BENCHMARK:
+
+    rule benchmark_contenders:
+        priority: 40
+
+        input:
+            bam="results/gcparagon/{sample}.bam",
+            bai="results/gcparagon/{sample}.bam.bai",
+            chrom_sizes=config["benchmark_inputs"]["chrom_sizes"],
+            delfi_bins=config["benchmark_inputs"]["delfi_bins"],
+            wps_sites=config["benchmark_inputs"]["wps_sites"],
+            gap_file=config["benchmark_inputs"]["gap_file"],
+            reference=genome_of,
+            griffin_sites=config["griffin"]["sites"]
+
+        output:
+            manifest="results/benchmarks/{sample}/benchmark.json"
+
+        threads: config.get("benchmark_threads", 8)
+
+        params:
+            griffin_root=config["griffin"]["root"]
+
+        log:
+            "logs/benchmark/{sample}.log"
+
+        benchmark:
+            "results/benchmarks/{sample}/snakemake.tsv"
+
+        script:
+            "scripts/run_benchmarks.py"
+
+
+# --------------------------------------------------
+# Reference preprocessing
+# --------------------------------------------------
 
 rule preprocess_reference_expression:
     priority: 100
+
     input:
         h5ad=config["references"]["tabula_sapiens"]
+
     output:
         npz="results/reference_expression/mat.npz"
+
     log:
         "logs/preprocess_reference_expression.log"
+
     script:
         "scripts/preprocess_reference_expression.py"
 
 
+# --------------------------------------------------
+# GCparagon
+# --------------------------------------------------
+
 rule gcparagon:
     priority: 0
+
     input:
-        bam=bam_of
+        bam=bam_of,
+        reference=genome_2bits_of
+
     output:
         bam=temp("results/gcparagon/{sample}.bam"),
         bai=temp("results/gcparagon/{sample}.bam.bai")
-    threads: config["gcparagon"].get("threads", 8)
+
+    threads:
+        config["gcparagon"].get("threads", 8)
+
     params:
         tool=config["tools"]["gcparagon"],
-        reference=config["references"]["genome_2bits"],
+
     log:
         "logs/gcparagon/{sample}.log"
+
     script:
         "scripts/run_gcparagon.py"
 
 
+# --------------------------------------------------
+# MethylDackel
+# --------------------------------------------------
+
 rule methyldackel:
     priority: 10
+
     input:
         bam="results/gcparagon/{sample}.bam",
         bai="results/gcparagon/{sample}.bam.bai",
-        ref=config["references"]["genome"]
+        ref=genome_of
+
     output:
         mbias="results/methylation/{sample}/{sample}_mbias.tsv"
-    threads: config["methyldackel"].get("threads", 8)
+
+    threads:
+        config["methyldackel"].get("threads", 8)
+
     params:
         tool=config["tools"]["methyldackel"]
+
     log:
         "logs/methyldackel/{sample}.log"
+
     script:
         "scripts/run_methyldackel.py"
 
 
+# --------------------------------------------------
+# BamConvertor
+# --------------------------------------------------
+
 rule bamconvertor:
     priority: 20
+
     input:
         bam="results/gcparagon/{sample}.bam",
         bai="results/gcparagon/{sample}.bam.bai",
+        reference=genome_of,
         mbias="results/methylation/{sample}/{sample}_mbias.tsv"
+
     output:
-        modalib="results/modalib/{sample}.modalib"
+        modalib="results/modalib/{sample}.modalib",
+        jag="results/modalib/{sample}.modalib.jag"
+
     threads: 1
+
     params:
-        tool=config["tools"]["bamconvertor"],
-        reference=config["references"]["genome"],
+        tool=config["tools"]["bamconvertor"]
+
     log:
         "logs/bamconvertor/{sample}.log"
+
     script:
         "scripts/run_bamconvertor.py"
 
 
+# --------------------------------------------------
+# MODaLiB feature extraction
+# --------------------------------------------------
+
 rule feature_extraction:
     priority: 30
+
     input:
         modalib="results/modalib/{sample}.modalib",
         modalib_jag="results/modalib/{sample}.modalib.jag",
         mbias="results/methylation/{sample}/{sample}_mbias.tsv"
+
     output:
         ctcf="results/features/{sample}/ctcf-noXY.npz",
         windows="results/features/{sample}/50kb-noXY.npz",
@@ -104,13 +275,17 @@ rule feature_extraction:
         tss="results/features/{sample}/tss-noXY.npz",
         genebodies="results/features/{sample}/genebodies-noXY.npz",
         metdecode="results/features/{sample}/metdecode-noXY.npz",
-        colorectal="results/features/{sample}/meth-noXY.npz"
+        colorectal="results/features/{sample}/meth.npz"
+
     threads: 1
+
     params:
         nuc_reference=config["references"]["nucleosomes"],
         downsample=config["modalib"]["downsample"],
         target_n_fragments=config["modalib"]["target_n_fragments"]
+
     log:
         "logs/feature_extraction/{sample}.log"
+
     script:
         "scripts/run_feature_extraction.py"

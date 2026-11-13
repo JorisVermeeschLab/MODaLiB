@@ -1,5 +1,6 @@
 from typing import List, Tuple
 
+import os
 import numpy as np
 import datetime
 import collections
@@ -8,6 +9,10 @@ from sklearn.model_selection import cross_val_predict
 from sklearn.model_selection import StratifiedKFold
 import lightgbm
 from scipy.optimize import linear_sum_assignment
+
+
+CONFIG_FOLDER = "../config"
+os.makedirs(CONFIG_FOLDER, exist_ok=True)
 
 
 RUN_TO_DATETIME = {
@@ -98,6 +103,12 @@ STANDARDIZE_LOCATION = {
     'Liver flexure + rectosigmoïd': 'Rectosigmoid', 'rectosigmoïd': 'Rectosigmoid'
 }
 
+SAMPLE_IDS_NO_PUC = {'GC140036', 'GC147297_GTTTGCTC-ACCAACAG', 'GC147297_AAGGCGTA-CCATCCGC', 'GC142065', 'GC146766_TACGGTCT-TCCATTGC', 'GC146769_GCCTTAAC-TAGGAGCT', 'GC137547', 'GC146664_GATCTTGC-CATGAGCA', 'GC146373', 'GC137540', 'GC147297_ATTACCCA-CACTGTAG', 'GC146387', 'GC146338', 'GC146769_GTCGATTG-AAGACCGT', 'GC146343', 'GC146328', 'GC142074', 'GC146365', 'GC146664_CACAGACT-CTGTACCA', 'GC146664_GTCATCGT-CCGCTTAA', 'GC146376', 'GC137541', 'GC147297_ATGGCTGT-CCTGTCAA', 'GC146384', 'GC146664_CGCAACTA-TCGGATTC', 'GC146665_CGAATTGC-GTAAGGTG', 'GC146665_CTCAGAAG-GGCAAGTT', 'GC146391', 'GC146345', 'GC146766_TTCCAGGT-CAGTGCTT', 'GC146351', 'GC146665_TTGCGAGA-TATGGCAC', 'GC146355', 'GC146665_GAACGAAG-GAATCACC', 'GC146665_CCAGTATC-AGCGAGAT', 'GC146329', 'GC145418', 'GC146347', 'GC161787_TCCTCATG-GTACACCT', 'GC146361', 'GC146664_GAACGGTT-GGAGGAAT', 'GC137544', 'GC145416', 'GC146665_GAGAGTAC-TGGAAGCA', 'GC146389', 'GC142078', 'GC146664_TGGTGAAG-CTTACAGC', 'GC146665_CTTAGGAC-CTTCACTG', 'GC146665_TCTACGCA-CAATAGCC', 'GC146333', 'GC146665_CATGAGCA-GATCTTGC', 'GC137553', 'GC146340', 'GC146665_GAATCCGT-CAACTCCA', 'GC146664_AGCTAAGC-GTCGTTAC', 'GC146664_TTACGTGC-AGACCTTG', 'GC146330', 'GC137546', 'GC146664_AGCTACCA-GTCCTAAG', 'GC146665_CAGGTTCA-ATAACGCC', 'GC161787_CCGCTTAA-GTCATCGT', 'GC161787_CTCAGAAG-GGCAAGTT', 'GC146390', 'GC140049', 'GC137543', 'GC142073', 'GC161786_TATGGCAC-TTGCGAGA', 'GC146665_TCATCTCC-CTTGCTAG', 'GC146344', 'GC146339', 'GC146364', 'GC146665_GCGTTAGA-CAGCATAC', 'GC146769_TCTAGGAG-AGTGACCT', 'GC137538', 'GC142062', 'GC146665_GTAACCGA-AAGACACC', 'GC146664_GGCAAGTT-CTCAGAAG', 'GC146381', 'GC147298_ATTACCCA-CACTGTAG', 'GC146769_AGCGAGAT-CCAGTATC', 'GC146337', 'GC146665_TACGGTCT-TCCATTGC', 'GC146356', 'GC146357', 'GC146766_TCGTCTGA-GTCCTTGA', 'GC146352', 'GC137550', 'GC146664_CTCGACTT-ATCTGACC', 'GC146769_TCCATTGC-TACGGTCT', 'GC146664_GATAGCCA-CAACACAG', 'GC145427', 'GC146769_ATAACGCC-CAGGTTCA', 'GC146353', 'GC146664_GGTGTACA-AGACGCTA', 'GC146354', 'GC145425', 'GC146386', 'GC146366', 'GC146378', 'GC137549', 'GC146766_TACTCCAG-GGTATAGG', 'GC146359', 'GC146380', 'GC146665_TAGGAGCT-GCCTTAAC', 'GC146382', 'GC137555', 'GC146362', 'GC137551', 'GC146377', 'GC137556', 'GC146766_AAGACCGT-GTCGATTG', 'GC146368', 'GC146665_GTCCTAAG-AGCTACCA', 'GC140053', 'GC146371', 'GC146664_CTCGAACA-GCAATTCC', 'GC161787_GTAAGGTG-CGAATTGC', 'GC146383', 'GC147298_AAGCGACT-ACGAATCC', 'GC146769_GAATCACC-GAACGAAG', 'GC146769_TATGGCAC-TTGCGAGA', 'GC146363', 'GC137548', 'GC146350', 'GC146385', 'GC146664_GGACATCA-TACCTGCA', 'GC146367', 'GC146769_GTCCTTGA-TCGTCTGA', 'GC146341', 'GC146665_GGAAGAGA-CGAGAGAA', 'GC146332', 'GC146664_CAATGCGA-GACGAACT', 'GC146664_CAACTCCA-GAATCCGT', 'GC146336', 'GC145423', 'GC146335', 'GC137539', 'GC146766_TAGGAGCT-GCCTTAAC', 'GC146664_GGTTGAAC-TCCACGTT', 'GC146370', 'GC146374', 'GC146665_GTCGTTAC-AGCTAAGC', 'GC140052', 'GC146375', 'GC145435', 'GC146769_GGTATAGG-TACTCCAG', 'GC146769_GTAAGGTG-CGAATTGC', 'GC146664_CAGCATAC-GCGTTAGA', 'GC142076', 'GC146665_GCAATTCC-CTCGAACA', 'GC145430', 'GC145429', 'GC146360', 'GC137557', 'GC146342', 'GC146334', 'GC146769_TGCGTAAC-AGCCTATC', 'GC146769_CGAGAGAA-GGAAGAGA', 'GC161787_CGAATTGC-GTAAGGTG', 'GC146664_CAATAGCC-TCTACGCA', 'GC146664_CGTATCTC-CAAGGTAC', 'GC147297_TCCCACGA-TTCAATAG', 'GC146369', 'GC146665_TACTCCAG-GGTATAGG', 'GC146372', 'GC142056', 'GC146769_CTTGCTAG-TCATCTCC', 'GC137552', 'GC147297_GTCTGAGT-GACTTGTG', 'GC137545', 'GC146331', 'GC146664_CCACAACA-GTACCACA', 'GC146766_CAGGTTCA-ATAACGCC', 'GC146348', 'GC146664_TGGAAGCA-GAGAGTAC', 'GC146349', 'GC146346', 'GC146665_AGACCTTG-TTACGTGC', 'GC161787_GTCCTAAG-AGCTACCA', 'GC146665_ATCTGACC-CTCGACTT', 'GC146769_CAGTGCTT-TTCCAGGT', 'GC146664_CTTCGGTT-AACCAGAG', 'GC161787_CAGCATAC-GCGTTAGA', 'GC147297_TGTTCGCC-AGGTAGGA', 'GC146664_AAGACACC-GTAACCGA', 'GC146379', 'GC146766_TTACCGAC-CGAATACG', 'GC140042', 'GC142079', 'GC147297_ACAAGGCA-TCGCGCAA', 'GC146769_CGAATACG-TTACCGAC', 'GC146358', 'GC137542', 'GC146664_CTTCACTG-CTTAGGAC', 'GC137554', 'GC146388'}
+
+STANDARDIZE_CATEGORY = {
+    "Healthy pregnant": "pregnant_control", "Cancer": "cancer"
+}
+
 
 def age_to_float(age_str: str) -> float:
     if isinstance(age_str, int):
@@ -163,6 +174,47 @@ def match(df_cases, df_controls, vars_cols: List[str], id_col: str) -> Tuple[pd.
     return matched_cases, matched_controls
 
 
+def filename_from_sample_id(s: str) -> str:
+    if s in {
+        'GC121327', 'GC121330', 'GC118481', 'GC118484', 'GC121334',
+        'GC121335', 'GC119384', 'GC114137', 'GC114131', 'GC118465', 'GC145430, GC161787_AACCAGAG-CTTCGGTT',
+        'GC121344', 'GC118493', 'GC121329', 'GC121333', 'GC119367', 'GC121341', 'GC118496', 'GC114134',
+        'GC119406', 'GC114127', 'GC114183', 'GC119408', 'GC145429, GC161786_TCCTCATG-GTACACCT', 'GC119380',
+        'GC121346', 'GC114140', 'GC119414', 'GC119361', 'GC114133', 'GC118473', 'GC118466', 'GC118483',
+        'GC119430', 'GC119394', 'GC119395', 'GC119390', 'GC119377', 'GC121339', 'GC145423, GC161786_TTGCGAGA-TATGGCAC',
+        'GC119376', 'GC131894 ', 'GC121326', 'GC114135', 'GC114132', 'GC114142', 'GC118468', 'GC121348',
+        'GC119405', 'GC119409', 'GC119344', 'GC119429', 'GC114139', 'GC119381', 'GC119389', 'GC114186',
+        'GC118472', 'GC119369', 'GC121331', 'GC114129', 'GC121338', 'GC121342', 'GC119403', 'GC119382',
+        'GC119423', 'GC119418', 'GC119420', 'GC145416, GC161786_TCATCTCC-CTTGCTAG', 'GC119410', 'GC118482',
+        'GC145418, GC161786_TACTCCAG-GGTATAGG',
+        'GC118486', 'GC118463', 'GC114138', 'GC121343', 'GC114185',
+        'GC110688', 'GC112846', 'GC112847', 'GC112866', 'GC112867', 'GC112868', 'GC112869', 'GC115809',
+        'GC110687', 'GC116718', 'GC116719', 'GC116720', 'GC116721', 'GC116722', 'GC116723', 'GC116724', 'GC116725',
+        'GC116726', 'GC116727', 'GC116728', 'GC116729', 'GC116730', 'GC116731', 'GC116732', 'GC116733', 'GC116734'
+    }:
+        return s + ".bam"
+    elif (len(s) == 9) and s.startswith("GC100"):
+        return s + ".bam"
+    return s + ".merged.rmdup.bam"
+
+
+def reference_from_sample_id(s: str):
+    if s in SAMPLE_IDS_NO_PUC:
+        return 'ref1'
+    else:
+        return 'ref2'
+
+
+def clean_dataframe(df):
+    df["category"] = df["category"].apply(lambda s: STANDARDIZE_CATEGORY.get(s, s))
+    df["sample_id"] = df["Emseq_GCCODE"].apply(lambda s: s.split(',')[0].strip())
+    df["bam"] = df["sample_id"].apply(filename_from_sample_id)
+    df["batch"] = df["Run"]
+    df["reference"] = df["sample_id"].apply(reference_from_sample_id)
+    df = df[["sample_id", "bam", "category", "cancer_type", "cancer_stage", "cancer_location", "batch", "reference"]]
+    return df
+
+
 # Load metadata
 df = pd.read_excel('../data/Metadata_EMseqsamples.xlsx')
 
@@ -172,7 +224,7 @@ ctdna_data = ctdna_df.set_index("Patient ID").to_dict(orient="index")
 locations = []
 msi_statuses = []
 metastasized = []
-for code, subtype, other in zip(df['CODE'], df['Subtype'], df['other_info']):
+for code, subtype, other in zip(df['CODE'], df['Subtype'], df['other info']):
     location, msi, has_metastasis = np.nan, np.nan, np.nan
     if subtype in SUBTYPE_MSI:
         location, msi = SUBTYPE_MSI[subtype]
@@ -192,15 +244,29 @@ df['MSS/MSI-status'] = msi_statuses
 df['Metastasis'] = metastasized
 
 # Standardize some columns
-df['stage'] = df['stage'].apply(lambda s: STANDARDIZE_STAGE.get(s, s))
-df['MSS/MSI-status'] = df['MSS/MSI-status'].apply(lambda s: STANDARDIZE_MSI_STATUS.get(s, s))
-df['Cancer-location'] = df['Cancer-location'].apply(lambda s: STANDARDIZE_LOCATION.get(s, s))
+df['cancer_stage'] = df['stage'].apply(lambda s: STANDARDIZE_STAGE.get(s, s))
+df['msi_status'] = df['MSS/MSI-status'].apply(lambda s: STANDARDIZE_MSI_STATUS.get(s, s))
+df['cancer_location'] = df['Cancer-location'].apply(lambda s: STANDARDIZE_LOCATION.get(s, s))
+df['cancer_type'] = df['Cancer Type']
 
 # Format some columns numerically
 df['Run_num'] = df['Run'].apply(lambda s: RUN_TO_DATETIME.get(s, np.nan))
 df['sex_num'] = df['sex'].apply(lambda s: SEX_TO_FLOAT.get(s, np.nan))
 df['AGE_num'] = df['AGE'].apply(lambda s: age_to_float(s))
 df['stage_num'] = df['stage'].apply(lambda s: STAGE_TO_FLOAT.get(s, np.nan))
+
+# Get pregnant controls
+mask = df['category'].apply(lambda s: s == 'Healthy pregnant')
+mask &= df['GA at sampling'].apply(lambda s: str(s) != 'nan')
+mask &= df['Emseq_GCCODE'].apply(lambda s: s != 'NA')
+mask &= df['Sample type'].apply(lambda s: s == 'cfDNA')
+mask &= df['status'].apply(lambda s: s == 'sequenced')
+mask &= df['other info'].apply(lambda s: s not in {'replicate', 'repl', 'Do not upload data, thienpont lab library', 'Do not upload data'})
+mask &= df['library notes'].apply(lambda s: s not in {'Heitzer', 'NO PROCESS ARCHIVED CONSENSUS', 'NaOH, low library yield', 'BISULFITE', 'low library yield', 'Low library yield', 'NaOH, Low library yield'})
+df_preg = df[mask]
+df_preg_clean = clean_dataframe(df_preg)
+df_preg_clean['GA'] = df[mask]['GA at sampling']
+df_preg_clean.to_csv(os.path.join(CONFIG_FOLDER, "pregnant_controls.csv"), index=False)
 
 # Get colorectal cancer cases (COLCA)
 mask = df['category'].apply(lambda s: s in {'cancer', 'Cancer'})
@@ -236,12 +302,6 @@ matched_cases = matched_cases.reset_index(drop=True)
 matched_controls = matched_controls.reset_index(drop=True)
 matched_df = pd.concat([matched_cases, matched_controls], ignore_index=True)
 
-print(collections.Counter(matched_df['sex']))
-print(collections.Counter(matched_cases['Metastasis']))
-print(collections.Counter(matched_cases['Cancer-location']))
-print(collections.Counter(matched_cases['MSS/MSI-status']))
-exit()
-
 # Define split based on matched control category
 is_grp = (matched_controls["category"] == "GRP_healthy").to_numpy()
 
@@ -253,9 +313,9 @@ train_df = pd.concat(
     ],
     ignore_index=True
 )
-
 print(collections.Counter(train_df["category"]))
-train_df.to_csv("training_set.csv", index=False)
+train_df = clean_dataframe(train_df)
+train_df.to_csv(os.path.join(CONFIG_FOLDER, "training_set.csv"), index=False)
 
 # Test set
 test_df = pd.concat(
@@ -265,6 +325,10 @@ test_df = pd.concat(
     ],
     ignore_index=True
 )
-
 print(collections.Counter(test_df["category"]))
-test_df.to_csv("test_set.csv", index=False)
+test_df = clean_dataframe(test_df)
+test_df.to_csv(os.path.join(CONFIG_FOLDER, "test_set.csv"), index=False)
+
+
+df = pd.concat([df_preg_clean, train_df, test_df], axis=0, join="inner", ignore_index=True)
+df.to_csv(os.path.join(CONFIG_FOLDER, "samples.csv"), index=False)

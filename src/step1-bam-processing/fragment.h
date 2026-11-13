@@ -129,29 +129,15 @@ public:
         return this->r1.is_duplicate() && this->r2.is_duplicate();
     }
     bool is_valid() const {
-
-        // Ensure both reads are not on the same strand
-        if (r1.is_forward_strand() && r2.is_forward_strand()) return false;
-        if (r1.is_reverse_strand() && r2.is_reverse_strand()) return false;
-
-        // Both reads should originate from either the top or bottom strand.
-        // In other words, one of the 2 should have been reversed-mapped.
-        if (r1.strand != r2.strand) return false;
-
-        // Ensure fragment has non-zero size
-        // if (this->length < MIN_FRAGMENT_SIZE) return false;
-        // if (this->insert_size < MIN_FRAGMENT_SIZE) return false;
-
-        // Quality checks
+        if (!single_read) {
+            if (r1.is_forward_strand() == r2.is_forward_strand()) return false;
+            if (r1.strand != r2.strand) return false;
+        }
+        if (length == 0) return false;
         if (failed_quality_checks()) return false;
         if (is_duplicate()) return false;
-
-        // Ensure known chromosome
         if (chr_id == 0) return false;
-
-        // Ensure that end-motifs are known
         if (!end_motif_5p.is_valid()) return false;
-
         return true;
     }
     void serialize(char* buffer) const {

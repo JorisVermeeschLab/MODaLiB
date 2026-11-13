@@ -28,14 +28,12 @@
 #include "../jaggedness.h"
 #include "../fragment.h"
 #include "../msi/vntr.h"
-#include "../msi/overlap.h"
-#include "../msi/region_list.h"
 
 
 void print(const ReadInfo& read_info, const TandemRepeat& tr) {
 
-    uint32_t ms_start = read_info.start + tr.start;
-    uint32_t ms_end = read_info.start + tr.end;
+    uint32_t ms_start = tr.start;
+    uint32_t ms_end = tr.end;
 
     std::string s1;
     std::string s1a;
@@ -133,17 +131,33 @@ Fragment compute_fragment_statistics(const ReadInfo& read_info) {
 
     // Store end motifs
     if (ref_seq.size() >= 4) {
-        size_t p = read_info.ref_bases.size();
+        const size_t p = ref_seq.size();
+
         if ((fragment.strand & 1) == 1) {
-            fragment.end_motif_5p = EndMotif(ref_seq[0].c, ref_seq[1].c, ref_seq[2].c, ref_seq[3].c, STRAND_OT);
-            fragment.end_motif_3p = EndMotif(ref_seq[p-1].c, ref_seq[p-2].c, ref_seq[p-3].c, ref_seq[p-4].c, STRAND_OT);
+            fragment.end_motif_5p = EndMotif(
+                ref_seq[0].c, ref_seq[1].c,
+                ref_seq[2].c, ref_seq[3].c,
+                STRAND_OT
+            );
+
+            fragment.end_motif_3p = EndMotif(
+                ref_seq[p - 1].c, ref_seq[p - 2].c,
+                ref_seq[p - 3].c, ref_seq[p - 4].c,
+                STRAND_OT
+            );
         } else {
-            fragment.end_motif_5p = EndMotif(ref_seq[p-1].c, ref_seq[p-2].c, ref_seq[p-3].c, ref_seq[p-4].c, STRAND_OB);
-            fragment.end_motif_3p = EndMotif(ref_seq[0].c, ref_seq[1].c, ref_seq[2].c, ref_seq[3].c, STRAND_OB);
+            fragment.end_motif_5p = EndMotif(
+                ref_seq[p - 1].c, ref_seq[p - 2].c,
+                ref_seq[p - 3].c, ref_seq[p - 4].c,
+                STRAND_OB
+            );
+
+            fragment.end_motif_3p = EndMotif(
+                ref_seq[0].c, ref_seq[1].c,
+                ref_seq[2].c, ref_seq[3].c,
+                STRAND_OB
+            );
         }
-    } else {
-        fragment.end_motif_5p = EndMotif('N', 'N', 'N', 'N', STRAND_OT);
-        fragment.end_motif_3p = EndMotif('N', 'N', 'N', 'N', STRAND_OT);
     }
 
     // Fragment weight

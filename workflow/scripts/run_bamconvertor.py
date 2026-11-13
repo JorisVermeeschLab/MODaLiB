@@ -127,12 +127,14 @@ log_path.parent.mkdir(parents=True, exist_ok=True)
 
 cmd = [
     str(snakemake.params.tool),
-    snakemake.params.reference,
+    snakemake.input.reference,
     snakemake.input.bam,
     "-o", str(out),
     "--cconv",
     "--OT", ",".join(map(str, bounds[:4])),
     "--OB", ",".join(map(str, bounds[4:])),
+    "-m", str(out) + ".ms.txt",
+    "-x", "3"
 ]
 
 with log_path.open("w") as log:

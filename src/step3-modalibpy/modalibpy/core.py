@@ -6,9 +6,109 @@ from scipy.optimize import nnls
 from sklearn.preprocessing import LabelEncoder
 
 from modalibpy.deconvolution.metdecode import MetDecode, load_input_file
-from modalibpy.stages import Annotation
+from modalibpy.stages import Annotation, BreastCancerStage
 from modalibpy.dataset import Dataset
 from modalibpy.gene_expression.data import GeneExpressionData
+
+
+def load_legacy_dataset(filepaths: List[str], root: str = ".") -> Dataset:
+    cohort = pd.read_excel(os.path.join(root, "paper", "metadata", "ctDNA pre surgery cohort 2.xlsx"))
+    extra_age = dict(zip(cohort["Patient ID"].astype(str), cohort["Age"]))
+    extra_sex = {str(code): sex[0] for code, sex in zip(cohort["Patient ID"], cohort["Gender"])}
+    extra_msi = dict(zip(cohort["Patient ID"].astype(str), cohort["MSS/MSI status"]))
+    extra_location = dict(zip(cohort["Patient ID"].astype(str), cohort["Location"]))
+    extra_reason = dict(zip(cohort["Patient ID"].astype(str), cohort["Reason for Surgery"]))
+    metadata = pd.read_excel(os.path.join(root, "paper", "metadata", "Metadata_EMseqsamples.xlsx"))
+
+    ichor, annotations, ages, sexes, batches, notes = {}, {}, {}, {}, {}, {}
+    for _, row in metadata.iterrows():
+        gc_code = row["GC CODE"]
+        patient_id = row["CODE"]
+        patient_id = patient_id.strip() if isinstance(patient_id, str) else str(patient_id) if isinstance(patient_id, int) else ""
+
+        if row["Cancer Type"] in {"Breast cancer", "breast cancer"}:
+            subtype = row["Subtype"] if isinstance(row["Subtype"], str) else ""
+            annotation = BreastCancerStage(True, row["stage"], subtype)
+        elif isinstance(row["Cancer Type"], str) and row["Cancer Type"].lower() == "colorectal cancer":
+            location = extra_location.get(patient_id, "")
+            location = location if isinstance(location, str) else ""
+            cancer_stage = row["stage"]
+            reason = extra_reason.get(patient_id, "")
+            if not location and isinstance(reason, str) and "liver" in reason.lower().replace(" ", ""):
+                location, cancer_stage = "Liver metastasis", "IV"
+            annotation = Annotation(True, cancer_stage, location, cancer_type="colorectal")
+            subtype = row["Subtype"]
+            if isinstance(subtype, str):
+                if "MSS" in subtype:
+                    annotation.msi = "MSS"
+                elif "MSI" in subtype:
+                    annotation.msi = "MSI-H"
+            if patient_id in extra_msi:
+                annotation.msi = extra_msi[patient_id]
+                if not isinstance(annotation.msi, str):
+                    annotation.msi = ""
+        elif isinstance(row["category"], str) and row["category"] in {
+            "cancer", "Cancer", "GRP_cancer", "grp_cancer"
+        }:
+            annotation = Annotation(True, row["stage"], cancer_type=row["Cancer Type"].lower())
+        else:
+            annotation = Annotation()
+        annotations[gc_code] = annotation
+
+        age = row["AGE"]
+        if isinstance(age, str):
+            if "-" in age:
+                age = np.mean([float(value) for value in age.split("-")])
+            elif age == "?":
+                age = np.nan
+            else:
+                age = float(age)
+        elif np.isnan(age):
+            age = np.nan
+        else:
+            age = float(age)
+        if np.isnan(age) and str(row["CODE"]) in extra_age:
+            age = extra_age[str(row["CODE"])]
+        ages[gc_code] = age
+
+        sex = row["sex"]
+        if isinstance(sex, str):
+            if sex.upper() == "F":
+                sex = 1
+            elif sex.upper() == "M":
+                sex = 0
+            else:
+                raise NotImplementedError(f'Unknown sex "{sex}"')
+        else:
+            sex = np.nan
+        if np.isnan(sex) and str(row["CODE"]) in extra_sex:
+            sex = extra_sex[str(row["CODE"])] == "F"
+        sexes[gc_code] = sex
+
+        batches[gc_code] = row["Run"]
+        notes[gc_code] = row["notes"]
+        ichor[gc_code] = row["Ichore - methbased"]
+
+    gc_codes = [os.path.splitext(os.path.basename(filepath))[0] for filepath in filepaths]
+
+    def values_for_sample(values: dict, gc_code: str):
+        return values[gc_code] if gc_code in values else values[gc_code.split("_")[0]]
+
+    dataset_sexes = np.asarray([values_for_sample(sexes, code) for code in gc_codes], dtype=float)
+    dataset_ages = np.asarray([values_for_sample(ages, code) for code in gc_codes], dtype=float)
+    dataset_ichor = np.asarray([values_for_sample(ichor, code) for code in gc_codes], dtype=float)
+    dataset_annotations = np.asarray([values_for_sample(annotations, code) for code in gc_codes], dtype=object)
+    dataset_batches = np.asarray([values_for_sample(batches, code) for code in gc_codes], dtype=str)
+    dataset_notes = np.asarray([values_for_sample(notes, code) for code in gc_codes], dtype=object)
+    groups = np.squeeze(LabelEncoder().fit_transform(dataset_batches))
+
+    dataset = Dataset(filepaths, dataset_annotations, groups=groups)
+    dataset.sexes = dataset_sexes
+    dataset.ages = dataset_ages
+    dataset.ichor = dataset_ichor
+    dataset.notes = dataset_notes
+    dataset.gc_codes = np.asarray(gc_codes, dtype=object)
+    return dataset
 
 
 def _load_dataset_from_metadata(metadata_df: pd.DataFrame, region_name: str, results_folder: str) -> Dataset:
